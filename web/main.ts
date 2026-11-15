@@ -206,22 +206,19 @@ function positionSunMarker(
 
   let pos: { x: number; y: number };
   if (minutesOfDay < sunriseMin) {
-    // 00:00 〜 日の出: 左側の地平線下カーブ (52,78) -> (99,112) -> (146,78)
     const t = Math.max(0, Math.min(1, minutesOfDay / Math.max(1, sunriseMin)));
     pos = quadBezier(t, 52, 78, 99, 112, 146, 78);
-    badgeGroup.setAttribute("transform", "translate(0, -28)");
+    badgeGroup.setAttribute("transform", "translate(0, -22)");
   } else if (minutesOfDay <= sunsetMin) {
-    // 日の出 〜 日の入り: 日中の太陽アーク (146,78) -> (300,-8) -> (454,78)
     const span = Math.max(60, sunsetMin - sunriseMin);
     const t = Math.max(0, Math.min(1, (minutesOfDay - sunriseMin) / span));
     pos = quadBezier(t, 146, 78, 300, -8, 454, 78);
-    badgeGroup.setAttribute("transform", "translate(0, -31)");
+    badgeGroup.setAttribute("transform", "translate(0, -24)");
   } else {
-    // 日の入り 〜 24:00: 右側の地平線下カーブ (454,78) -> (501,112) -> (548,78)
     const nightSpan = Math.max(1, 1440 - sunsetMin);
     const t = Math.max(0, Math.min(1, (minutesOfDay - sunsetMin) / nightSpan));
     pos = quadBezier(t, 454, 78, 501, 112, 548, 78);
-    badgeGroup.setAttribute("transform", "translate(0, -28)");
+    badgeGroup.setAttribute("transform", "translate(0, -22)");
   }
 
   marker.setAttribute(
@@ -230,6 +227,11 @@ function positionSunMarker(
   );
 }
 
+/**
+ * 1段目: BUY / SELL (y=64)
+ * 2段目: SOLAR / USE (y=214)
+ * 3段目: BATTERY (y=300)
+ */
 function updateFlowLines(
   solarKw: number,
   useKw: number,
@@ -247,22 +249,12 @@ function updateFlowLines(
   // 待機買電 (<= 0.08kW) のときは買電アニメーション線を動かさない
   const buyActive = buyKw > STANDBY_BUY_MAX_KW;
   const sellActive = sellKw >= 0.02;
-  const battCharging = battChargeKw >= 0.03; // 正 = 充電 (上から下へ)
-  const battDischarging = battChargeKw <= -0.03; // 負 = 放電 (下から上へ)
+  const battCharging = battChargeKw >= 0.03; // 正 = 充電 (SOLAR/BUY -> BATTERY: 上から下)
+  const battDischarging = battChargeKw <= -0.03; // 負 = 放電 (BATTERY -> USE: 下から上)
 
-  setLine("line-use", useActive ? "active-green" : null);
-  setLine("line-sell", sellActive ? "active-blue" : null);
   setLine("line-buy", buyActive ? "active-pink" : null);
-
-  if (battDischarging) {
-    // バッテリー放電時は下(BATTERY: y=300)から上(y=214)へ逆向きに流す
-    setLine("line-batt", "active-purple flow-reverse");
-  } else if (battCharging) {
-    // バッテリー充電時は上(y=214)から下(BATTERY: y=300)へ流す
-    setLine("line-batt", "active-purple");
-  } else {
-    setLine("line-batt", null);
-  }
+  setLine("line-sell", sellActive ? "active-blue" : null);
+  setLine("line-use", useActive ? "active-green" : null);
 
   if (solarActive) {
     setLine("line-solar", sellActive ? "active-blue" : "active-green");
@@ -270,20 +262,26 @@ function updateFlowLines(
     setLine("line-solar", null);
   }
 
-  // 中央縦トランク線 (y=64 <-> y=214) の向きと色
-  if (sellActive && solarActive) {
-    // SOLAR(上) -> SELL(下) へ上から下
-    setLine("line-trunk-mid", "active-blue");
+  // 下段縦ライン (y=214 SOLAR/USE段 <-> y=300 BATTERY段)
+  if (battDischarging) {
+    // BATTERY(y=300) -> USE(y=214) へ下から上へ流れる
+    setLine("line-batt", "active-purple flow-reverse");
   } else if (battCharging) {
-    // SOLAR/BUY -> BATTERY(下) へ上から下
-    setLine("line-trunk-mid", "active-purple");
-  } else if (battDischarging) {
-    // BATTERY(下) -> USE(上) へ下から上 (逆方向)
-    setLine("line-trunk-mid", "active-purple flow-reverse");
-  } else if (buyActive && useActive) {
-    // BUY(下) -> USE(上) へ下から上 (逆方向)
-    setLine("line-trunk-mid", "active-pink flow-reverse");
+    // SOLAR(y=214) -> BATTERY(y=300) へ上から下へ流れる
+    setLine("line-batt", "active-purple");
   } else {
+    setLine("line-batt", null);
+  }
+
+  // 中段縦ライン (y=64 BUY/SELL段 <-> y=214 SOLAR/USE段)
+  if (sellActive && solarActive) {
+    // SOLAR(y=214) -> SELL(y=64) へ下から上へ流れる
+    setLine("line-trunk-mid", "active-blue flow-reverse");
+  } else if (buyActive && (useActive || battCharging)) {
+    // BUY(y=64) -> USE(y=214) または BATTERY(y=300) へ上から下へ流れる
+    setLine("line-trunk-mid", "active-pink");
+  } else {
+    // バッテリー放電で USE を賄っているときは BUY/SELL 段(y=64)へは流れないため消灯
     setLine("line-trunk-mid", null);
   }
 }
@@ -292,7 +290,6 @@ function renderDashboard(data: DashboardResponse): void {
   const cfg = data.config;
   const tzMin = cfg.timezoneOffsetMinutes ?? 540;
 
-  // 日の出・日の入り時刻とバッテリー定格容量は実データが未到着でも常に表示する
   el("sun-rise-label").textContent = data.sun.sunrise;
   el("sun-noon-label").textContent = "12:00";
   el("sun-set-label").textContent = data.sun.sunset;
@@ -330,7 +327,7 @@ function renderDashboard(data: DashboardResponse): void {
   const loadW = latest.load_w ?? 0;
   const battW = latest.batt_w ?? 0; // ゲートウェイは 負=充電, 正=放電
 
-  // HTML仕様に合わせてバッテリー電力は符号を反転 (正=充電, 負=放電)
+  // バッテリー電力は 正=充電, 負=放電
   const battChargeKw = -battW / 1000;
   const battAbsKw = Math.abs(battChargeKw);
 
@@ -385,28 +382,9 @@ function renderDashboard(data: DashboardResponse): void {
         )
       : 100;
 
-  // SOLAR カード
-  const elSolarKw = el("val-solar-kw");
-  elSolarKw.textContent = `${solarKw.toFixed(2)} kW`;
-  elSolarKw.classList.toggle("is-zero", solarKw < 0.005);
-  el("val-solar-today").textContent = `TODAY ${solarToday.toFixed(1)} kWh`;
-  el("val-solar-yen").textContent =
-    `VALUE ¥${solarValueYen.toLocaleString("ja-JP")}`;
-
-  // USE カード
-  const elUseKw = el("val-use-kw");
-  elUseKw.textContent = `${useKw.toFixed(2)} kW`;
-  elUseKw.classList.toggle("is-zero", useKw < 0.005);
-  el("val-use-today").textContent = `TODAY ${useToday.toFixed(1)} kWh`;
-  el("val-use-self").textContent = `SELF ${selfPct}%`;
-
-  // BUY カード (待機買電時は右上バッジを表示し、数値は控えめなグレーにする)
-  const elBuyKw = el("val-buy-kw");
-  const cardBuy = el("card-buy");
+  // BUY カード (待機買電時は右上に STANDBY バッジを表示)
+  el("val-buy-kw").textContent = `${buyKw.toFixed(2)} kW`;
   const buyBadge = el("buy-mode-badge");
-  elBuyKw.textContent = `${buyKw.toFixed(2)} kW`;
-  elBuyKw.classList.toggle("is-zero", buyKw <= STANDBY_BUY_MAX_KW);
-  cardBuy.classList.toggle("is-standby", isStandbyBuy);
   if (isStandbyBuy) {
     buyBadge.removeAttribute("hidden");
   } else {
@@ -416,29 +394,38 @@ function renderDashboard(data: DashboardResponse): void {
   el("val-buy-yen").textContent = `COST ¥${buyCostYen.toLocaleString("ja-JP")}`;
 
   // SELL カード
-  const elSellKw = el("val-sell-kw");
-  elSellKw.textContent = `${sellKw.toFixed(2)} kW`;
-  elSellKw.classList.toggle("is-zero", sellKw < 0.005);
+  el("val-sell-kw").textContent = `${sellKw.toFixed(2)} kW`;
   el("val-sell-today").textContent = `TODAY ${sellToday.toFixed(1)} kWh`;
   el("val-sell-yen").textContent = `REV ¥${sellRevYen.toLocaleString("ja-JP")}`;
+
+  // SOLAR カード
+  el("val-solar-kw").textContent = `${solarKw.toFixed(2)} kW`;
+  el("val-solar-today").textContent = `TODAY ${solarToday.toFixed(1)} kWh`;
+  el("val-solar-yen").textContent =
+    `VALUE ¥${solarValueYen.toLocaleString("ja-JP")}`;
+
+  // USE カード
+  el("val-use-kw").textContent = `${useKw.toFixed(2)} kW`;
+  el("val-use-today").textContent = `TODAY ${useToday.toFixed(1)} kWh`;
+  el("val-use-self").textContent = `SELF ${selfPct}%`;
 
   // フロー接続線
   updateFlowLines(solarKw, useKw, buyKw, sellKw, battChargeKw);
 
-  // BATTERY カード
+  // BATTERY カード (1段目右上=状態バッジ、2段目=kW、バー上=%とkWh)
   const soc = Math.max(0, Math.min(100, Math.round(latest.soc ?? 0)));
   const capKwh = cfg.batteryCapacityKwh;
   const storedKwh = (capKwh * soc) / 100;
-
-  el("val-batt-soc").textContent = `${soc}% (${storedKwh.toFixed(1)} kWh)`;
-  el("val-batt-bar").style.width = `${soc}%`;
 
   let battStateLabel = "IDLE";
   if (battChargeKw >= 0.03) battStateLabel = "CHARGING";
   else if (battChargeKw <= -0.03) battStateLabel = "DISCHARGING";
   const displayBattKw = battStateLabel === "IDLE" ? 0 : battAbsKw;
-  el("val-batt-state").textContent =
-    `${battStateLabel} ${displayBattKw.toFixed(2)} kW`;
+
+  el("val-batt-state").textContent = battStateLabel;
+  el("val-batt-kw").textContent = `${displayBattKw.toFixed(2)} kW`;
+  el("val-batt-soc").textContent = `${soc}% (${storedKwh.toFixed(1)} kWh)`;
+  el("val-batt-bar").style.width = `${soc}%`;
 
   // 推定残り時間 EST (残量kWh ÷ 使用電力useKw)
   const refPowerKw = useKw > 0.02 ? useKw : battAbsKw > 0.02 ? battAbsKw : 0;
@@ -451,7 +438,7 @@ function renderDashboard(data: DashboardResponse): void {
     el("val-batt-est").textContent = `EST --h --m`;
   }
 
-  // PV STRINGS (PV1〜4 カード & 屋根マップ状態更新)
+  // PV STRINGS (NORTH / WEST / EAST & 中央屋根マップ)
   el("pv-total-pill").textContent =
     `TOTAL ${Math.round(pvSumW).toLocaleString("ja-JP")} W`;
 
@@ -459,11 +446,9 @@ function renderDashboard(data: DashboardResponse): void {
     const p = latest[`pv${i}_p_avg_w`];
     const v = latest[`pv${i}_v`];
     const a = latest[`pv${i}_i`];
-    const wNode = el(`pv${i}-w`);
     const pVal = typeof p === "number" ? Math.round(p) : null;
-    wNode.textContent = pVal !== null ? `${pVal.toLocaleString("ja-JP")} W` : "-- W";
-    wNode.classList.toggle("is-zero", !pVal || pVal < 5);
-
+    el(`pv${i}-w`).textContent =
+      pVal !== null ? `${pVal.toLocaleString("ja-JP")} W` : "-- W";
     el(`pv${i}-vi`).textContent =
       `${typeof v === "number" ? v.toFixed(1) : "--"} V / ` +
       `${typeof a === "number" ? a.toFixed(1) : "--"} A`;
@@ -474,7 +459,7 @@ function renderDashboard(data: DashboardResponse): void {
     }
   }
 
-  // BMS STATUS (パック電圧・48セル均一2行表示)
+  // BMS STATUS (3行診断サマリ + 48セル一覧)
   const packV = latest.pack_v;
   const cMin = latest.cell_min_mv;
   const cMax = latest.cell_max_mv;
@@ -483,27 +468,77 @@ function renderDashboard(data: DashboardResponse): void {
   const tMax = latest.temp_max_c;
   const tAvg = latest.temp_avg_c;
 
+  const cells = data.snapshot?.cells_mv || [];
+  let minCellIdx = -1;
+  if (cells.length > 0) {
+    const minMvVal = Math.min(...cells);
+    minCellIdx = cells.indexOf(minMvVal);
+  }
+
   el("bms-pack-pill").textContent =
     typeof packV === "number" ? `PACK ${packV.toFixed(1)} V` : "PACK -- V";
-  el("bms-summary").textContent =
-    `PACK: ${packV ?? "--"} V | CELL: ${cMin ?? "--"}〜${cMax ?? "--"} mV (AVG ${cAvg ?? "--"} mV) | ` +
-    `TEMP: ${tMin ?? "--"}〜${tMax ?? "--"} °C (AVG ${tAvg ?? "--"} °C)`;
 
+  // 1行目: PACK
+  const avgCellVFromPack =
+    typeof packV === "number" ? (packV / 48).toFixed(3) : "--";
+  el("bms-pack-line").textContent =
+    typeof packV === "number"
+      ? `${packV.toFixed(1)} V （平均 ${avgCellVFromPack} V × 48直列）`
+      : "-- V";
+
+  // 2行目: CELL (最小〜最大・平均・最大差Δ・最低電圧セル番号・評価バッジ)
+  const deltaMv =
+    typeof cMax === "number" && typeof cMin === "number" ? cMax - cMin : null;
+  const minCellText =
+    minCellIdx >= 0
+      ? ` / 最低セル #${String(minCellIdx + 1).padStart(2, "0")}`
+      : "";
+  el("bms-cell-line").textContent =
+    `${cMin ?? "--"}〜${cMax ?? "--"} mV （平均 ${cAvg ?? "--"} mV / 差 Δ ${deltaMv ?? "--"} mV${minCellText}）`;
+
+  const cellBadge = el("bms-cell-badge");
+  if (deltaMv === null) {
+    cellBadge.textContent = "--";
+    delete cellBadge.dataset.level;
+  } else if (deltaMv <= 15) {
+    cellBadge.textContent = `良好 Δ${deltaMv}mV`;
+    delete cellBadge.dataset.level;
+  } else if (deltaMv <= 30) {
+    cellBadge.textContent = `標準 Δ${deltaMv}mV`;
+    delete cellBadge.dataset.level;
+  } else {
+    cellBadge.textContent = `差拡大 Δ${deltaMv}mV`;
+    cellBadge.dataset.level = "warn";
+  }
+
+  // 3行目: TEMP (最小〜最大・平均・温度差Δ・評価バッジ)
+  const deltaTemp =
+    typeof tMax === "number" && typeof tMin === "number" ? tMax - tMin : null;
+  el("bms-temp-line").textContent =
+    `${tMin ?? "--"}〜${tMax ?? "--"} °C （平均 ${typeof tAvg === "number" ? tAvg.toFixed(1) : "--"} °C / 差 Δ ${deltaTemp ?? "--"} °C）`;
+
+  const tempBadge = el("bms-temp-badge");
+  if (typeof tMin !== "number" || typeof tMax !== "number") {
+    tempBadge.textContent = "--";
+    delete tempBadge.dataset.level;
+  } else if (tMax >= 40 || (deltaTemp !== null && deltaTemp >= 5)) {
+    tempBadge.textContent = "高温/差注意";
+    tempBadge.dataset.level = "warn";
+  } else if (tMin <= 5) {
+    tempBadge.textContent = "低温(充電制限域)";
+    delete tempBadge.dataset.level;
+  } else {
+    tempBadge.textContent = "均一・正常";
+    delete tempBadge.dataset.level;
+  }
+
+  // 48セル一覧 (蓄電池の紫色に統一)
   const cellsGrid = el("cells-grid");
-  const cells = data.snapshot?.cells_mv || [];
   if (cells.length > 0) {
-    const minMv = Math.min(...cells);
-    const maxMv = Math.max(...cells);
     cellsGrid.innerHTML = cells
       .map((mv, idx) => {
-        const cls =
-          minMv !== maxMv && mv === maxMv
-            ? "cell-chip is-max"
-            : minMv !== maxMv && mv === minMv
-              ? "cell-chip is-min"
-              : "cell-chip";
         const num = String(idx + 1).padStart(2, "0");
-        return `<div class="${cls}"><span class="cell-id">#${num}</span><span class="cell-mv">${mv}mV</span></div>`;
+        return `<div class="cell-chip"><span class="cell-id">#${num}</span><span class="cell-mv">${mv}mV</span></div>`;
       })
       .join("");
   } else {
@@ -537,21 +572,21 @@ async function refresh(): Promise<void> {
 }
 
 function setupControls(): void {
-  // 屋根マップとPVカード間の相互ハイライト
-  for (let i = 1; i <= 4; i++) {
-    const box = document.getElementById(`pv-box-${i}`);
-    const roof = document.getElementById(`roof-group-pv${i}`);
-    if (!box || !roof) continue;
-    const enter = () => {
-      box.classList.add("is-hovered");
-      roof.classList.add("is-hovered");
-    };
-    const leave = () => {
-      box.classList.remove("is-hovered");
-      roof.classList.remove("is-hovered");
-    };
-    box.addEventListener("mouseenter", enter);
-    box.addEventListener("mouseleave", leave);
+  // 屋根マップと各ストリング要素のホバー連動
+  const pairs: Array<[string, string]> = [
+    ["pv-box-1", "roof-group-pv1"],
+    ["pv-card-east", "roof-group-pv2"],
+    ["pv-box-3", "roof-group-pv3"],
+    ["pv-card-north", "roof-group-pv4"],
+  ];
+  for (const [cardId, roofId] of pairs) {
+    const card = document.getElementById(cardId);
+    const roof = document.getElementById(roofId);
+    if (!card || !roof) continue;
+    const enter = () => roof.classList.add("is-hovered");
+    const leave = () => roof.classList.remove("is-hovered");
+    card.addEventListener("mouseenter", enter);
+    card.addEventListener("mouseleave", leave);
     roof.addEventListener("mouseenter", enter);
     roof.addEventListener("mouseleave", leave);
   }
