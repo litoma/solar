@@ -44,6 +44,10 @@ function el<T extends HTMLElement | SVGElement>(id: string): T {
   return document.getElementById(id) as unknown as T;
 }
 
+function kwHtml(kw: number, unitClass = "ef-unit"): string {
+  return `${kw.toFixed(2)}<span class="${unitClass}">kW</span>`;
+}
+
 function formatTimeJst(
   epochSec: number,
   tzOffsetMin = 540,
@@ -228,9 +232,9 @@ function positionSunMarker(
 }
 
 /**
- * 1段目: BUY / SELL (y=64)
- * 2段目: SOLAR / USE (y=214)
- * 3段目: BATTERY (y=300)
+ * 1段目: BUY / SELL (y=68)
+ * 2段目: SOLAR / USE (y=226)
+ * 3段目: BATTERY (y=316)
  */
 function updateFlowLines(
   solarKw: number,
@@ -262,26 +266,25 @@ function updateFlowLines(
     setLine("line-solar", null);
   }
 
-  // 下段縦ライン (y=214 SOLAR/USE段 <-> y=300 BATTERY段)
+  // 下段縦ライン (y=226 SOLAR/USE段 <-> y=316 BATTERY段)
   if (battDischarging) {
-    // BATTERY(y=300) -> USE(y=214) へ下から上へ流れる
+    // BATTERY(y=316) -> USE(y=226) へ下から上へ流れる
     setLine("line-batt", "active-purple flow-reverse");
   } else if (battCharging) {
-    // SOLAR(y=214) -> BATTERY(y=300) へ上から下へ流れる
+    // SOLAR(y=226) -> BATTERY(y=316) へ上から下へ流れる
     setLine("line-batt", "active-purple");
   } else {
     setLine("line-batt", null);
   }
 
-  // 中段縦ライン (y=64 BUY/SELL段 <-> y=214 SOLAR/USE段)
+  // 中段縦ライン (y=68 BUY/SELL段 <-> y=226 SOLAR/USE段)
   if (sellActive && solarActive) {
-    // SOLAR(y=214) -> SELL(y=64) へ下から上へ流れる
+    // SOLAR(y=226) -> SELL(y=68) へ下から上へ流れる
     setLine("line-trunk-mid", "active-blue flow-reverse");
   } else if (buyActive && (useActive || battCharging)) {
-    // BUY(y=64) -> USE(y=214) または BATTERY(y=300) へ上から下へ流れる
+    // BUY(y=68) -> USE(y=226) または BATTERY(y=316) へ上から下へ流れる
     setLine("line-trunk-mid", "active-pink");
   } else {
-    // バッテリー放電で USE を賄っているときは BUY/SELL 段(y=64)へは流れないため消灯
     setLine("line-trunk-mid", null);
   }
 }
@@ -382,8 +385,8 @@ function renderDashboard(data: DashboardResponse): void {
         )
       : 100;
 
-  // BUY カード (待機買電時は右上に STANDBY バッジを表示)
-  el("val-buy-kw").textContent = `${buyKw.toFixed(2)} kW`;
+  // BUY カード (2段目の kW のみ小フォント化、待機買電時は STANDBY バッジ表示)
+  el("val-buy-kw").innerHTML = kwHtml(buyKw);
   const buyBadge = el("buy-mode-badge");
   if (isStandbyBuy) {
     buyBadge.removeAttribute("hidden");
@@ -394,18 +397,18 @@ function renderDashboard(data: DashboardResponse): void {
   el("val-buy-yen").textContent = `COST ¥${buyCostYen.toLocaleString("ja-JP")}`;
 
   // SELL カード
-  el("val-sell-kw").textContent = `${sellKw.toFixed(2)} kW`;
+  el("val-sell-kw").innerHTML = kwHtml(sellKw);
   el("val-sell-today").textContent = `TODAY ${sellToday.toFixed(1)} kWh`;
   el("val-sell-yen").textContent = `REV ¥${sellRevYen.toLocaleString("ja-JP")}`;
 
   // SOLAR カード
-  el("val-solar-kw").textContent = `${solarKw.toFixed(2)} kW`;
+  el("val-solar-kw").innerHTML = kwHtml(solarKw);
   el("val-solar-today").textContent = `TODAY ${solarToday.toFixed(1)} kWh`;
   el("val-solar-yen").textContent =
     `VALUE ¥${solarValueYen.toLocaleString("ja-JP")}`;
 
   // USE カード
-  el("val-use-kw").textContent = `${useKw.toFixed(2)} kW`;
+  el("val-use-kw").innerHTML = kwHtml(useKw);
   el("val-use-today").textContent = `TODAY ${useToday.toFixed(1)} kWh`;
   el("val-use-self").textContent = `SELF ${selfPct}%`;
 
@@ -423,7 +426,7 @@ function renderDashboard(data: DashboardResponse): void {
   const displayBattKw = battStateLabel === "IDLE" ? 0 : battAbsKw;
 
   el("val-batt-state").textContent = battStateLabel;
-  el("val-batt-kw").textContent = `${displayBattKw.toFixed(2)} kW`;
+  el("val-batt-kw").innerHTML = kwHtml(displayBattKw);
   el("val-batt-soc").textContent = `${soc}% (${storedKwh.toFixed(1)} kWh)`;
   el("val-batt-bar").style.width = `${soc}%`;
 
@@ -438,28 +441,27 @@ function renderDashboard(data: DashboardResponse): void {
     el("val-batt-est").textContent = `EST --h --m`;
   }
 
-  // PV STRINGS (NORTH / WEST / EAST & 中央屋根マップ)
+  // PV STRINGS (単位を kW に統一)
   el("pv-total-pill").textContent =
-    `TOTAL ${Math.round(pvSumW).toLocaleString("ja-JP")} W`;
+    `TOTAL ${(Math.max(0, pvSumW) / 1000).toFixed(2)} kW`;
 
   for (let i = 1; i <= 4; i++) {
     const p = latest[`pv${i}_p_avg_w`];
     const v = latest[`pv${i}_v`];
     const a = latest[`pv${i}_i`];
-    const pVal = typeof p === "number" ? Math.round(p) : null;
-    el(`pv${i}-w`).textContent =
-      pVal !== null ? `${pVal.toLocaleString("ja-JP")} W` : "-- W";
+    const pKw = typeof p === "number" ? Math.max(0, p) / 1000 : 0;
+    el(`pv${i}-w`).innerHTML = kwHtml(pKw, "ef-unit-sm");
     el(`pv${i}-vi`).textContent =
       `${typeof v === "number" ? v.toFixed(1) : "--"} V / ` +
       `${typeof a === "number" ? a.toFixed(1) : "--"} A`;
 
     const roofGroup = document.getElementById(`roof-group-pv${i}`);
     if (roofGroup) {
-      roofGroup.classList.toggle("is-active", Boolean(pVal && pVal >= 10));
+      roofGroup.classList.toggle("is-active", typeof p === "number" && p >= 10);
     }
   }
 
-  // BMS STATUS (3行診断サマリ + 48セル一覧)
+  // BMS STATUS (上段: 12列×4段の48セル一覧 / 下段: 5列診断テーブル)
   const packV = latest.pack_v;
   const cMin = latest.cell_min_mv;
   const cMax = latest.cell_max_mv;
@@ -478,44 +480,58 @@ function renderDashboard(data: DashboardResponse): void {
   el("bms-pack-pill").textContent =
     typeof packV === "number" ? `PACK ${packV.toFixed(1)} V` : "PACK -- V";
 
-  // 1行目: PACK
+  // 48セル一覧 (12列×4段)
+  const cellsGrid = el("cells-grid");
+  if (cells.length > 0) {
+    cellsGrid.innerHTML = cells
+      .map((mv, idx) => {
+        const num = String(idx + 1).padStart(2, "0");
+        return `<div class="cell-chip"><span class="cell-id">#${num}</span><span class="cell-mv">${mv}mV</span></div>`;
+      })
+      .join("");
+  } else {
+    cellsGrid.innerHTML = `<div class="cell-chip"><span class="cell-id">--</span><span class="cell-mv">未取得</span></div>`;
+  }
+
+  // テーブル1行目: PACK
   const avgCellVFromPack =
     typeof packV === "number" ? (packV / 48).toFixed(3) : "--";
-  el("bms-pack-line").textContent =
-    typeof packV === "number"
-      ? `${packV.toFixed(1)} V （平均 ${avgCellVFromPack} V × 48直列）`
-      : "-- V";
+  el("bms-pack-val").textContent =
+    typeof packV === "number" ? `${packV.toFixed(1)} V` : "-- V";
+  el("bms-pack-sub").textContent = `平均 ${avgCellVFromPack} V × 48直列`;
 
-  // 2行目: CELL (最小〜最大・平均・最大差Δ・最低電圧セル番号・評価バッジ)
+  // テーブル2行目: CELL
   const deltaMv =
     typeof cMax === "number" && typeof cMin === "number" ? cMax - cMin : null;
   const minCellText =
     minCellIdx >= 0
-      ? ` / 最低セル #${String(minCellIdx + 1).padStart(2, "0")}`
+      ? ` / 最低 #${String(minCellIdx + 1).padStart(2, "0")}`
       : "";
-  el("bms-cell-line").textContent =
-    `${cMin ?? "--"}〜${cMax ?? "--"} mV （平均 ${cAvg ?? "--"} mV / 差 Δ ${deltaMv ?? "--"} mV${minCellText}）`;
+  el("bms-cell-val").textContent = `${cMin ?? "--"}〜${cMax ?? "--"} mV`;
+  el("bms-cell-sub").textContent =
+    `AVG ${cAvg ?? "--"} mV / 差 Δ ${deltaMv ?? "--"} mV${minCellText}`;
 
   const cellBadge = el("bms-cell-badge");
   if (deltaMv === null) {
     cellBadge.textContent = "--";
     delete cellBadge.dataset.level;
   } else if (deltaMv <= 15) {
-    cellBadge.textContent = `良好 Δ${deltaMv}mV`;
+    cellBadge.textContent = `良好 (Δ${deltaMv}mV)`;
     delete cellBadge.dataset.level;
   } else if (deltaMv <= 30) {
-    cellBadge.textContent = `標準 Δ${deltaMv}mV`;
+    cellBadge.textContent = `標準 (Δ${deltaMv}mV)`;
     delete cellBadge.dataset.level;
   } else {
-    cellBadge.textContent = `差拡大 Δ${deltaMv}mV`;
+    cellBadge.textContent = `差拡大 (Δ${deltaMv}mV)`;
     cellBadge.dataset.level = "warn";
   }
 
-  // 3行目: TEMP (最小〜最大・平均・温度差Δ・評価バッジ)
+  // テーブル3行目: TEMP
   const deltaTemp =
     typeof tMax === "number" && typeof tMin === "number" ? tMax - tMin : null;
-  el("bms-temp-line").textContent =
-    `${tMin ?? "--"}〜${tMax ?? "--"} °C （平均 ${typeof tAvg === "number" ? tAvg.toFixed(1) : "--"} °C / 差 Δ ${deltaTemp ?? "--"} °C）`;
+  el("bms-temp-val").textContent = `${tMin ?? "--"}〜${tMax ?? "--"} °C`;
+  el("bms-temp-sub").textContent =
+    `AVG ${typeof tAvg === "number" ? tAvg.toFixed(1) : "--"} °C / 差 Δ ${deltaTemp ?? "--"} °C`;
 
   const tempBadge = el("bms-temp-badge");
   if (typeof tMin !== "number" || typeof tMax !== "number") {
@@ -530,19 +546,6 @@ function renderDashboard(data: DashboardResponse): void {
   } else {
     tempBadge.textContent = "均一・正常";
     delete tempBadge.dataset.level;
-  }
-
-  // 48セル一覧 (蓄電池の紫色に統一)
-  const cellsGrid = el("cells-grid");
-  if (cells.length > 0) {
-    cellsGrid.innerHTML = cells
-      .map((mv, idx) => {
-        const num = String(idx + 1).padStart(2, "0");
-        return `<div class="cell-chip"><span class="cell-id">#${num}</span><span class="cell-mv">${mv}mV</span></div>`;
-      })
-      .join("");
-  } else {
-    cellsGrid.innerHTML = `<div class="cell-chip"><span class="cell-id">--</span><span class="cell-mv">未取得</span></div>`;
   }
 }
 
@@ -572,21 +575,21 @@ async function refresh(): Promise<void> {
 }
 
 function setupControls(): void {
-  // 屋根マップと各ストリング要素のホバー連動
-  const pairs: Array<[string, string]> = [
-    ["pv-box-1", "roof-group-pv1"],
-    ["pv-card-east", "roof-group-pv2"],
-    ["pv-box-3", "roof-group-pv3"],
-    ["pv-card-north", "roof-group-pv4"],
-  ];
-  for (const [cardId, roofId] of pairs) {
-    const card = document.getElementById(cardId);
-    const roof = document.getElementById(roofId);
-    if (!card || !roof) continue;
-    const enter = () => roof.classList.add("is-hovered");
-    const leave = () => roof.classList.remove("is-hovered");
-    card.addEventListener("mouseenter", enter);
-    card.addEventListener("mouseleave", leave);
+  // 屋根マップと各PV項目のホバー連動
+  for (let i = 1; i <= 4; i++) {
+    const box = document.getElementById(`pv-box-${i}`);
+    const roof = document.getElementById(`roof-group-pv${i}`);
+    if (!box || !roof) continue;
+    const enter = () => {
+      box.classList.add("is-hovered");
+      roof.classList.add("is-hovered");
+    };
+    const leave = () => {
+      box.classList.remove("is-hovered");
+      roof.classList.remove("is-hovered");
+    };
+    box.addEventListener("mouseenter", enter);
+    box.addEventListener("mouseleave", leave);
     roof.addEventListener("mouseenter", enter);
     roof.addEventListener("mouseleave", leave);
   }
