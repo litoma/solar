@@ -1,0 +1,48 @@
+-- Cloudflare D1 スキーマ (user_version = 1 と同一)
+CREATE TABLE IF NOT EXISTS minute_samples (
+  ts INTEGER PRIMARY KEY,
+  n INTEGER,
+  pv1_p_avg_w REAL,
+  pv1_p_min_w INTEGER,
+  pv1_p_max_w INTEGER,
+  pv1_v REAL,
+  pv1_i REAL,
+  pv2_p_avg_w REAL,
+  pv2_p_min_w INTEGER,
+  pv2_p_max_w INTEGER,
+  pv2_v REAL,
+  pv2_i REAL,
+  pv3_p_avg_w REAL,
+  pv3_p_min_w INTEGER,
+  pv3_p_max_w INTEGER,
+  pv3_v REAL,
+  pv3_i REAL,
+  pv4_p_avg_w REAL,
+  pv4_p_min_w INTEGER,
+  pv4_p_max_w INTEGER,
+  pv4_v REAL,
+  pv4_i REAL,
+  solar_w REAL,
+  grid_w REAL,
+  load_w REAL,
+  batt_w REAL,
+  pcs_w REAL,
+  soc INTEGER,
+  mode INTEGER,
+  solar_day_kwh REAL,
+  buy_day_kwh REAL,
+  load_day_kwh REAL,
+  pack_v REAL,
+  cell_max_mv INTEGER,
+  cell_min_mv INTEGER,
+  cell_avg_mv INTEGER,
+  temp_max_c INTEGER,
+  temp_min_c INTEGER,
+  temp_avg_c REAL
+);
+
+CREATE TABLE IF NOT EXISTS bms_snapshots (
+  ts INTEGER PRIMARY KEY,
+  cells_json TEXT,
+  temps_json TEXT
+);

@@ -1,0 +1,11 @@
+[Unit]
+Description=Run EP CUBE gateway ingest every minute
+
+[Timer]
+# 毎分20秒に実行(ゲートウェイは分の確定が最大約10秒遅れるため)
+OnCalendar=*-*-* *:*:20
+AccuracySec=1s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

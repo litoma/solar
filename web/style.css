@@ -1,0 +1,573 @@
+:root {
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: #202020;
+  color: #e2e2e2;
+  font-family: var(--font-sans);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 20px 12px 48px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  width: 100%;
+  max-width: 704px;
+}
+
+/* 外枠コンテナ */
+.ef-shell {
+  background-color: #2c2c2c;
+  border: 1px solid #383838;
+  border-radius: 20px;
+  padding: 14px 16px 16px;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.45);
+}
+
+/* 上部ヘッダー */
+.ef-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 6px 12px;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ef-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ef-bolt {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ef-title {
+  font-family: var(--font-mono);
+  font-size: 19px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: #e2e2e2;
+  margin-right: 4px;
+}
+
+.ef-pill {
+  background-color: #232323;
+  color: #d9d9d9;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 4px 13px;
+  border-radius: 999px;
+  letter-spacing: 0.03em;
+}
+
+.ef-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #213273;
+  border: 1px solid #2b459e;
+  color: #e5e5e5;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  padding: 4px 15px;
+  border-radius: 999px;
+}
+
+.ef-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #88cdff;
+  box-shadow: 0 0 6px rgba(136, 205, 255, 0.8);
+}
+
+.ef-status-pill[data-state="importing"] {
+  background-color: #4a233b;
+  border-color: #7d3b63;
+}
+.ef-status-pill[data-state="importing"] .ef-status-dot {
+  background-color: #ffaee0;
+  box-shadow: 0 0 6px rgba(255, 174, 224, 0.8);
+}
+
+.ef-status-pill[data-state="charging"] {
+  background-color: #1f4530;
+  border-color: #367853;
+}
+.ef-status-pill[data-state="charging"] .ef-status-dot {
+  background-color: #57f293;
+  box-shadow: 0 0 6px rgba(87, 242, 147, 0.8);
+}
+
+.ef-status-pill[data-state="discharging"] {
+  background-color: #3c315b;
+  border-color: #69569c;
+}
+.ef-status-pill[data-state="discharging"] .ef-status-dot {
+  background-color: #d5cbf9;
+  box-shadow: 0 0 6px rgba(213, 203, 249, 0.8);
+}
+
+.ef-status-pill[data-state="idle"] {
+  background-color: #303036;
+  border-color: #484852;
+}
+.ef-status-pill[data-state="idle"] .ef-status-dot {
+  background-color: #a0a4b0;
+  box-shadow: none;
+}
+
+/* 内側ダークキャンバス */
+.ef-canvas {
+  background-color: #252525;
+  border-radius: 16px;
+  padding: 18px 39px 26px;
+}
+
+/* 太陽軌道セクション */
+.ef-sun-wrap {
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.ef-sun-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.sun-time-label {
+  fill: #9a9ea6;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  text-anchor: middle;
+}
+
+.sun-badge-text {
+  fill: #f0f0f0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  text-anchor: middle;
+}
+
+/* INPUT / OUTPUT 見出し */
+.ef-col-headers {
+  display: grid;
+  grid-template-columns: 1fr 64px 1fr;
+  align-items: center;
+  margin: 4px 0 10px;
+}
+
+.ef-col-label {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  color: #9c9ea6;
+}
+
+/* 4カード + 中央接続線 + バッテリー のグリッド */
+.ef-flow-layout {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 64px 1fr;
+  grid-template-rows: 128px 22px 128px 22px 114px;
+}
+
+#card-solar {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+#card-use {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+#card-buy {
+  grid-column: 1;
+  grid-row: 3;
+}
+
+#card-sell {
+  grid-column: 3;
+  grid-row: 3;
+}
+
+#card-battery {
+  grid-column: 1 / 4;
+  grid-row: 5;
+}
+
+/* 中央のフロー接続線SVG (行1〜行4の中央列に配置) */
+.ef-connectors {
+  grid-column: 2;
+  grid-row: 1 / 5;
+  width: 64px;
+  height: 300px;
+  pointer-events: none;
+}
+
+.flow-line-base {
+  stroke: #383a44;
+  stroke-width: 2;
+}
+
+.flow-line {
+  stroke: transparent;
+  stroke-width: 2.2;
+  stroke-dasharray: 6 5;
+  stroke-linecap: round;
+}
+
+.flow-line.active-blue {
+  stroke: #74aede;
+  animation: dash-flow 1.2s linear infinite;
+}
+
+.flow-line.active-green {
+  stroke: #4bc77c;
+  animation: dash-flow 1.2s linear infinite;
+}
+
+.flow-line.active-pink {
+  stroke: #de92bc;
+  animation: dash-flow 1.2s linear infinite;
+}
+
+.flow-line.active-purple {
+  stroke: #bfb6e0;
+  animation: dash-flow 1.2s linear infinite;
+}
+
+@keyframes dash-flow {
+  from {
+    stroke-dashoffset: 22;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* 各エネルギーカード共通 */
+.ef-card {
+  border-radius: 28px;
+  padding: 16px 24px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.ef-card-title {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.ef-card-value {
+  font-family: var(--font-sans);
+  font-size: 34px;
+  font-weight: 500;
+  color: #e4e4e4;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  margin: 2px 0 4px;
+}
+
+.ef-card-value.is-zero {
+  color: #898084;
+}
+
+.ef-card-sub {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.03em;
+}
+
+.ef-card-highlight {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: #e4e4e4;
+  letter-spacing: 0.04em;
+}
+
+/* SOLAR カード配色 (#443f30 / #d7bd72 / #fbdd84) */
+.ef-card-solar {
+  background-color: #443f30;
+  border: 1.5px solid #d7bd72;
+}
+.ef-card-solar .ef-card-title {
+  color: #fbdd84;
+}
+.ef-card-solar .ef-card-sub {
+  color: #aba38c;
+}
+
+/* USE カード配色 (#2b4133 / #4bc77c / #57f293) */
+.ef-card-use {
+  background-color: #2b4133;
+  border: 1.5px solid #4bc77c;
+}
+.ef-card-use .ef-card-title {
+  color: #57f293;
+}
+.ef-card-use .ef-card-sub {
+  color: #8eab99;
+}
+
+/* BUY カード配色 (#42353c / #de92bc / #ffaee0) */
+.ef-card-buy {
+  background-color: #42353c;
+  border: 1.5px solid #de92bc;
+}
+.ef-card-buy .ef-card-title {
+  color: #ffaee0;
+}
+.ef-card-buy .ef-card-sub {
+  color: #a896a0;
+}
+
+/* SELL カード配色 (#2f3941 / #74aede / #88cdff) */
+.ef-card-sell {
+  background-color: #2f3941;
+  border: 1.5px solid #74aede;
+}
+.ef-card-sell .ef-card-title {
+  color: #88cdff;
+}
+.ef-card-sell .ef-card-sub {
+  color: #93a3b1;
+}
+
+/* BATTERY カード配色 (#3f3d45 / #bfb6e0 / #d5cbf9) */
+.ef-card-battery {
+  background-color: #3f3d45;
+  border: 1.5px solid #bfb6e0;
+  border-radius: 28px;
+  padding: 16px 26px 15px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.ef-batt-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ef-batt-title-group {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+}
+
+.ef-batt-label {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 500;
+  color: #d5cbf9;
+  letter-spacing: 0.04em;
+}
+
+.ef-batt-main {
+  font-family: var(--font-sans);
+  font-size: 22px;
+  font-weight: 500;
+  color: #e4e4e4;
+}
+
+.ef-batt-state {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  color: #dcd9e6;
+  letter-spacing: 0.04em;
+}
+
+.ef-batt-bar-track {
+  width: 100%;
+  height: 14px;
+  background-color: #2d2b33;
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 4px 0;
+}
+
+.ef-batt-bar-fill {
+  height: 100%;
+  background-color: #d5cbf9;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.ef-batt-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: #a8a2b5;
+  letter-spacing: 0.04em;
+}
+
+#val-batt-est {
+  color: #dcd9e6;
+}
+
+/* サブバー & PV1-4 / BMS 詳細ドロワー */
+.ef-subbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.ef-subbtn {
+  background-color: #2c2c2c;
+  border: 1px solid #3d3d3d;
+  color: #b5b5be;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.ef-subbtn:hover {
+  border-color: #666;
+  color: #e5e5e5;
+}
+
+.ef-details {
+  margin-top: 12px;
+  background-color: #2c2c2c;
+  border: 1px solid #383838;
+  border-radius: 18px;
+  padding: 16px;
+}
+
+.ef-details-inner {
+  background-color: #252525;
+  border-radius: 12px;
+  padding: 16px 20px;
+}
+
+.ef-details-heading {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: #fbdd84;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
+}
+
+.pv-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.pv-box {
+  background-color: #353229;
+  border: 1px solid #8a7a4d;
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+
+.pv-box-name {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #d7bd72;
+}
+
+.pv-box-w {
+  font-size: 20px;
+  font-weight: 600;
+  color: #f0f0f0;
+  margin: 4px 0 2px;
+}
+
+.pv-box-vi {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: #b8b2a0;
+}
+
+.bms-summary {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: #d5cbf9;
+  margin-bottom: 10px;
+}
+
+.cells-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 5px;
+}
+
+.cell-chip {
+  background-color: #34323a;
+  border: 1px solid #565164;
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-align: center;
+  color: #e2dff0;
+}
+
+@media (max-width: 640px) {
+  .ef-canvas {
+    padding: 14px 16px 20px;
+  }
+  .ef-flow-layout {
+    grid-template-columns: 1fr 32px 1fr;
+  }
+  .ef-col-headers {
+    grid-template-columns: 1fr 32px 1fr;
+  }
+  .ef-connectors {
+    width: 32px;
+  }
+  .ef-card {
+    padding: 14px 16px;
+    border-radius: 22px;
+  }
+  .ef-card-value {
+    font-size: 26px;
+  }
+  .pv-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .cells-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}

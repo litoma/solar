@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ENERGY FLOW — EP CUBE Monitor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/web/style.css" />
+  </head>
+  <body>
+    <main class="page">
+      <!-- メイン ENERGY FLOW ウィジェット (添付デザイン準拠) -->
+      <section class="ef-shell" aria-label="Energy Flow Monitor">
+        <header class="ef-header">
+          <div class="ef-header-left">
+            <span class="ef-bolt" aria-hidden="true">
+              <svg width="14" height="18" viewBox="0 0 14 18" fill="none">
+                <path
+                  d="M8.2 1L1.5 10.2H7.1L5.8 17L12.5 7.8H6.9L8.2 1Z"
+                  stroke="#d9d9d9"
+                  stroke-width="1.6"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </span>
+            <h1 class="ef-title">ENERGY FLOW</h1>
+            <span class="ef-pill" id="ef-time">13:45</span>
+            <span class="ef-pill" id="ef-weather">CLEAR 19°C</span>
+          </div>
+          <div class="ef-status-pill" id="ef-status-pill" data-state="exporting">
+            <span class="ef-status-dot" id="ef-status-dot"></span>
+            <span id="ef-status-text">EXPORTING</span>
+          </div>
+        </header>
+
+        <div class="ef-canvas">
+          <!-- 太陽軌道・現在出力アーク -->
+          <div class="ef-sun-wrap">
+            <svg
+              class="ef-sun-svg"
+              viewBox="0 0 600 110"
+              preserveAspectRatio="xMidYMid meet"
+              aria-label="Solar Elevation Curve"
+            >
+              <!-- 地平線 (破線) -->
+              <line
+                x1="24"
+                y1="76"
+                x2="576"
+                y2="76"
+                stroke="#44454a"
+                stroke-width="1.5"
+                stroke-dasharray="4 4"
+              />
+              <!-- 日の出前・日の入り後の破線サインカーブ -->
+              <path
+                d="M 52 76 Q 99 110 146 76"
+                fill="none"
+                stroke="#4d4e54"
+                stroke-width="1.5"
+                stroke-dasharray="4 4"
+              />
+              <path
+                d="M 454 76 Q 501 110 548 76"
+                fill="none"
+                stroke="#4d4e54"
+                stroke-width="1.5"
+                stroke-dasharray="4 4"
+              />
+              <!-- 日中の太陽軌道アーク -->
+              <path
+                id="sun-arc-path"
+                d="M 146 76 Q 300 -10 454 76"
+                fill="none"
+                stroke="#d7bd72"
+                stroke-width="2.2"
+                stroke-linecap="round"
+              />
+              <!-- 日の出・南中・日の入り ドット -->
+              <circle cx="146" cy="76" r="3" fill="#fbdd84" />
+              <circle cx="300" cy="33" r="3" fill="#fbdd84" />
+              <circle cx="454" cy="76" r="3" fill="#fbdd84" />
+
+              <!-- 時刻ラベル -->
+              <text x="146" y="96" class="sun-time-label" id="sun-rise-label">06:18</text>
+              <text x="300" y="96" class="sun-time-label" id="sun-noon-label">12:00</text>
+              <text x="454" y="96" class="sun-time-label" id="sun-set-label">16:35</text>
+
+              <!-- 現在の太陽位置マーカーと出力吹き出し -->
+              <g id="sun-marker-group" transform="translate(344, 36.5)">
+                <g id="sun-badge-group" transform="translate(0, -28)">
+                  <rect
+                    x="-44"
+                    y="-13"
+                    width="88"
+                    height="25"
+                    rx="12.5"
+                    fill="#2c2c2c"
+                    stroke="#ceb56e"
+                    stroke-width="1.3"
+                  />
+                  <text x="0" y="4" class="sun-badge-text" id="sun-badge-kw">6.00 kW</text>
+                </g>
+                <circle cx="0" cy="0" r="14" fill="rgba(251, 221, 132, 0.20)" />
+                <circle
+                  cx="0"
+                  cy="0"
+                  r="7"
+                  fill="#fbdd84"
+                  stroke="#252525"
+                  stroke-width="2.5"
+                />
+              </g>
+            </svg>
+          </div>
+
+          <!-- INPUT / OUTPUT 見出し -->
+          <div class="ef-col-headers">
+            <div class="ef-col-label">INPUT</div>
+            <div class="ef-col-spacer"></div>
+            <div class="ef-col-label">OUTPUT</div>
+          </div>
+
+          <!-- 4カード + 中央エネルギーフロー配線 + 下部バッテリー -->
+          <div class="ef-flow-layout">
+            <!-- SOLAR (左上) -->
+            <article class="ef-card ef-card-solar" id="card-solar">
+              <div class="ef-card-title">SOLAR</div>
+              <div class="ef-card-value" id="val-solar-kw">6.00 kW</div>
+              <div class="ef-card-sub" id="val-solar-today">TODAY 21.5 kWh</div>
+              <div class="ef-card-highlight" id="val-solar-yen">VALUE ¥666</div>
+            </article>
+
+            <!-- USE (右上) -->
+            <article class="ef-card ef-card-use" id="card-use">
+              <div class="ef-card-title">USE</div>
+              <div class="ef-card-value" id="val-use-kw">0.70 kW</div>
+              <div class="ef-card-sub" id="val-use-today">TODAY 13.8 kWh</div>
+              <div class="ef-card-highlight" id="val-use-self">SELF 86%</div>
+            </article>
+
+            <!-- BUY (左下) -->
+            <article class="ef-card ef-card-buy" id="card-buy">
+              <div class="ef-card-title">BUY</div>
+              <div class="ef-card-value is-zero" id="val-buy-kw">0.00 kW</div>
+              <div class="ef-card-sub" id="val-buy-today">TODAY 2.1 kWh</div>
+              <div class="ef-card-highlight" id="val-buy-yen">COST ¥65</div>
+            </article>
+
+            <!-- SELL (右下) -->
+            <article class="ef-card ef-card-sell" id="card-sell">
+              <div class="ef-card-title">SELL</div>
+              <div class="ef-card-value" id="val-sell-kw">5.30 kW</div>
+              <div class="ef-card-sub" id="val-sell-today">TODAY 4.6 kWh</div>
+              <div class="ef-card-highlight" id="val-sell-yen">REV ¥74</div>
+            </article>
+
+            <!-- 中央フロー接続線レイヤ -->
+            <svg
+              class="ef-connectors"
+              viewBox="0 0 64 300"
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
+              <!-- ベースライン (非アクティブ時の暗い実線) -->
+              <line x1="0" y1="64" x2="64" y2="64" class="flow-line-base" />
+              <line x1="0" y1="214" x2="64" y2="214" class="flow-line-base" />
+              <line x1="32" y1="64" x2="32" y2="300" class="flow-line-base" />
+
+              <!-- アクティブ破線 -->
+              <line
+                id="line-solar"
+                x1="0"
+                y1="64"
+                x2="32"
+                y2="64"
+                class="flow-line active-blue"
+              />
+              <line
+                id="line-use"
+                x1="32"
+                y1="64"
+                x2="64"
+                y2="64"
+                class="flow-line active-green"
+              />
+              <line
+                id="line-trunk-mid"
+                x1="32"
+                y1="64"
+                x2="32"
+                y2="214"
+                class="flow-line active-blue"
+              />
+              <line
+                id="line-buy"
+                x1="0"
+                y1="214"
+                x2="32"
+                y2="214"
+                class="flow-line"
+              />
+              <line
+                id="line-sell"
+                x1="32"
+                y1="214"
+                x2="64"
+                y2="214"
+                class="flow-line active-blue"
+              />
+              <line
+                id="line-batt"
+                x1="32"
+                y1="214"
+                x2="32"
+                y2="300"
+                class="flow-line"
+              />
+            </svg>
+
+            <!-- BATTERY (下部ワイド) -->
+            <article class="ef-card-battery" id="card-battery">
+              <div class="ef-batt-top">
+                <div class="ef-batt-title-group">
+                  <span class="ef-batt-label">BATTERY</span>
+                  <span class="ef-batt-main" id="val-batt-soc">100% (13.8 kWh)</span>
+                </div>
+                <div class="ef-batt-state" id="val-batt-state">IDLE 0.00 kW</div>
+              </div>
+              <div class="ef-batt-bar-track">
+                <div class="ef-batt-bar-fill" id="val-batt-bar" style="width: 100%"></div>
+              </div>
+              <div class="ef-batt-bottom">
+                <span id="val-batt-cap">CAPACITY 13.8 kWh</span>
+                <span id="val-batt-est">EST 19h 42m</span>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- サブコントロール & PV1〜4 / BMS 詳細ドロワー -->
+      <section class="ef-subbar">
+        <button type="button" class="ef-subbtn" id="btn-toggle-details">
+          PV1〜4・BMS詳細を表示
+        </button>
+        <button type="button" class="ef-subbtn" id="btn-toggle-demo">
+          表示モード: <span id="mode-label">LIVE</span>
+        </button>
+      </section>
+
+      <section class="ef-details" id="ef-details" hidden>
+        <div class="ef-details-inner">
+          <h2 class="ef-details-heading">PV STINGS (PV1〜4)</h2>
+          <div class="pv-grid">
+            <div class="pv-box" id="pv-box-1">
+              <div class="pv-box-name">PV1 (回路1-1 / 1.705kW)</div>
+              <div class="pv-box-w" id="pv1-w">-- W</div>
+              <div class="pv-box-vi" id="pv1-vi">-- V / -- A</div>
+            </div>
+            <div class="pv-box" id="pv-box-2">
+              <div class="pv-box-name">PV2 (回路1-2 / 1.630kW)</div>
+              <div class="pv-box-w" id="pv2-w">-- W</div>
+              <div class="pv-box-vi" id="pv2-vi">-- V / -- A</div>
+            </div>
+            <div class="pv-box" id="pv-box-3">
+              <div class="pv-box-name">PV3 (回路1-3 / 1.395kW)</div>
+              <div class="pv-box-w" id="pv3-w">-- W</div>
+              <div class="pv-box-vi" id="pv3-vi">-- V / -- A</div>
+            </div>
+            <div class="pv-box" id="pv-box-4">
+              <div class="pv-box-name">PV4 (回路1-4 / 1.335kW)</div>
+              <div class="pv-box-w" id="pv4-w">-- W</div>
+              <div class="pv-box-vi" id="pv4-vi">-- V / -- A</div>
+            </div>
+          </div>
+
+          <h2 class="ef-details-heading">BMS STATUS (48 CELLS / 16 TEMPS)</h2>
+          <div class="bms-summary" id="bms-summary">
+            PACK: -- V | CELL: --〜-- mV (AVG -- mV) | TEMP: --〜-- °C (AVG -- °C)
+          </div>
+          <div class="cells-grid" id="cells-grid"></div>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/web/main.ts"></script>
+  </body>
+</html>
