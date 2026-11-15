@@ -15,17 +15,24 @@ export default defineConfig({
         id: process.env.CLOUDFLARE_D1_ID,
       }),
       ASSETS: bindings.assets(),
-      SITE_CONFIG: bindings.json({
-        // 電気料金単価 (円/kWh)
-        buyPriceYenPerKwh: 31,
-        sellPriceYenPerKwh: 16,
-        // 蓄電池の定格容量 (kWh)
-        batteryCapacityKwh: 13.8,
-        // 日の出・日の入り・天気取得用の緯度・経度 (既定: 東京)
-        latitude: 35.6812,
-        longitude: 139.7671,
-        timezoneOffsetMinutes: 540,
-      }),
+
+      // 太陽光パネルの設置場所 (初期値: 東京都中央区 / 今回のサイト用: 東京都練馬区)
+      SOLAR_LOCATION: bindings.text(process.env.SOLAR_LOCATION || "東京都練馬区"),
+      // 買電単価 (円/kWh, 初期値: 35)
+      SOLAR_BUY_PRICE_YEN: bindings.text(process.env.SOLAR_BUY_PRICE_YEN || "35"),
+      // 売電単価 (円/kWh, 初期値: 24)
+      SOLAR_SELL_PRICE_YEN: bindings.text(process.env.SOLAR_SELL_PRICE_YEN || "24"),
+      // 公開サイトの情報更新頻度 (分, 初期値: 1)
+      SOLAR_REFRESH_MINUTES: bindings.text(process.env.SOLAR_REFRESH_MINUTES || "1"),
+      // 蓄電池の定格容量 (kWh, 初期値: 13.8)
+      SOLAR_BATTERY_CAPACITY_KWH: bindings.text(
+        process.env.SOLAR_BATTERY_CAPACITY_KWH || "13.8",
+      ),
+      // 取り込みトークンのSHA-256ハッシュ (平文トークンはサーバの config/epcube.env にのみ保持)
+      INGEST_TOKEN_SHA256: bindings.text(
+        process.env.INGEST_TOKEN_SHA256 ||
+          "27d0a917b8307f76d757ff85691656112b2227bd33a132c334faae28c8bf9b86",
+      ),
     },
   },
 });

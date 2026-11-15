@@ -25,6 +25,7 @@ META_SYNCED_SNAPSHOT_TS = "last_synced_snapshot_ts"
 
 MINUTE_BATCH_SIZE = 200
 SNAPSHOT_BATCH_SIZE = 50
+MAX_BATCHES_PER_RUN = 10
 
 
 class SyncError(Exception):
@@ -55,28 +56,68 @@ def sync_to_cloud(
     last_min = int(db.get_meta(conn, META_SYNCED_MINUTE_TS) or 0)
     last_snap = int(db.get_meta(conn, META_SYNCED_SNAPSHOT_TS) or 0)
 
-    minutes = db.minutes_since(conn, last_min, limit=MINUTE_BATCH_SIZE)
-    snapshots = db.snapshots_since(conn, last_snap, limit=SNAPSHOT_BATCH_SIZE)
-
-    res = SyncResult(
-        minutes_sent=len(minutes),
-        snapshots_sent=len(snapshots),
-        last_minute_ts=int(minutes[-1]["ts"]) if minutes else (last_min or None),
-        last_snapshot_ts=int(snapshots[-1]["ts"]) if snapshots else (last_snap or None),
-    )
-
-    if not minutes and not snapshots:
-        log.debug("Cloudflare へ送信すべき未同期データはありません")
-        return res
-
     if dry_run:
+        minutes = db.minutes_since(conn, last_min, limit=100000)
+        snapshots = db.snapshots_since(conn, last_snap, limit=100000)
         log.info(
             "Cloudflare 同期(dry-run): minutes=%d 件, snapshots=%d 件",
             len(minutes),
             len(snapshots),
         )
-        return res
+        return SyncResult(
+            minutes_sent=len(minutes),
+            snapshots_sent=len(snapshots),
+            last_minute_ts=int(minutes[-1]["ts"]) if minutes else (last_min or None),
+            last_snapshot_ts=int(snapshots[-1]["ts"]) if snapshots else (last_snap or None),
+        )
 
+    total_min = 0
+    total_snap = 0
+
+    for _ in range(MAX_BATCHES_PER_RUN):
+        minutes = db.minutes_since(conn, last_min, limit=MINUTE_BATCH_SIZE)
+        snapshots = db.snapshots_since(conn, last_snap, limit=SNAPSHOT_BATCH_SIZE)
+        if not minutes and not snapshots:
+            break
+
+        _post_ingest(cfg, opener, minutes, snapshots)
+
+        if minutes:
+            last_min = int(minutes[-1]["ts"])
+            db.set_meta(conn, META_SYNCED_MINUTE_TS, last_min)
+            total_min += len(minutes)
+        if snapshots:
+            last_snap = int(snapshots[-1]["ts"])
+            db.set_meta(conn, META_SYNCED_SNAPSHOT_TS, last_snap)
+            total_snap += len(snapshots)
+
+        if len(minutes) < MINUTE_BATCH_SIZE and len(snapshots) < SNAPSHOT_BATCH_SIZE:
+            break
+
+    if total_min or total_snap:
+        log.info(
+            "Cloudflare D1 へ同期完了: minutes=%d 件, snapshots=%d 件",
+            total_min,
+            total_snap,
+        )
+    else:
+        log.debug("Cloudflare へ送信すべき未同期データはありません")
+
+    return SyncResult(
+        minutes_sent=total_min,
+        snapshots_sent=total_snap,
+        last_minute_ts=last_min or None,
+        last_snapshot_ts=last_snap or None,
+    )
+
+
+def _post_ingest(
+    cfg: Config,
+    opener: UrlOpen,
+    minutes: list[dict[str, Any]],
+    snapshots: list[dict[str, Any]],
+) -> None:
+    assert cfg.sync_url is not None
     url = f"{cfg.sync_url.rstrip('/')}/api/ingest"
     payload = json.dumps(
         {"minutes": minutes, "snapshots": snapshots},
@@ -103,15 +144,3 @@ def sync_to_cloud(
     except (urllib.error.URLError, socket.timeout, TimeoutError, ConnectionError, OSError) as err:
         reason = getattr(err, "reason", err)
         raise SyncError(f"接続失敗 ({reason})") from None
-
-    if minutes:
-        db.set_meta(conn, META_SYNCED_MINUTE_TS, int(minutes[-1]["ts"]))
-    if snapshots:
-        db.set_meta(conn, META_SYNCED_SNAPSHOT_TS, int(snapshots[-1]["ts"]))
-
-    log.info(
-        "Cloudflare D1 へ同期完了: minutes=%d 件, snapshots=%d 件",
-        len(minutes),
-        len(snapshots),
-    )
-    return res

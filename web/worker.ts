@@ -1,6 +1,8 @@
 export interface SiteConfig {
+  location: string;
   buyPriceYenPerKwh: number;
   sellPriceYenPerKwh: number;
+  refreshIntervalSec: number;
   batteryCapacityKwh: number;
   latitude: number;
   longitude: number;
@@ -10,9 +12,57 @@ export interface SiteConfig {
 export interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
-  SITE_CONFIG: SiteConfig;
+  // 環境変数 (未設定時は下記の初期値を使用)
+  SOLAR_LOCATION?: string;
+  SOLAR_LATITUDE?: string;
+  SOLAR_LONGITUDE?: string;
+  SOLAR_BUY_PRICE_YEN?: string;
+  SOLAR_SELL_PRICE_YEN?: string;
+  SOLAR_REFRESH_MINUTES?: string;
+  SOLAR_REFRESH_SEC?: string;
+  SOLAR_BATTERY_CAPACITY_KWH?: string;
+  // 取り込み認証 (平文シークレットまたはSHA-256ハッシュ)
   INGEST_TOKEN?: string;
+  INGEST_TOKEN_SHA256?: string;
 }
+
+// 初期値
+const DEFAULT_LOCATION = "東京都中央区";
+const DEFAULT_BUY_PRICE_YEN = 35;
+const DEFAULT_SELL_PRICE_YEN = 24;
+const DEFAULT_REFRESH_MINUTES = 1;
+const DEFAULT_BATTERY_CAPACITY_KWH = 13.8;
+const DEFAULT_TZ_OFFSET_MIN = 540; // JST (UTC+9)
+
+// 主要地域の緯度・経度テーブル
+const LOCATION_COORDS: Record<string, { lat: number; lon: number }> = {
+  東京都中央区: { lat: 35.6707, lon: 139.772 },
+  中央区: { lat: 35.6707, lon: 139.772 },
+  東京都練馬区: { lat: 35.7356, lon: 139.6517 },
+  練馬区: { lat: 35.7356, lon: 139.6517 },
+  東京都千代田区: { lat: 35.694, lon: 139.7536 },
+  東京都港区: { lat: 35.6581, lon: 139.7516 },
+  東京都新宿区: { lat: 35.6938, lon: 139.7034 },
+  東京都文京区: { lat: 35.7081, lon: 139.7522 },
+  東京都台東区: { lat: 35.7126, lon: 139.78 },
+  東京都墨田区: { lat: 35.7107, lon: 139.8015 },
+  東京都江東区: { lat: 35.6729, lon: 139.8174 },
+  東京都品川区: { lat: 35.6092, lon: 139.7302 },
+  東京都目黒区: { lat: 35.6415, lon: 139.6982 },
+  東京都大田区: { lat: 35.5614, lon: 139.716 },
+  東京都世田谷区: { lat: 35.6466, lon: 139.6532 },
+  東京都渋谷区: { lat: 35.6638, lon: 139.6977 },
+  東京都中野区: { lat: 35.7074, lon: 139.6638 },
+  東京都杉並区: { lat: 35.6995, lon: 139.6364 },
+  東京都豊島区: { lat: 35.7261, lon: 139.7166 },
+  東京都北区: { lat: 35.7528, lon: 139.7335 },
+  東京都荒川区: { lat: 35.736, lon: 139.7834 },
+  東京都板橋区: { lat: 35.7512, lon: 139.7092 },
+  東京都足立区: { lat: 35.775, lon: 139.8044 },
+  東京都葛飾区: { lat: 35.7435, lon: 139.8472 },
+  東京都江戸川区: { lat: 35.7067, lon: 139.8683 },
+  東京都: { lat: 35.6895, lon: 139.6917 },
+};
 
 const MINUTE_COLS = [
   "ts",
@@ -98,7 +148,7 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/api/dashboard" && request.method === "GET") {
-      return handleDashboard(url, env);
+      return handleDashboard(env);
     }
     if (url.pathname === "/api/ingest" && request.method === "POST") {
       return handleIngest(request, env);
@@ -111,24 +161,130 @@ export default {
   },
 };
 
-async function handleIngest(request: Request, env: Env): Promise<Response> {
-  const expected = (env.INGEST_TOKEN || "").trim();
-  if (!expected) {
-    return jsonResponse(
-      { error: "INGEST_TOKEN secret is not configured on this Worker" },
-      503,
+function parsePositiveNumber(raw: string | undefined, fallback: number): number {
+  if (!raw) return fallback;
+  const n = Number(raw.trim());
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+async function resolveSiteConfig(env: Env): Promise<SiteConfig> {
+  const location = (env.SOLAR_LOCATION || DEFAULT_LOCATION).trim() || DEFAULT_LOCATION;
+  const buyPriceYenPerKwh = parsePositiveNumber(
+    env.SOLAR_BUY_PRICE_YEN,
+    DEFAULT_BUY_PRICE_YEN,
+  );
+  const sellPriceYenPerKwh = parsePositiveNumber(
+    env.SOLAR_SELL_PRICE_YEN,
+    DEFAULT_SELL_PRICE_YEN,
+  );
+  const batteryCapacityKwh = parsePositiveNumber(
+    env.SOLAR_BATTERY_CAPACITY_KWH,
+    DEFAULT_BATTERY_CAPACITY_KWH,
+  );
+
+  let refreshIntervalSec = DEFAULT_REFRESH_MINUTES * 60;
+  if (env.SOLAR_REFRESH_SEC) {
+    refreshIntervalSec = Math.max(
+      10,
+      Math.round(parsePositiveNumber(env.SOLAR_REFRESH_SEC, 60)),
+    );
+  } else if (env.SOLAR_REFRESH_MINUTES) {
+    refreshIntervalSec = Math.max(
+      10,
+      Math.round(parsePositiveNumber(env.SOLAR_REFRESH_MINUTES, DEFAULT_REFRESH_MINUTES) * 60),
     );
   }
+
+  // 緯度・経度の解決 (直接指定 > 内蔵辞書 > Open-Meteo Geocoding > 初期値:東京都中央区)
+  const explicitLat = env.SOLAR_LATITUDE ? Number(env.SOLAR_LATITUDE.trim()) : NaN;
+  const explicitLon = env.SOLAR_LONGITUDE ? Number(env.SOLAR_LONGITUDE.trim()) : NaN;
+
+  let coords: { lat: number; lon: number };
+  if (Number.isFinite(explicitLat) && Number.isFinite(explicitLon)) {
+    coords = { lat: explicitLat, lon: explicitLon };
+  } else if (LOCATION_COORDS[location]) {
+    coords = LOCATION_COORDS[location];
+  } else {
+    coords =
+      (await geocodeOpenMeteo(location)) || LOCATION_COORDS[DEFAULT_LOCATION];
+  }
+
+  return {
+    location,
+    buyPriceYenPerKwh,
+    sellPriceYenPerKwh,
+    refreshIntervalSec,
+    batteryCapacityKwh,
+    latitude: coords.lat,
+    longitude: coords.lon,
+    timezoneOffsetMinutes: DEFAULT_TZ_OFFSET_MIN,
+  };
+}
+
+async function geocodeOpenMeteo(
+  name: string,
+): Promise<{ lat: number; lon: number } | null> {
+  const query = name.replace(/^東京都/, "").trim() || name;
+  const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=ja&format=json`;
+  try {
+    const resp = await fetch(url, {
+      cf: { cacheTtl: 86400, cacheEverything: true },
+      signal: AbortSignal.timeout(2000),
+    });
+    if (!resp.ok) return null;
+    const data = (await resp.json()) as {
+      results?: Array<{ latitude?: number; longitude?: number }>;
+    };
+    const first = data.results?.[0];
+    if (
+      first &&
+      typeof first.latitude === "number" &&
+      typeof first.longitude === "number"
+    ) {
+      return { lat: first.latitude, lon: first.longitude };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function sha256Hex(input: string): Promise<string> {
+  const bytes = new TextEncoder().encode(input);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function verifyIngestAuth(request: Request, env: Env): Promise<boolean> {
   const auth = request.headers.get("authorization") || "";
   const token = auth.startsWith("Bearer ")
     ? auth.slice(7).trim()
     : (request.headers.get("x-ingest-token") || "").trim();
+  if (!token) return false;
 
-  if (!token || token !== expected) {
+  const expectedPlain = (env.INGEST_TOKEN || "").trim();
+  if (expectedPlain) {
+    return token === expectedPlain;
+  }
+  const expectedHash = (env.INGEST_TOKEN_SHA256 || "").trim().toLowerCase();
+  if (expectedHash) {
+    const actualHash = await sha256Hex(token);
+    return actualHash === expectedHash;
+  }
+  return false;
+}
+
+async function handleIngest(request: Request, env: Env): Promise<Response> {
+  if (!(await verifyIngestAuth(request, env))) {
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
 
-  let body: { minutes?: Record<string, unknown>[]; snapshots?: Record<string, unknown>[] };
+  let body: {
+    minutes?: Record<string, unknown>[];
+    snapshots?: Record<string, unknown>[];
+  };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -151,13 +307,19 @@ async function handleIngest(request: Request, env: Env): Promise<Response> {
   const snapshots = Array.isArray(body.snapshots) ? body.snapshots : [];
   for (const snap of snapshots) {
     if (!snap || typeof snap.ts !== "number") continue;
-    const cellsJson = typeof snap.cells_json === "string" ? snap.cells_json : null;
-    const tempsJson = typeof snap.temps_json === "string" ? snap.temps_json : null;
-    stmts.push(env.DB.prepare(UPSERT_SNAPSHOT_SQL).bind(snap.ts, cellsJson, tempsJson));
+    const cellsJson =
+      typeof snap.cells_json === "string" ? snap.cells_json : null;
+    const tempsJson =
+      typeof snap.temps_json === "string" ? snap.temps_json : null;
+    stmts.push(
+      env.DB.prepare(UPSERT_SNAPSHOT_SQL).bind(snap.ts, cellsJson, tempsJson),
+    );
   }
 
-  if (stmts.length > 0) {
-    await env.DB.batch(stmts);
+  // D1 batch limit を考慮して100件ずつ実行
+  const CHUNK_SIZE = 100;
+  for (let i = 0; i < stmts.length; i += CHUNK_SIZE) {
+    await env.DB.batch(stmts.slice(i, i + CHUNK_SIZE));
   }
 
   return jsonResponse({
@@ -167,17 +329,9 @@ async function handleIngest(request: Request, env: Env): Promise<Response> {
   });
 }
 
-async function handleDashboard(url: URL, env: Env): Promise<Response> {
+async function handleDashboard(env: Env): Promise<Response> {
   await ensureSchema(env.DB);
-  const cfg: SiteConfig = {
-    buyPriceYenPerKwh: 31,
-    sellPriceYenPerKwh: 16,
-    batteryCapacityKwh: 13.8,
-    latitude: 35.6812,
-    longitude: 139.7671,
-    timezoneOffsetMinutes: 540,
-    ...(env.SITE_CONFIG || {}),
-  };
+  const cfg = await resolveSiteConfig(env);
 
   const latest = await env.DB.prepare(
     "SELECT * FROM minute_samples ORDER BY ts DESC LIMIT 1",
@@ -205,7 +359,7 @@ async function handleDashboard(url: URL, env: Env): Promise<Response> {
 
   const dayRows = dayRowsResult.results || [];
 
-  // 売電電力量 (kWh) を1分値の grid_w < 0 から積分算出
+  // 売電電力量 (kWh) を1分値の grid_w < 0 (負の部分の絶対値×1分) から積算
   let sellWh = 0;
   for (const r of dayRows) {
     const g = r.grid_w;
@@ -252,7 +406,7 @@ function safeJsonArray(raw: string | null | undefined): number[] {
 }
 
 /**
- * 緯度・経度・日付から日の出 / 南中 / 日の入り時刻 (分単位 0..1439 と "HH:MM") を計算する (NOAA式)
+ * 設置場所の緯度・経度・日付から日の出 / 南中 / 日の入り時刻 (分単位 0..1439 と "HH:MM") を計算する (NOAA式)
  */
 function computeSunTimes(
   epochSec: number,
@@ -343,7 +497,7 @@ async function fetchWeather(
   lat: number,
   lon: number,
 ): Promise<{ condition: string; tempC: number | null; text: string } | null> {
-  const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&current=temperature_2m,weather_code`;
+  const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&current=temperature_2m,weather_code&timezone=Asia%2FTokyo`;
   try {
     const resp = await fetch(apiUrl, {
       cf: { cacheTtl: 900, cacheEverything: true },

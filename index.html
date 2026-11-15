@@ -14,7 +14,7 @@
   </head>
   <body>
     <main class="page">
-      <!-- メイン ENERGY FLOW ウィジェット (添付デザイン準拠) -->
+      <!-- メイン ENERGY FLOW ウィジェット (添付デザイン準拠・実データ表示) -->
       <section class="ef-shell" aria-label="Energy Flow Monitor">
         <header class="ef-header">
           <div class="ef-header-left">
@@ -29,12 +29,12 @@
               </svg>
             </span>
             <h1 class="ef-title">ENERGY FLOW</h1>
-            <span class="ef-pill" id="ef-time">13:45</span>
-            <span class="ef-pill" id="ef-weather">CLEAR 19°C</span>
+            <span class="ef-pill" id="ef-time">--:--</span>
+            <span class="ef-pill" id="ef-weather">--- --°C</span>
           </div>
-          <div class="ef-status-pill" id="ef-status-pill" data-state="exporting">
+          <div class="ef-status-pill" id="ef-status-pill" data-state="idle">
             <span class="ef-status-dot" id="ef-status-dot"></span>
-            <span id="ef-status-text">EXPORTING</span>
+            <span id="ef-status-text">LOADING</span>
           </div>
         </header>
 
@@ -87,12 +87,12 @@
               <circle cx="454" cy="76" r="3" fill="#fbdd84" />
 
               <!-- 時刻ラベル -->
-              <text x="146" y="96" class="sun-time-label" id="sun-rise-label">06:18</text>
+              <text x="146" y="96" class="sun-time-label" id="sun-rise-label">--:--</text>
               <text x="300" y="96" class="sun-time-label" id="sun-noon-label">12:00</text>
-              <text x="454" y="96" class="sun-time-label" id="sun-set-label">16:35</text>
+              <text x="454" y="96" class="sun-time-label" id="sun-set-label">--:--</text>
 
               <!-- 現在の太陽位置マーカーと出力吹き出し -->
-              <g id="sun-marker-group" transform="translate(344, 36.5)">
+              <g id="sun-marker-group" transform="translate(300, 33)">
                 <g id="sun-badge-group" transform="translate(0, -28)">
                   <rect
                     x="-44"
@@ -104,7 +104,7 @@
                     stroke="#ceb56e"
                     stroke-width="1.3"
                   />
-                  <text x="0" y="4" class="sun-badge-text" id="sun-badge-kw">6.00 kW</text>
+                  <text x="0" y="4" class="sun-badge-text" id="sun-badge-kw">0.00 kW</text>
                 </g>
                 <circle cx="0" cy="0" r="14" fill="rgba(251, 221, 132, 0.20)" />
                 <circle
@@ -131,33 +131,33 @@
             <!-- SOLAR (左上) -->
             <article class="ef-card ef-card-solar" id="card-solar">
               <div class="ef-card-title">SOLAR</div>
-              <div class="ef-card-value" id="val-solar-kw">6.00 kW</div>
-              <div class="ef-card-sub" id="val-solar-today">TODAY 21.5 kWh</div>
-              <div class="ef-card-highlight" id="val-solar-yen">VALUE ¥666</div>
+              <div class="ef-card-value is-zero" id="val-solar-kw">0.00 kW</div>
+              <div class="ef-card-sub" id="val-solar-today">TODAY -- kWh</div>
+              <div class="ef-card-highlight" id="val-solar-yen">VALUE ¥--</div>
             </article>
 
             <!-- USE (右上) -->
             <article class="ef-card ef-card-use" id="card-use">
               <div class="ef-card-title">USE</div>
-              <div class="ef-card-value" id="val-use-kw">0.70 kW</div>
-              <div class="ef-card-sub" id="val-use-today">TODAY 13.8 kWh</div>
-              <div class="ef-card-highlight" id="val-use-self">SELF 86%</div>
+              <div class="ef-card-value is-zero" id="val-use-kw">0.00 kW</div>
+              <div class="ef-card-sub" id="val-use-today">TODAY -- kWh</div>
+              <div class="ef-card-highlight" id="val-use-self">SELF --%</div>
             </article>
 
             <!-- BUY (左下) -->
             <article class="ef-card ef-card-buy" id="card-buy">
               <div class="ef-card-title">BUY</div>
               <div class="ef-card-value is-zero" id="val-buy-kw">0.00 kW</div>
-              <div class="ef-card-sub" id="val-buy-today">TODAY 2.1 kWh</div>
-              <div class="ef-card-highlight" id="val-buy-yen">COST ¥65</div>
+              <div class="ef-card-sub" id="val-buy-today">TODAY -- kWh</div>
+              <div class="ef-card-highlight" id="val-buy-yen">COST ¥--</div>
             </article>
 
             <!-- SELL (右下) -->
             <article class="ef-card ef-card-sell" id="card-sell">
               <div class="ef-card-title">SELL</div>
-              <div class="ef-card-value" id="val-sell-kw">5.30 kW</div>
-              <div class="ef-card-sub" id="val-sell-today">TODAY 4.6 kWh</div>
-              <div class="ef-card-highlight" id="val-sell-yen">REV ¥74</div>
+              <div class="ef-card-value is-zero" id="val-sell-kw">0.00 kW</div>
+              <div class="ef-card-sub" id="val-sell-today">TODAY -- kWh</div>
+              <div class="ef-card-highlight" id="val-sell-yen">REV ¥--</div>
             </article>
 
             <!-- 中央フロー接続線レイヤ -->
@@ -173,54 +173,12 @@
               <line x1="32" y1="64" x2="32" y2="300" class="flow-line-base" />
 
               <!-- アクティブ破線 -->
-              <line
-                id="line-solar"
-                x1="0"
-                y1="64"
-                x2="32"
-                y2="64"
-                class="flow-line active-blue"
-              />
-              <line
-                id="line-use"
-                x1="32"
-                y1="64"
-                x2="64"
-                y2="64"
-                class="flow-line active-green"
-              />
-              <line
-                id="line-trunk-mid"
-                x1="32"
-                y1="64"
-                x2="32"
-                y2="214"
-                class="flow-line active-blue"
-              />
-              <line
-                id="line-buy"
-                x1="0"
-                y1="214"
-                x2="32"
-                y2="214"
-                class="flow-line"
-              />
-              <line
-                id="line-sell"
-                x1="32"
-                y1="214"
-                x2="64"
-                y2="214"
-                class="flow-line active-blue"
-              />
-              <line
-                id="line-batt"
-                x1="32"
-                y1="214"
-                x2="32"
-                y2="300"
-                class="flow-line"
-              />
+              <line id="line-solar" x1="0" y1="64" x2="32" y2="64" class="flow-line" />
+              <line id="line-use" x1="32" y1="64" x2="64" y2="64" class="flow-line" />
+              <line id="line-trunk-mid" x1="32" y1="64" x2="32" y2="214" class="flow-line" />
+              <line id="line-buy" x1="0" y1="214" x2="32" y2="214" class="flow-line" />
+              <line id="line-sell" x1="32" y1="214" x2="64" y2="214" class="flow-line" />
+              <line id="line-batt" x1="32" y1="214" x2="32" y2="300" class="flow-line" />
             </svg>
 
             <!-- BATTERY (下部ワイド) -->
@@ -228,16 +186,16 @@
               <div class="ef-batt-top">
                 <div class="ef-batt-title-group">
                   <span class="ef-batt-label">BATTERY</span>
-                  <span class="ef-batt-main" id="val-batt-soc">100% (13.8 kWh)</span>
+                  <span class="ef-batt-main" id="val-batt-soc">--% (-- kWh)</span>
                 </div>
                 <div class="ef-batt-state" id="val-batt-state">IDLE 0.00 kW</div>
               </div>
               <div class="ef-batt-bar-track">
-                <div class="ef-batt-bar-fill" id="val-batt-bar" style="width: 100%"></div>
+                <div class="ef-batt-bar-fill" id="val-batt-bar" style="width: 0%"></div>
               </div>
               <div class="ef-batt-bottom">
                 <span id="val-batt-cap">CAPACITY 13.8 kWh</span>
-                <span id="val-batt-est">EST 19h 42m</span>
+                <span id="val-batt-est">EST --h --m</span>
               </div>
             </article>
           </div>
@@ -249,14 +207,11 @@
         <button type="button" class="ef-subbtn" id="btn-toggle-details">
           PV1〜4・BMS詳細を表示
         </button>
-        <button type="button" class="ef-subbtn" id="btn-toggle-demo">
-          表示モード: <span id="mode-label">LIVE</span>
-        </button>
       </section>
 
       <section class="ef-details" id="ef-details" hidden>
         <div class="ef-details-inner">
-          <h2 class="ef-details-heading">PV STINGS (PV1〜4)</h2>
+          <h2 class="ef-details-heading">PV STRINGS (PV1〜4)</h2>
           <div class="pv-grid">
             <div class="pv-box" id="pv-box-1">
               <div class="pv-box-name">PV1 (回路1-1 / 1.705kW)</div>
