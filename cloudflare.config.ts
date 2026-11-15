@@ -2,7 +2,7 @@ import { bindings, defineConfig } from "cf/config";
 
 export default defineConfig({
   worker: {
-    name: "epcube-solar",
+    name: "solar",
     compatibilityDate: "2026-11-15",
     entrypoint: "./web/worker.ts",
     assets: {
