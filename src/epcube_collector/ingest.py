@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
 import time
+import urllib.error
+import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Protocol
@@ -64,12 +67,38 @@ def iso(ts: int | float | None) -> str:
     return datetime.fromtimestamp(ts, timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
 
 
+def fetch_open_meteo(
+    latitude: float, longitude: float, timeout: float = 4.0
+) -> tuple[int | None, float | None]:
+    """Open-Meteo から現在の weather_code と temperature_2m(℃) を取得する。失敗時は (None, None)。"""
+    url = (
+        f"https://api.open-meteo.com/v1/forecast"
+        f"?latitude={latitude}&longitude={longitude}"
+        f"&current=temperature_2m,weather_code&timezone=Asia%2FTokyo"
+    )
+    req = urllib.request.Request(url, headers={"User-Agent": "epcube-collector/0.2"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        cur = data.get("current") or {}
+        w_code = cur.get("weather_code")
+        w_temp = cur.get("temperature_2m")
+        return (
+            int(w_code) if isinstance(w_code, (int, float)) else None,
+            round(float(w_temp), 1) if isinstance(w_temp, (int, float)) else None,
+        )
+    except (urllib.error.URLError, TimeoutError, ValueError, OSError) as err:
+        log.warning("Open-Meteo 気象情報の取得に失敗(スキップ): %s", err)
+        return None, None
+
+
 def run_once(
     cfg: Config,
     client: Gateway,
     conn: sqlite3.Connection | None,
     dry_run: bool = False,
     clock: Callable[[], float] = time.time,
+    fetch_weather: Callable[[], tuple[int | None, float | None]] | None = None,
 ) -> IngestResult:
     """1回分の取り込み。通信・パースの例外(GatewayError/ParseError)は呼び出し側で処理する。"""
     result = IngestResult()
@@ -101,6 +130,14 @@ def run_once(
                 log.warning("未来の ts を破棄: %s", iso(ts))
                 continue
             rows.append(row)
+    if rows and fetch_weather is not None:
+        w_code, w_temp = fetch_weather()
+        if w_code is not None or w_temp is not None:
+            for r in rows:
+                if r.get("weather_code") is None:
+                    r["weather_code"] = w_code
+                if r.get("outdoor_temp_c") is None:
+                    r["outdoor_temp_c"] = w_temp
     result.rows = rows
 
     _report_gaps(since, rows)

@@ -38,7 +38,9 @@ CREATE TABLE IF NOT EXISTS minute_samples (
   cell_avg_mv INTEGER,
   temp_max_c INTEGER,
   temp_min_c INTEGER,
-  temp_avg_c REAL
+  temp_avg_c REAL,
+  weather_code INTEGER,
+  outdoor_temp_c REAL
 );
 
 CREATE TABLE IF NOT EXISTS bms_snapshots (

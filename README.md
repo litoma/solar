@@ -47,7 +47,7 @@ HTTP API から取得してローカル SQLite に保存し、Cloudflare Workers
 | `SOLAR_BUY_PRICE_YEN` | `35` | **`35`** | 電力会社から電力を購入するときの買電単価（円/kWh） |
 | `SOLAR_SELL_PRICE_YEN` | `24` | **`24`** | 電力会社へ電力を売却するときの売電単価（円/kWh） |
 | `SOLAR_REFRESH_MINUTES` | `1` | **`1`** | 公開サイトの情報更新頻度（分。秒指定の `SOLAR_REFRESH_SEC` も可） |
-| `SOLAR_BATTERY_CAPACITY_KWH` | `13.8` | **`13.8`** | 蓄電池の定格容量（kWh） |
+| `SOLAR_BATTERY_CAPACITY_KWH` | `13.3` | **`13.3`** | 蓄電池の定格容量（kWh、カタログ値 13.3kWh） |
 | `SOLAR_LATITUDE` / `SOLAR_LONGITUDE` | 自動解決 | 自動解決 (`35.7356`, `139.6517`) | 緯度・経度を直接数値で上書きしたい場合のみ指定 |
 
 ## 2. ローカル収集・D1同期 (`epcube-collector`)
@@ -79,5 +79,5 @@ cd ~/solar && set -a; . config/epcube.env; set +a
 | `SELF %` | 計算 | 自給率 `(load_day_kwh - buy_day_kwh) ÷ load_day_kwh × 100` |
 | `EST`（残り時間） | 計算 | `蓄電池残量kWh ÷ 現在の使用電力kW` |
 | 日の出・南中・日の入り・太陽位置 | 計算 | `SOLAR_LOCATION`（東京都練馬区）の緯度経度から天文計算（NOAA式） |
-| 天気・気温 (`CLEAR 19°C` 等) | Open-Meteo API | `SOLAR_LOCATION` の緯度経度で Open-Meteo から現在天気・気温を取得（15分キャッシュ） |
+| 天気アイコン・気温 (`weather_code` / `outdoor_temp_c`) | Open-Meteo → SQLite / D1 | 1分ごとの `epcube-collector once` 実行時に Open-Meteo から取得し、`minute_samples` テーブルに毎分記録・D1同期 |
 | `VALUE` / `COST` / `REV` (`¥`) | 設定値 + 計算 | `VALUE = 発電量 × 買電単価(35円)`、`COST = 買電量 × 買電単価(35円)`、`REV = 売電量 × 売電単価(24円)` |

@@ -26,6 +26,7 @@ from .ingest import (
     EXIT_ERROR,
     EXIT_GATEWAY,
     EXIT_OK,
+    fetch_open_meteo,
     iso,
     run_once,
 )
@@ -105,7 +106,15 @@ def cmd_once(cfg: Config, args: argparse.Namespace) -> int:
     else:
         conn = db.connect(cfg.db_path)
     try:
-        result = run_once(cfg, _client(cfg), conn, dry_run=args.dry_run)
+        result = run_once(
+            cfg,
+            _client(cfg),
+            conn,
+            dry_run=args.dry_run,
+            fetch_weather=lambda: fetch_open_meteo(
+                cfg.latitude, cfg.longitude, min(cfg.http_timeout, 4.0)
+            ),
+        )
         if not args.dry_run and conn is not None and cfg.sync_url:
             try:
                 sync_to_cloud(cfg, conn)

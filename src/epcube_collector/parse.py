@@ -51,6 +51,12 @@ BMS_FIELDS: list[tuple[str, str]] = [
     ("temp_avg_c", "REAL"),
 ]
 
+# 気象情報 (Open-Meteo から1分ごとに取得して記録)
+WEATHER_FIELDS: list[tuple[str, str]] = [
+    ("weather_code", "INTEGER"),
+    ("outdoor_temp_c", "REAL"),
+]
+
 PV_COLUMNS: list[tuple[str, str]] = [
     (f"pv{i}_{suffix}", sqltype)
     for i in range(1, PV_COUNT + 1)
@@ -58,7 +64,11 @@ PV_COLUMNS: list[tuple[str, str]] = [
 ]
 
 MINUTE_COLUMNS: list[tuple[str, str]] = (
-    [("ts", "INTEGER"), ("n", "INTEGER")] + PV_COLUMNS + SYS_FIELDS + BMS_FIELDS
+    [("ts", "INTEGER"), ("n", "INTEGER")]
+    + PV_COLUMNS
+    + SYS_FIELDS
+    + BMS_FIELDS
+    + WEATHER_FIELDS
 )
 _COLUMN_TYPES: dict[str, str] = dict(MINUTE_COLUMNS)
 
@@ -231,4 +241,3 @@ def parse_latest_response(obj: Any) -> LatestResponse:
         cells_mv=_int_list(slow.get("cells_mv")),
         temps_c=_int_list(slow.get("temps_c")),
     )
-

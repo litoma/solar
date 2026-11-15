@@ -31,7 +31,7 @@ const DEFAULT_LOCATION = "東京都中央区";
 const DEFAULT_BUY_PRICE_YEN = 35;
 const DEFAULT_SELL_PRICE_YEN = 24;
 const DEFAULT_REFRESH_MINUTES = 1;
-const DEFAULT_BATTERY_CAPACITY_KWH = 13.8;
+const DEFAULT_BATTERY_CAPACITY_KWH = 13.3;
 const DEFAULT_TZ_OFFSET_MIN = 540; // JST (UTC+9)
 
 // 主要地域の緯度・経度テーブル
@@ -104,6 +104,8 @@ const MINUTE_COLS = [
   "temp_max_c",
   "temp_min_c",
   "temp_avg_c",
+  "weather_code",
+  "outdoor_temp_c",
 ] as const;
 
 const CREATE_TABLES_SQL = [
@@ -116,11 +118,17 @@ const CREATE_TABLES_SQL = [
     solar_w REAL, grid_w REAL, load_w REAL, batt_w REAL, pcs_w REAL, soc INTEGER, mode INTEGER,
     solar_day_kwh REAL, buy_day_kwh REAL, load_day_kwh REAL,
     pack_v REAL, cell_max_mv INTEGER, cell_min_mv INTEGER, cell_avg_mv INTEGER,
-    temp_max_c INTEGER, temp_min_c INTEGER, temp_avg_c REAL
+    temp_max_c INTEGER, temp_min_c INTEGER, temp_avg_c REAL,
+    weather_code INTEGER, outdoor_temp_c REAL
   )`,
   `CREATE TABLE IF NOT EXISTS bms_snapshots (
     ts INTEGER PRIMARY KEY, cells_json TEXT, temps_json TEXT
   )`,
+];
+
+const ALTER_COLUMNS_SQL = [
+  "ALTER TABLE minute_samples ADD COLUMN weather_code INTEGER",
+  "ALTER TABLE minute_samples ADD COLUMN outdoor_temp_c REAL",
 ];
 
 const UPSERT_MINUTE_SQL =
@@ -140,6 +148,13 @@ let schemaInitialized = false;
 async function ensureSchema(db: D1Database): Promise<void> {
   if (schemaInitialized) return;
   await db.batch(CREATE_TABLES_SQL.map((sql) => db.prepare(sql)));
+  for (const sql of ALTER_COLUMNS_SQL) {
+    try {
+      await db.prepare(sql).run();
+    } catch {
+      // 既に列が存在する場合は無視
+    }
+  }
   schemaInitialized = true;
 }
 
@@ -349,7 +364,8 @@ async function handleDashboard(env: Env): Promise<Response> {
 
   const dayRowsResult = await env.DB.prepare(
     `SELECT ts, solar_w, grid_w, load_w, batt_w, soc,
-            pv1_p_avg_w, pv2_p_avg_w, pv3_p_avg_w, pv4_p_avg_w
+            pv1_p_avg_w, pv2_p_avg_w, pv3_p_avg_w, pv4_p_avg_w,
+            weather_code, outdoor_temp_c
      FROM minute_samples
      WHERE ts >= ? AND ts < ?
      ORDER BY ts ASC`,
@@ -375,7 +391,35 @@ async function handleDashboard(env: Env): Promise<Response> {
     cfg.longitude,
     cfg.timezoneOffsetMinutes,
   );
-  const weather = await fetchWeather(cfg.latitude, cfg.longitude);
+
+  // DB(minute_samples)に1分ごとの天気・気温が記録されていればそれを優先し、未記録時のみOpen-Meteoから取得
+  let weather: {
+    code: number;
+    condition: string;
+    tempC: number | null;
+    text: string;
+  } | null = null;
+  if (
+    latest &&
+    (typeof latest.weather_code === "number" ||
+      typeof latest.outdoor_temp_c === "number")
+  ) {
+    const code =
+      typeof latest.weather_code === "number" ? latest.weather_code : 0;
+    const cond = WMO_LABELS[code] || "CLEAR";
+    const temp =
+      typeof latest.outdoor_temp_c === "number"
+        ? Math.round(latest.outdoor_temp_c * 10) / 10
+        : null;
+    weather = {
+      code,
+      condition: cond,
+      tempC: temp,
+      text: temp !== null ? `${cond} ${Math.round(temp)}°C` : cond,
+    };
+  } else {
+    weather = await fetchWeather(cfg.latitude, cfg.longitude);
+  }
 
   return jsonResponse({
     hasData: Boolean(latest),
@@ -496,11 +540,16 @@ const WMO_LABELS: Record<number, string> = {
 async function fetchWeather(
   lat: number,
   lon: number,
-): Promise<{ condition: string; tempC: number | null; text: string } | null> {
+): Promise<{
+  code: number;
+  condition: string;
+  tempC: number | null;
+  text: string;
+} | null> {
   const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&current=temperature_2m,weather_code&timezone=Asia%2FTokyo`;
   try {
     const resp = await fetch(apiUrl, {
-      cf: { cacheTtl: 900, cacheEverything: true },
+      cf: { cacheTtl: 60, cacheEverything: true },
       signal: AbortSignal.timeout(2500),
     });
     if (!resp.ok) return null;
@@ -510,11 +559,12 @@ async function fetchWeather(
     const code = data.current?.weather_code ?? 0;
     const temp = data.current?.temperature_2m;
     const cond = WMO_LABELS[code] || "CLEAR";
-    const rounded = typeof temp === "number" ? Math.round(temp) : null;
+    const rounded = typeof temp === "number" ? Math.round(temp * 10) / 10 : null;
     return {
+      code,
       condition: cond,
       tempC: rounded,
-      text: rounded !== null ? `${cond} ${rounded}°C` : cond,
+      text: rounded !== null ? `${cond} ${Math.round(rounded)}°C` : cond,
     };
   } catch {
     return null;

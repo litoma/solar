@@ -24,9 +24,9 @@ export default defineConfig({
       SOLAR_SELL_PRICE_YEN: bindings.text(process.env.SOLAR_SELL_PRICE_YEN || "24"),
       // 公開サイトの情報更新頻度 (分, 初期値: 1)
       SOLAR_REFRESH_MINUTES: bindings.text(process.env.SOLAR_REFRESH_MINUTES || "1"),
-      // 蓄電池の定格容量 (kWh, 初期値: 13.8)
+      // 蓄電池の定格容量 (kWh, カタログ値: 13.3)
       SOLAR_BATTERY_CAPACITY_KWH: bindings.text(
-        process.env.SOLAR_BATTERY_CAPACITY_KWH || "13.8",
+        process.env.SOLAR_BATTERY_CAPACITY_KWH || "13.3",
       ),
       // 取り込みトークンのSHA-256ハッシュ (平文トークンはサーバの config/epcube.env にのみ保持)
       INGEST_TOKEN_SHA256: bindings.text(

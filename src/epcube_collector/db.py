@@ -13,13 +13,16 @@ from typing import Any, Iterable, Sequence
 
 from .parse import MINUTE_COLUMNS, Row
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+
+_V2_COLUMNS = {"weather_code", "outdoor_temp_c"}
 
 
-def _create_minute_samples() -> str:
+def _create_minute_samples_v1() -> str:
     cols = ",\n  ".join(
         f"{name} {sqltype}" + (" PRIMARY KEY" if name == "ts" else "")
         for name, sqltype in MINUTE_COLUMNS
+        if name not in _V2_COLUMNS
     )
     return f"CREATE TABLE IF NOT EXISTS minute_samples (\n  {cols}\n)"
 
@@ -28,10 +31,14 @@ def _create_minute_samples() -> str:
 # 列を増やすときは例: 2: ["ALTER TABLE minute_samples ADD COLUMN xxx REAL"]
 MIGRATIONS: dict[int, list[str]] = {
     1: [
-        _create_minute_samples(),
+        _create_minute_samples_v1(),
         "CREATE TABLE IF NOT EXISTS bms_snapshots ("
         " ts INTEGER PRIMARY KEY, cells_json TEXT, temps_json TEXT)",
         "CREATE TABLE IF NOT EXISTS ingest_meta (key TEXT PRIMARY KEY, value TEXT)",
+    ],
+    2: [
+        "ALTER TABLE minute_samples ADD COLUMN weather_code INTEGER",
+        "ALTER TABLE minute_samples ADD COLUMN outdoor_temp_c REAL",
     ],
 }
 

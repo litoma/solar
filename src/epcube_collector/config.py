@@ -10,6 +10,9 @@ from urllib.parse import urlparse
 
 DEFAULT_GW_URL = "http://192.168.0.36"
 DEFAULT_DB_PATH = Path.home() / "solar" / "var" / "epcube.db"
+# 既定の設置場所座標 (東京都練馬区)
+DEFAULT_LATITUDE = 35.7356
+DEFAULT_LONGITUDE = 139.6517
 
 
 class ConfigError(ValueError):
@@ -27,6 +30,8 @@ class Config:
     low_n_threshold: int
     sync_url: str | None = None
     sync_token: str | None = None
+    latitude: float = DEFAULT_LATITUDE
+    longitude: float = DEFAULT_LONGITUDE
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Config":
@@ -57,6 +62,8 @@ class Config:
             low_n_threshold=int(_num(env, "EPCUBE_LOW_N", 3, 1, 60)),
             sync_url=sync_url,
             sync_token=sync_token,
+            latitude=_num(env, "EPCUBE_LATITUDE", DEFAULT_LATITUDE, -90.0, 90.0),
+            longitude=_num(env, "EPCUBE_LONGITUDE", DEFAULT_LONGITUDE, -180.0, 180.0),
         )
 
 
