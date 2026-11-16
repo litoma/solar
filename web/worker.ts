@@ -419,23 +419,23 @@ async function handleDashboard(env: Env): Promise<Response> {
 
   const monthlyRowsResult = await env.DB.prepare(
     `SELECT
-       CAST(strftime('%m', day_ts + ?, 'unixepoch') AS INTEGER) AS month,
+       month,
        ROUND(SUM(day_kwh), 2) AS actual_kwh
      FROM (
        SELECT
-         (ts + ?) / 86400 AS jst_day,
-         MIN(ts) AS day_ts,
+         strftime('%Y-%m-%d', ts + ?, 'unixepoch') AS jst_date,
+         CAST(strftime('%m', ts + ?, 'unixepoch') AS INTEGER) AS month,
          COALESCE(
            MAX(solar_day_kwh),
            SUM(CASE WHEN solar_w > 0 THEN solar_w ELSE 0 END) / 60000.0
          ) AS day_kwh
        FROM minute_samples
        WHERE ts >= ? AND ts < ?
-       GROUP BY (ts + ?) / 86400
+       GROUP BY jst_date
      )
      GROUP BY month`,
   )
-    .bind(tzSec, tzSec, yearStartUtc, yearEndUtc, tzSec)
+    .bind(tzSec, tzSec, yearStartUtc, yearEndUtc)
     .all<{ month: number; actual_kwh: number | null }>();
 
   const monthlyActualKwh: Record<number, number> = {};

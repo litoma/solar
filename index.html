@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>EP MONITOR</title>
+    <title>EP VIEW</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -14,8 +14,17 @@
   </head>
   <body>
     <main class="page">
-      <!-- 1. メイン EP MONITOR ウィジェット -->
-      <section class="ef-shell" aria-label="EP Monitor">
+      <!-- 最上部ヘッダー: EP VIEW (アイコンなし) & ONLINE/OFFLINE (ef-shellと同じ横幅) -->
+      <header class="top-bar" aria-label="Site Header">
+        <h1 class="top-bar-title">EP VIEW</h1>
+        <div class="ef-status-pill" id="ef-status-pill" data-state="online">
+          <span class="ef-status-dot" id="ef-status-dot"></span>
+          <span id="ef-status-text">ONLINE</span>
+        </div>
+      </header>
+
+      <!-- 1. SUMMARY ウィジェット (左: 雷アイコン + SUMMARY / 右: 時刻) -->
+      <section class="ef-shell" aria-label="Summary Monitor">
         <header class="ef-header">
           <div class="ef-header-left">
             <span class="ef-bolt" aria-hidden="true">
@@ -28,70 +37,65 @@
                 />
               </svg>
             </span>
-            <h1 class="ef-title">EP MONITOR</h1>
-            <span class="ef-pill" id="ef-time">--:--</span>
+            <h2 class="ef-title">SUMMARY</h2>
           </div>
-          <div class="ef-status-pill" id="ef-status-pill" data-state="online">
-            <span class="ef-status-dot" id="ef-status-dot"></span>
-            <span id="ef-status-text">ONLINE</span>
-          </div>
+          <span class="ef-pill" id="ef-time">--:--</span>
         </header>
 
         <div class="ef-canvas">
-          <!-- 太陽軌道・外気温テキスト(枠なし)・天気アイコン -->
+          <!-- 太陽軌道・外気温テキスト(枠なし)・天気アイコン (BUY〜SELLの左右幅に揃えた全幅設計) -->
           <div class="ef-sun-wrap">
             <svg
               class="ef-sun-svg"
-              viewBox="0 0 600 116"
+              viewBox="0 0 600 144"
               preserveAspectRatio="xMidYMid meet"
               aria-label="Solar Elevation & Weather Curve"
             >
-              <!-- 地平線 (破線) -->
+              <!-- 地平線 (実線・左右端0〜600までフル幅) -->
               <line
-                x1="24"
-                y1="78"
-                x2="576"
-                y2="78"
+                x1="0"
+                y1="98"
+                x2="600"
+                y2="98"
                 stroke="#44454a"
-                stroke-width="1.5"
-                stroke-dasharray="4 4"
+                stroke-width="1.6"
               />
-              <!-- 日の出前・日の入り後の破線サインカーブ -->
+              <!-- 日の出前・日の入り後の破線カーブ -->
               <path
-                d="M 52 78 Q 99 112 146 78"
+                d="M 12 98 Q 76 138 140 98"
                 fill="none"
                 stroke="#4d4e54"
                 stroke-width="1.5"
                 stroke-dasharray="4 4"
               />
               <path
-                d="M 454 78 Q 501 112 548 78"
+                d="M 460 98 Q 524 138 588 98"
                 fill="none"
                 stroke="#4d4e54"
                 stroke-width="1.5"
                 stroke-dasharray="4 4"
               />
-              <!-- 日中の太陽軌道アーク -->
+              <!-- 日中の太陽軌道アーク (角度をつけた大きな円弧: 頂点 y=36) -->
               <path
                 id="sun-arc-path"
-                d="M 146 78 Q 300 -8 454 78"
+                d="M 140 98 Q 300 -26 460 98"
                 fill="none"
                 stroke="#d7bd72"
-                stroke-width="2.2"
+                stroke-width="2.3"
                 stroke-linecap="round"
               />
               <!-- 日の出・南中・日の入り ドット -->
-              <circle cx="146" cy="78" r="3" fill="#fbdd84" />
-              <circle cx="300" cy="35" r="3" fill="#fbdd84" />
-              <circle cx="454" cy="78" r="3" fill="#fbdd84" />
+              <circle cx="140" cy="98" r="3.2" fill="#fbdd84" />
+              <circle cx="300" cy="36" r="3.2" fill="#fbdd84" />
+              <circle cx="460" cy="98" r="3.2" fill="#fbdd84" />
 
               <!-- 時刻ラベル -->
-              <text x="146" y="98" class="sun-time-label" id="sun-rise-label">--:--</text>
-              <text x="300" y="98" class="sun-time-label" id="sun-noon-label">12:00</text>
-              <text x="454" y="98" class="sun-time-label" id="sun-set-label">--:--</text>
+              <text x="140" y="120" class="sun-time-label" id="sun-rise-label">--:--</text>
+              <text x="300" y="120" class="sun-time-label" id="sun-noon-label">12:00</text>
+              <text x="460" y="120" class="sun-time-label" id="sun-set-label">--:--</text>
 
               <!-- 現在時刻マーカー: 外気温テキスト(枠なし) + 天気アイコン -->
-              <g id="sun-marker-group" transform="translate(300, 35)">
+              <g id="sun-marker-group" transform="translate(300, 36)">
                 <g id="sun-badge-group" transform="translate(0, -24)">
                   <text x="0" y="0" class="sun-badge-text" id="sun-badge-temp">--°C</text>
                 </g>
@@ -100,7 +104,7 @@
                   cx="0"
                   cy="0"
                   r="12"
-                  fill="#252525"
+                  fill="#161618"
                   stroke="#d7bd72"
                   stroke-width="1.6"
                   id="sun-marker-ring"
@@ -233,7 +237,7 @@
         </div>
       </section>
 
-      <!-- 2. PV STRINGS ウィジェット (外枠は黄色・中央屋根枠のみ×分割・NORTHは横長・kWh/d表示) -->
+      <!-- 2. PV STRINGS ウィジェット (中央ROOF見出し + コンパクト屋根枠 + 4方角) -->
       <section class="ef-shell ef-shell-solar" aria-label="PV Strings Monitor">
         <header class="ef-header">
           <div class="ef-header-left">
@@ -262,78 +266,79 @@
 
         <div class="ef-canvas ef-canvas-pv">
           <div class="pv-xmap">
-            <!-- 背景SVG: 中央の屋根枠 + 屋根枠内の×稜線 + 色分けした15枚のパネル (外側の×線は削除) -->
-            <svg
-              class="pv-xmap-svg"
-              viewBox="0 0 640 430"
-              preserveAspectRatio="xMidYMid meet"
-              aria-label="Directional Roof Array Diagram"
-            >
-              <!-- 真ん中の屋根外枠 (上側のNORTH横長カードと重ならないよう y=106〜334 に配置) -->
-              <rect
-                x="190"
-                y="106"
-                width="260"
-                height="228"
-                rx="18"
-                fill="#1f2024"
-                stroke="#646876"
-                stroke-width="1.8"
-              />
+            <!-- 真ん中の屋根ブロック (ROOF見出し + 余白を詰めた屋根SVG) -->
+            <div class="pv-roof-center">
+              <div class="ef-col-label pv-roof-heading">ROOF</div>
+              <svg
+                class="pv-xmap-svg"
+                viewBox="186 102 268 236"
+                preserveAspectRatio="xMidYMid meet"
+                aria-label="Directional Roof Array Diagram"
+              >
+                <!-- 真ん中の屋根外枠 -->
+                <rect
+                  x="190"
+                  y="106"
+                  width="260"
+                  height="228"
+                  rx="18"
+                  fill="#1f2024"
+                  stroke="#646876"
+                  stroke-width="1.8"
+                />
 
-              <!-- 屋根枠内の × 稜線 (中心 320, 220) -->
-              <line
-                x1="194"
-                y1="110"
-                x2="446"
-                y2="330"
-                stroke="#4f5360"
-                stroke-width="1.5"
-              />
-              <line
-                x1="446"
-                y1="110"
-                x2="194"
-                y2="330"
-                stroke="#4f5360"
-                stroke-width="1.5"
-              />
-              <!-- 中心点ドット -->
-              <circle cx="320" cy="220" r="3.5" fill="#8e93a4" />
+                <!-- 屋根枠内の × 稜線 (中心 320, 220) -->
+                <line
+                  x1="194"
+                  y1="110"
+                  x2="446"
+                  y2="330"
+                  stroke="#4f5360"
+                  stroke-width="1.5"
+                />
+                <line
+                  x1="446"
+                  y1="110"
+                  x2="194"
+                  y2="330"
+                  stroke="#4f5360"
+                  stroke-width="1.5"
+                />
+                <!-- 中心点ドット -->
+                <circle cx="320" cy="220" r="3.5" fill="#8e93a4" />
 
-              <!-- ================= NORTH (上三角領域): PV4 (3 panels: 上2枚 + 下1枚) ================= -->
-              <g class="roof-group" id="roof-group-pv4" data-pv="4">
-                <rect x="287" y="124" width="30" height="19" rx="3" class="roof-mod mod-pv4" />
-                <rect x="323" y="124" width="30" height="19" rx="3" class="roof-mod mod-pv4" />
-                <rect x="305" y="148" width="30" height="19" rx="3" class="roof-mod mod-pv4" />
-              </g>
+                <!-- NORTH (上三角領域): PV4 (3 panels: 上2枚 + 下1枚) -->
+                <g class="roof-group" id="roof-group-pv4" data-pv="4">
+                  <rect x="287" y="124" width="30" height="19" rx="3" class="roof-mod mod-pv4" />
+                  <rect x="323" y="124" width="30" height="19" rx="3" class="roof-mod mod-pv4" />
+                  <rect x="305" y="148" width="30" height="19" rx="3" class="roof-mod mod-pv4" />
+                </g>
 
-              <!-- ================= WEST (左三角領域): PV3 (3 panels) + PV1 (5 panels) ================= -->
-              <!-- PV3: 左列の上3枚 -->
-              <g class="roof-group" id="roof-group-pv3" data-pv="3">
-                <rect x="206" y="150" width="17" height="26" rx="3" class="roof-mod mod-pv3" />
-                <rect x="206" y="180" width="17" height="26" rx="3" class="roof-mod mod-pv3" />
-                <rect x="206" y="210" width="17" height="26" rx="3" class="roof-mod mod-pv3" />
-              </g>
-              <!-- PV1: 左列の最下1枚 + 中列3枚 + 右列1枚 = 5枚 -->
-              <g class="roof-group" id="roof-group-pv1" data-pv="1">
-                <rect x="206" y="240" width="17" height="26" rx="3" class="roof-mod mod-pv1" />
-                <rect x="228" y="166" width="17" height="26" rx="3" class="roof-mod mod-pv1" />
-                <rect x="228" y="196" width="17" height="26" rx="3" class="roof-mod mod-pv1" />
-                <rect x="228" y="226" width="17" height="26" rx="3" class="roof-mod mod-pv1" />
-                <rect x="250" y="192" width="17" height="26" rx="3" class="roof-mod mod-pv1" />
-              </g>
+                <!-- WEST (左三角領域): PV3 (3 panels) + PV1 (5 panels) -->
+                <g class="roof-group" id="roof-group-pv3" data-pv="3">
+                  <rect x="206" y="150" width="17" height="26" rx="3" class="roof-mod mod-pv3" />
+                  <rect x="206" y="180" width="17" height="26" rx="3" class="roof-mod mod-pv3" />
+                  <rect x="206" y="210" width="17" height="26" rx="3" class="roof-mod mod-pv3" />
+                </g>
+                <g class="roof-group" id="roof-group-pv1" data-pv="1">
+                  <rect x="206" y="240" width="17" height="26" rx="3" class="roof-mod mod-pv1" />
+                  <rect x="228" y="166" width="17" height="26" rx="3" class="roof-mod mod-pv1" />
+                  <rect x="228" y="196" width="17" height="26" rx="3" class="roof-mod mod-pv1" />
+                  <rect x="228" y="226" width="17" height="26" rx="3" class="roof-mod mod-pv1" />
+                  <rect x="250" y="192" width="17" height="26" rx="3" class="roof-mod mod-pv1" />
+                </g>
 
-              <!-- ================= EAST (右三角領域): PV2 (4 panels: 2×2) ================= -->
-              <g class="roof-group" id="roof-group-pv2" data-pv="2">
-                <rect x="382" y="186" width="21" height="30" rx="3" class="roof-mod mod-pv2" />
-                <rect x="408" y="186" width="21" height="30" rx="3" class="roof-mod mod-pv2" />
-                <rect x="382" y="222" width="21" height="30" rx="3" class="roof-mod mod-pv2" />
-                <rect x="408" y="222" width="21" height="30" rx="3" class="roof-mod mod-pv2" />
-              </g>
-            </svg>
+                <!-- EAST (右三角領域): PV2 (4 panels: 2×2) -->
+                <g class="roof-group" id="roof-group-pv2" data-pv="2">
+                  <rect x="382" y="186" width="21" height="30" rx="3" class="roof-mod mod-pv2" />
+                  <rect x="408" y="186" width="21" height="30" rx="3" class="roof-mod mod-pv2" />
+                  <rect x="382" y="222" width="21" height="30" rx="3" class="roof-mod mod-pv2" />
+                  <rect x="408" y="222" width="21" height="30" rx="3" class="roof-mod mod-pv2" />
+                </g>
+              </svg>
+            </div>
 
-            <!-- 上側領域: NORTH (横長レイアウト・屋根枠と重ならない配置) -->
+            <!-- 上側領域: NORTH (横長レイアウト) -->
             <div class="pv-quad pv-quad-north" id="pv-quad-north">
               <div class="pv-quad-dir">NORTH</div>
               <div class="pv-quad-item pv-quad-item-wide" id="pv-box-4" data-pv="4">
@@ -416,7 +421,7 @@
         </div>
       </section>
 
-      <!-- 4. BMS STATUS ウィジェット (外枠はBATTERYの紫・内部をPACK / CELL / TEMPの3要素に分割) -->
+      <!-- 4. BMS STATUS ウィジェット (PACK → TEMP → CELL の順) -->
       <section class="ef-shell ef-shell-battery" aria-label="BMS Status Monitor">
         <header class="ef-header">
           <div class="ef-header-left">
@@ -443,7 +448,7 @@
 
         <div class="ef-canvas ef-canvas-bms">
           <div class="bms-sections">
-            <!-- 要素1: PACK -->
+            <!-- 要素1: PACK (48セル合計電圧・確認観点の要約) -->
             <article class="bms-box" id="bms-box-pack">
               <div class="bms-box-head">
                 <div class="bms-box-title-group">
@@ -453,12 +458,30 @@
                 </div>
                 <span class="ef-outline-badge bms-eval-badge" id="bms-pack-badge">48S LFP</span>
               </div>
-              <p class="bms-box-reason">
-                平均セル電圧×48と一致。LFPは3.2〜3.35Vでほぼ平らなため、電圧から残量(SOC)は推定できません
-              </p>
+              <ul class="bms-check-list">
+                <li><strong>整合性:</strong> 「平均セル電圧 × 48」と一致するか確認（ズレは計測・レジスタ異常）</li>
+                <li><strong>劣化目安:</strong> 充電中は上昇・放電中は低下。同SOC・同電力での電圧が経年低下していれば内部抵抗の上昇</li>
+                <li><strong>上下限と注意:</strong> 満充電の到達電圧や放電末期の落ち込みを監視（一般LFP動作域: 約120〜175V）。中間域は電圧が平坦なためPACKからSOCは判断不可</li>
+              </ul>
             </article>
 
-            <!-- 要素2: CELL (#01〜#48の12列グリッドを内包) -->
+            <!-- 要素2: TEMP (2行×8列の16温度センサー表示を内包) -->
+            <article class="bms-box" id="bms-box-temp">
+              <div class="bms-box-head">
+                <div class="bms-box-title-group">
+                  <span class="bms-box-key">TEMP</span>
+                  <span class="bms-box-val" id="bms-temp-val">--〜-- °C</span>
+                  <span class="bms-box-sub" id="bms-temp-sub">AVG -- °C / 差 Δ -- °C</span>
+                </div>
+                <span class="ef-outline-badge bms-eval-badge" id="bms-temp-badge">--</span>
+              </div>
+              <p class="bms-box-reason">
+                16か所のセンサー値。ほぼ均一なら局所的な発熱はありません。低温時(充電制限)や高温時の挙動確認に使います
+              </p>
+              <div class="temps-grid" id="temps-grid"></div>
+            </article>
+
+            <!-- 要素3: CELL (4行×12列の48セル表示を内包) -->
             <article class="bms-box" id="bms-box-cell">
               <div class="bms-box-head">
                 <div class="bms-box-title-group">
@@ -472,21 +495,6 @@
                 最大と最小の差(Δ)が小さいほど均等（中間域で数mV〜15mV以下は良好）。満充電や放電末期にΔが広がらないか・特定の最低セルが固定化しないかを監視します
               </p>
               <div class="cells-grid" id="cells-grid"></div>
-            </article>
-
-            <!-- 要素3: TEMP -->
-            <article class="bms-box" id="bms-box-temp">
-              <div class="bms-box-head">
-                <div class="bms-box-title-group">
-                  <span class="bms-box-key">TEMP</span>
-                  <span class="bms-box-val" id="bms-temp-val">--〜-- °C</span>
-                  <span class="bms-box-sub" id="bms-temp-sub">AVG -- °C / 差 Δ -- °C</span>
-                </div>
-                <span class="ef-outline-badge bms-eval-badge" id="bms-temp-badge">--</span>
-              </div>
-              <p class="bms-box-reason">
-                16か所のセンサー値。ほぼ均一なら局所的な発熱はありません。低温時(充電制限)や高温時の挙動確認に使います
-              </p>
             </article>
           </div>
         </div>

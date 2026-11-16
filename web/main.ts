@@ -95,17 +95,20 @@ function quadBezier(
 
 /**
  * 天気コード/状態と昼夜に応じたミニマルなベクターアイコンSVGを返す
+ * 日没後・日の出前 (isNight=true) の外枠リングは水平線と同じグレー (#44454a) にする
  */
 function buildWeatherIconSvg(
   condition: string,
   isNight: boolean,
 ): { svg: string; ringColor: string; glowColor: string } {
   const cond = (condition || "CLEAR").toUpperCase();
+  const nightRing = "#44454a";
+  const nightGlow = "rgba(110, 114, 126, 0.14)";
 
   if (cond.includes("THUNDER")) {
     return {
-      ringColor: "#d7bd72",
-      glowColor: "rgba(251, 221, 132, 0.20)",
+      ringColor: isNight ? nightRing : "#d7bd72",
+      glowColor: isNight ? nightGlow : "rgba(251, 221, 132, 0.20)",
       svg: `
         <path d="M-5.5,0.5 H4.5 A3.2,3.2 0 0,0 4.5,-5.8 A4.2,4.2 0 0,0 -3.5,-6.5 A3.4,3.4 0 0,0 -5.5,0.5 Z"
               fill="#353740" stroke="#d9dce3" stroke-width="1.3" stroke-linejoin="round" />
@@ -121,8 +124,8 @@ function buildWeatherIconSvg(
     cond.includes("SHOWER")
   ) {
     return {
-      ringColor: "#74aede",
-      glowColor: "rgba(136, 205, 255, 0.20)",
+      ringColor: isNight ? nightRing : "#74aede",
+      glowColor: isNight ? nightGlow : "rgba(136, 205, 255, 0.20)",
       svg: `
         <path d="M-5.5,0.2 H4.5 A3.2,3.2 0 0,0 4.5,-6.0 A4.2,4.2 0 0,0 -3.5,-6.7 A3.4,3.4 0 0,0 -5.5,0.2 Z"
               fill="#313842" stroke="#d9dce3" stroke-width="1.35" stroke-linejoin="round" />
@@ -135,8 +138,8 @@ function buildWeatherIconSvg(
 
   if (cond.includes("SNOW")) {
     return {
-      ringColor: "#9cc9f0",
-      glowColor: "rgba(180, 220, 255, 0.20)",
+      ringColor: isNight ? nightRing : "#9cc9f0",
+      glowColor: isNight ? nightGlow : "rgba(180, 220, 255, 0.20)",
       svg: `
         <path d="M-5.5,0.2 H4.5 A3.2,3.2 0 0,0 4.5,-6.0 A4.2,4.2 0 0,0 -3.5,-6.7 A3.4,3.4 0 0,0 -5.5,0.2 Z"
               fill="#323640" stroke="#d9dce3" stroke-width="1.35" stroke-linejoin="round" />
@@ -149,8 +152,8 @@ function buildWeatherIconSvg(
 
   if (cond.includes("PARTLY") || cond.includes("MAINLY")) {
     return {
-      ringColor: "#d7bd72",
-      glowColor: "rgba(251, 221, 132, 0.18)",
+      ringColor: isNight ? nightRing : "#d7bd72",
+      glowColor: isNight ? nightGlow : "rgba(251, 221, 132, 0.18)",
       svg: `
         <circle cx="-3.2" cy="-3.2" r="3.4" fill="#fbdd84" />
         <path d="M-4.2,3.6 H5.0 A3.0,3.0 0 0,0 5.0,-2.2 A3.9,3.9 0 0,0 -2.4,-2.9 A3.1,3.1 0 0,0 -4.2,3.6 Z"
@@ -161,8 +164,8 @@ function buildWeatherIconSvg(
 
   if (cond.includes("CLOUD") || cond.includes("FOG")) {
     return {
-      ringColor: "#9a9ea6",
-      glowColor: "rgba(180, 186, 198, 0.16)",
+      ringColor: isNight ? nightRing : "#9a9ea6",
+      glowColor: isNight ? nightGlow : "rgba(180, 186, 198, 0.16)",
       svg: `
         <path d="M-5.5,2.8 H4.8 A3.3,3.3 0 0,0 4.8,-3.6 A4.3,4.3 0 0,0 -3.4,-4.4 A3.5,3.5 0 0,0 -5.5,2.8 Z"
               fill="#353740" stroke="#d9dce3" stroke-width="1.4" stroke-linejoin="round" />
@@ -173,8 +176,8 @@ function buildWeatherIconSvg(
   // CLEAR (快晴: 夜間は三日月、日中は太陽)
   if (isNight) {
     return {
-      ringColor: "#d7bd72",
-      glowColor: "rgba(251, 221, 132, 0.18)",
+      ringColor: nightRing,
+      glowColor: nightGlow,
       svg: `
         <path d="M2.2,-5.8 A6.0,6.0 0 1,0 5.8,3.2 A4.6,4.6 0 1,1 2.2,-5.8 Z"
               fill="#fbdd84" />
@@ -226,18 +229,21 @@ function positionSunMarker(
 
   let pos: { x: number; y: number };
   if (minutesOfDay < sunriseMin) {
+    // 00:00 〜 日の出: (12,98) -> (76,138) -> (140,98)
     const t = Math.max(0, Math.min(1, minutesOfDay / Math.max(1, sunriseMin)));
-    pos = quadBezier(t, 52, 78, 99, 112, 146, 78);
+    pos = quadBezier(t, 12, 98, 76, 138, 140, 98);
     badgeGroup.setAttribute("transform", "translate(0, -22)");
   } else if (minutesOfDay <= sunsetMin) {
+    // 日の出 〜 日の入り: (140,98) -> (300,-26) -> (460,98)
     const span = Math.max(60, sunsetMin - sunriseMin);
     const t = Math.max(0, Math.min(1, (minutesOfDay - sunriseMin) / span));
-    pos = quadBezier(t, 146, 78, 300, -8, 454, 78);
+    pos = quadBezier(t, 140, 98, 300, -26, 460, 98);
     badgeGroup.setAttribute("transform", "translate(0, -24)");
   } else {
+    // 日の入り 〜 24:00: (460,98) -> (524,138) -> (588,98)
     const nightSpan = Math.max(1, 1440 - sunsetMin);
     const t = Math.max(0, Math.min(1, (minutesOfDay - sunsetMin) / nightSpan));
-    pos = quadBezier(t, 454, 78, 501, 112, 548, 78);
+    pos = quadBezier(t, 460, 98, 524, 138, 588, 98);
     badgeGroup.setAttribute("transform", "translate(0, -22)");
   }
 
@@ -259,6 +265,8 @@ function updateFlowLines(
   buyKw: number,
   sellKw: number,
   battChargeKw: number,
+  battDischarging: boolean,
+  battCharging: boolean,
 ): void {
   const setLine = (id: string, cls: string | null) => {
     const node = el<SVGLineElement>(id);
@@ -270,8 +278,6 @@ function updateFlowLines(
   // 待機買電 (<= 0.08kW) のときは買電アニメーション線を動かさない
   const buyActive = buyKw > STANDBY_BUY_MAX_KW;
   const sellActive = sellKw >= 0.02;
-  const battCharging = battChargeKw >= 0.03; // 正 = 充電 (上から下)
-  const battDischarging = battChargeKw <= -0.03; // 負 = 放電 (下から上)
   const battAbsKw = Math.abs(battChargeKw);
 
   // 1. BUY から出る線: 送電元は BUY (ピンク)
@@ -281,15 +287,13 @@ function updateFlowLines(
   setLine("line-solar", solarActive ? "active-solar" : null);
 
   // 3. SELL へ入る線 & 中段縦ライン (y=68 <-> y=226)
-  if (sellActive) {
-    // 売電時の送電元は SOLAR (または放電中の BATTERY)
+  if (sellActive && (solarActive || battDischarging)) {
     const exportColor = solarActive ? "active-solar" : "active-battery";
     setLine("line-sell", exportColor);
     setLine("line-trunk-mid", `${exportColor} flow-reverse`);
   } else {
     setLine("line-sell", null);
     if (buyActive && (useActive || battCharging)) {
-      // 買電して USE または BATTERY へ送る場合、送電元は BUY (ピンク・上から下)
       setLine("line-trunk-mid", "active-buy");
     } else {
       setLine("line-trunk-mid", null);
@@ -300,7 +304,7 @@ function updateFlowLines(
   if (battDischarging) {
     // 放電時: 送電元は BATTERY (紫・下から上)
     setLine("line-batt", "active-battery flow-reverse");
-  } else if (battCharging) {
+  } else if (battCharging && (solarActive || buyActive)) {
     // 充電時: 送電元は SOLAR (黄色) または BUY (ピンク) (上から下)
     const chargeSourceColor = solarActive ? "active-solar" : "active-buy";
     setLine("line-batt", chargeSourceColor);
@@ -308,15 +312,17 @@ function updateFlowLines(
     setLine("line-batt", null);
   }
 
-  // 5. USE へ入る線: 主たる送電元の色にする (SOLAR=黄色 / BATTERY=紫 / BUY=ピンク)
+  // 5. USE へ入る線: 実際に動いている送電元 (SOLAR / BATTERY / BUY) があるときのみ同じ色で点灯
   if (useActive) {
-    let useSourceColor = "active-solar";
+    let useSourceColor: string | null = null;
     if (solarActive && (!battDischarging || solarKw >= battAbsKw)) {
       useSourceColor = "active-solar";
     } else if (battDischarging) {
       useSourceColor = "active-battery";
     } else if (buyActive) {
       useSourceColor = "active-buy";
+    } else if (solarActive) {
+      useSourceColor = "active-solar";
     }
     setLine("line-use", useSourceColor);
   } else {
@@ -389,6 +395,24 @@ function renderDashboard(data: DashboardResponse): void {
   const sellKw = gridW < 0 ? -gridW / 1000 : 0;
   const isStandbyBuy = buyKw > 0.004 && buyKw <= STANDBY_BUY_MAX_KW;
 
+  const solarActive = solarKw >= 0.02;
+  const useActive = useKw >= 0.02;
+  const buyActive = buyKw > STANDBY_BUY_MAX_KW;
+  const soc = Math.max(0, Math.min(100, Math.round(latest.soc ?? 0)));
+
+  // 夜間・非発電時で待機買電のみ(buyActive=false)かつ負荷(useActive)がある場合、
+  // BMSの瞬時サンプル(batt_w)が小さくても実際には蓄電池から負荷へ給電している
+  const inferredBattDischargeKw =
+    !solarActive && !buyActive && useActive && soc > 5 && battChargeKw <= 0.01
+      ? Math.max(battAbsKw, Math.max(0, useKw - buyKw))
+      : battAbsKw;
+
+  const battCharging = battChargeKw >= 0.03;
+  const battDischarging =
+    !battCharging &&
+    (battChargeKw <= -0.02 ||
+      (!solarActive && !buyActive && useActive && inferredBattDischargeKw >= 0.02));
+
   positionSunMarker(
     minutesOfDay,
     data.sun.sunriseMin,
@@ -442,17 +466,29 @@ function renderDashboard(data: DashboardResponse): void {
   el("val-use-self").textContent = `SELF ${selfPct}%`;
 
   // フロー接続線 (送電元の色で描画)
-  updateFlowLines(solarKw, useKw, buyKw, sellKw, battChargeKw);
+  updateFlowLines(
+    solarKw,
+    useKw,
+    buyKw,
+    sellKw,
+    battChargeKw,
+    battDischarging,
+    battCharging,
+  );
 
   // BATTERY カード
-  const soc = Math.max(0, Math.min(100, Math.round(latest.soc ?? 0)));
   const capKwh = cfg.batteryCapacityKwh;
   const storedKwh = (capKwh * soc) / 100;
 
   let battStateLabel = "IDLE";
-  if (battChargeKw >= 0.03) battStateLabel = "CHARGING";
-  else if (battChargeKw <= -0.03) battStateLabel = "DISCHARGING";
-  const displayBattKw = battStateLabel === "IDLE" ? 0 : battAbsKw;
+  if (battCharging) battStateLabel = "CHARGING";
+  else if (battDischarging) battStateLabel = "DISCHARGING";
+  const displayBattKw =
+    battStateLabel === "IDLE"
+      ? 0
+      : battDischarging
+        ? inferredBattDischargeKw
+        : battAbsKw;
 
   el("val-batt-state").textContent = battStateLabel;
   el("val-batt-kw").innerHTML = kwHtml(displayBattKw);
@@ -460,7 +496,7 @@ function renderDashboard(data: DashboardResponse): void {
   el("val-batt-bar").style.width = `${soc}%`;
 
   // 推定残り時間 EST (残量kWh ÷ 使用電力useKw)
-  const refPowerKw = useKw > 0.02 ? useKw : battAbsKw > 0.02 ? battAbsKw : 0;
+  const refPowerKw = useKw > 0.02 ? useKw : displayBattKw > 0.02 ? displayBattKw : 0;
   if (refPowerKw > 0) {
     const hrs = storedKwh / refPowerKw;
     const h = Math.floor(hrs);
@@ -474,7 +510,6 @@ function renderDashboard(data: DashboardResponse): void {
   el("pv-total-pill").textContent =
     `TOTAL ${(Math.max(0, pvSumW) / 1000).toFixed(2)} kW`;
 
-  // サーバー側計算の pvDayKwh (無い場合は series から積算)
   const pvDayMap: Record<number, number> = {
     1: data.pvDayKwh?.pv1 ?? 0,
     2: data.pvDayKwh?.pv2 ?? 0,
@@ -504,7 +539,7 @@ function renderDashboard(data: DashboardResponse): void {
     }
   }
 
-  // BMS STATUS (PACK / CELL / TEMP の3要素)
+  // BMS STATUS (1: PACK → 2: TEMP → 3: CELL)
   const packV = latest.pack_v;
   const cMin = latest.cell_min_mv;
   const cMax = latest.cell_max_mv;
@@ -514,20 +549,77 @@ function renderDashboard(data: DashboardResponse): void {
   const tAvg = latest.temp_avg_c;
 
   const cells = data.snapshot?.cells_mv || [];
+  const temps = data.snapshot?.temps_c || [];
   let minCellIdx = -1;
   if (cells.length > 0) {
     const minMvVal = Math.min(...cells);
     minCellIdx = cells.indexOf(minMvVal);
   }
 
-  // 1. PACK 要素
+  // 1. PACK 要素 (平均セル電圧×48との整合性チェック)
   const avgCellVFromPack =
     typeof packV === "number" ? (packV / 48).toFixed(3) : "--";
+  const expectedPackFromCells =
+    typeof cAvg === "number" ? (cAvg * 48) / 1000 : null;
+  const packDiff =
+    typeof packV === "number" && expectedPackFromCells !== null
+      ? Math.abs(packV - expectedPackFromCells)
+      : null;
+
   el("bms-pack-val").textContent =
     typeof packV === "number" ? `${packV.toFixed(1)} V` : "-- V";
-  el("bms-pack-sub").textContent = `平均 ${avgCellVFromPack} V × 48直列`;
+  el("bms-pack-sub").textContent =
+    expectedPackFromCells !== null
+      ? `平均 ${avgCellVFromPack} V × 48 = ${expectedPackFromCells.toFixed(1)} V`
+      : `平均 ${avgCellVFromPack} V × 48直列`;
 
-  // 2. CELL 要素 (+ 48セル12列グリッド)
+  const packBadge = el("bms-pack-badge");
+  if (packDiff !== null && packDiff <= 1.5) {
+    packBadge.textContent = "整合性OK (48S LFP)";
+    delete packBadge.dataset.level;
+  } else if (packDiff !== null) {
+    packBadge.textContent = `差 ${packDiff.toFixed(1)}V`;
+    packBadge.dataset.level = "warn";
+  } else {
+    packBadge.textContent = "48S LFP";
+    delete packBadge.dataset.level;
+  }
+
+  // 2. TEMP 要素 (+ 2行×8列の16温度センサーグリッド)
+  const deltaTemp =
+    typeof tMax === "number" && typeof tMin === "number" ? tMax - tMin : null;
+  el("bms-temp-val").textContent = `${tMin ?? "--"}〜${tMax ?? "--"} °C`;
+  el("bms-temp-sub").textContent =
+    `AVG ${typeof tAvg === "number" ? tAvg.toFixed(1) : "--"} °C / 差 Δ ${deltaTemp ?? "--"} °C`;
+
+  const tempBadge = el("bms-temp-badge");
+  if (typeof tMin !== "number" || typeof tMax !== "number") {
+    tempBadge.textContent = "--";
+    delete tempBadge.dataset.level;
+  } else if (tMax >= 40 || (deltaTemp !== null && deltaTemp >= 5)) {
+    tempBadge.textContent = "高温/差注意";
+    tempBadge.dataset.level = "warn";
+  } else if (tMin <= 5) {
+    tempBadge.textContent = "低温(充電制限域)";
+    delete tempBadge.dataset.level;
+  } else {
+    tempBadge.textContent = "均一・正常";
+    delete tempBadge.dataset.level;
+  }
+
+  const tempsGrid = el("temps-grid");
+  if (temps.length > 0) {
+    tempsGrid.innerHTML = temps
+      .map((tc, idx) => {
+        const num = String(idx + 1).padStart(2, "0");
+        return `<div class="cell-chip"><span class="cell-id">#${num}</span><span class="cell-mv">${tc}°C</span></div>`;
+      })
+      .join("");
+  } else {
+    tempsGrid.innerHTML = `<div class="cell-chip"><span class="cell-id">--</span><span class="cell-mv">未取得</span></div>`;
+  }
+
+  // 3. CELL 要素 (+ 4行×12列の48セルグリッド)
   const deltaMv =
     typeof cMax === "number" && typeof cMin === "number" ? cMax - cMin : null;
   const minCellText =
@@ -564,28 +656,6 @@ function renderDashboard(data: DashboardResponse): void {
   } else {
     cellsGrid.innerHTML = `<div class="cell-chip"><span class="cell-id">--</span><span class="cell-mv">未取得</span></div>`;
   }
-
-  // 3. TEMP 要素
-  const deltaTemp =
-    typeof tMax === "number" && typeof tMin === "number" ? tMax - tMin : null;
-  el("bms-temp-val").textContent = `${tMin ?? "--"}〜${tMax ?? "--"} °C`;
-  el("bms-temp-sub").textContent =
-    `AVG ${typeof tAvg === "number" ? tAvg.toFixed(1) : "--"} °C / 差 Δ ${deltaTemp ?? "--"} °C`;
-
-  const tempBadge = el("bms-temp-badge");
-  if (typeof tMin !== "number" || typeof tMax !== "number") {
-    tempBadge.textContent = "--";
-    delete tempBadge.dataset.level;
-  } else if (tMax >= 40 || (deltaTemp !== null && deltaTemp >= 5)) {
-    tempBadge.textContent = "高温/差注意";
-    tempBadge.dataset.level = "warn";
-  } else if (tMin <= 5) {
-    tempBadge.textContent = "低温(充電制限域)";
-    delete tempBadge.dataset.level;
-  } else {
-    tempBadge.textContent = "均一・正常";
-    delete tempBadge.dataset.level;
-  }
 }
 
 function scheduleRefresh(intervalSec: number): void {
@@ -614,7 +684,6 @@ async function refresh(): Promise<void> {
 }
 
 function setupControls(): void {
-  // 屋根マップと各PV項目のホバー連動
   for (let i = 1; i <= 4; i++) {
     const box = document.getElementById(`pv-box-${i}`);
     const roof = document.getElementById(`roof-group-pv${i}`);

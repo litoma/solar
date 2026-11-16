@@ -19,7 +19,7 @@ body {
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 20px 12px 48px;
+  padding: 20px 0 48px;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -31,7 +31,25 @@ body {
   gap: 18px;
 }
 
-/* 外枠コンテナ (EP MONITOR = ダークグレー / PV STRINGS = 黄色 / BMS STATUS = 紫) */
+/* 最上部ヘッダー: EP VIEW & ONLINE/OFFLINE (ef-shellと同じ横幅) */
+.top-bar {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 6px 0;
+  gap: 12px;
+}
+
+.top-bar-title {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #e8e8e8;
+}
+
+/* 外枠コンテナ (SUMMARY = ダークグレー / PV STRINGS & ECONOMICAL = 黄色 / BMS STATUS = 紫) */
 .ef-shell {
   background-color: #2c2c2c;
   border: 1.5px solid #383838;
@@ -40,19 +58,17 @@ body {
   box-shadow: 0 18px 42px rgba(0, 0, 0, 0.45);
 }
 
-/* PV STRINGS 外枠自体を SOLAR と同じ黄色に */
 .ef-shell-solar {
   background-color: #443f30;
   border-color: #d7bd72;
 }
 
-/* BMS STATUS 外枠自体を BATTERY と同じ紫に */
 .ef-shell-battery {
   background-color: #3f3d45;
   border-color: #bfb6e0;
 }
 
-/* 上部ヘッダー */
+/* 各ウィジェットの上部ヘッダー */
 .ef-header {
   display: flex;
   align-items: center;
@@ -93,7 +109,7 @@ body {
 }
 
 .ef-pill {
-  background-color: #232323;
+  background-color: #19191b;
   color: #d9d9d9;
   font-family: var(--font-mono);
   font-size: 13px;
@@ -104,13 +120,13 @@ body {
 }
 
 .ef-pill-solar {
-  background-color: rgba(30, 28, 22, 0.72);
+  background-color: rgba(24, 22, 18, 0.78);
   border: 1px solid rgba(215, 189, 114, 0.4);
   color: #f3e4b2;
 }
 
 .ef-pill-battery {
-  background-color: rgba(28, 26, 34, 0.72);
+  background-color: rgba(22, 20, 28, 0.78);
   border: 1px solid rgba(191, 182, 224, 0.4);
   color: #e4ddf9;
 }
@@ -143,6 +159,7 @@ body {
   background-color: #1f4530;
   border-color: #367853;
 }
+
 .ef-status-pill[data-state="online"] .ef-status-dot {
   background-color: #57f293;
   box-shadow: 0 0 6px rgba(87, 242, 147, 0.8);
@@ -152,40 +169,41 @@ body {
   background-color: #422630;
   border-color: #783e52;
 }
+
 .ef-status-pill[data-state="offline"] .ef-status-dot {
   background-color: #ff7b9c;
   box-shadow: 0 0 6px rgba(255, 123, 156, 0.7);
 }
 
-/* 内側ダークキャンバス */
+/* 内側ダークキャンバス (より深い暗色 #161618 に変更) */
 .ef-canvas {
-  background-color: #252525;
+  background-color: #161618;
   border-radius: 16px;
-  padding: 18px 39px 26px;
+  padding: 18px 32px 26px;
 }
 
 .ef-canvas-pv {
-  background-color: #252525;
+  background-color: #161618;
   border: 1px solid rgba(215, 189, 114, 0.28);
   padding: 14px 18px;
 }
 
 .ef-canvas-bms {
-  background-color: #252525;
+  background-color: #161618;
   border: 1px solid rgba(191, 182, 224, 0.28);
   padding: 16px 18px 18px;
 }
 
 .ef-canvas-sim {
-  background-color: #252525;
+  background-color: #161618;
   border: 1px solid rgba(215, 189, 114, 0.28);
   padding: 16px 18px 18px;
 }
 
-/* 太陽軌道セクション */
+/* 太陽軌道セクション (BUY〜SELLの左右幅と揃えるため余白0で100%展開) */
 .ef-sun-wrap {
   width: 100%;
-  margin-bottom: 6px;
+  margin: 0 0 8px;
 }
 
 .ef-sun-svg {
@@ -202,7 +220,6 @@ body {
   text-anchor: middle;
 }
 
-/* 温度テキスト (枠なし) */
 .sun-badge-text {
   fill: #f0f0f0;
   font-family: var(--font-mono);
@@ -211,7 +228,7 @@ body {
   text-anchor: middle;
 }
 
-/* INPUT / OUTPUT 見出し */
+/* INPUT / OUTPUT / ROOF 見出し */
 .ef-col-headers {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr);
@@ -227,7 +244,7 @@ body {
   color: #9c9ea6;
 }
 
-/* 1段目: BUY / SELL, 2段目: SOLAR / USE, 3段目: BATTERY (左右の横幅を minmax(0, 1fr) で完全均一化) */
+/* 1段目: BUY / SELL, 2段目: SOLAR / USE, 3段目: BATTERY */
 .ef-flow-layout {
   position: relative;
   display: grid;
@@ -260,7 +277,7 @@ body {
   grid-row: 5;
 }
 
-/* 中央のフロー接続線SVG (100% × 100% で BATTERY の上端まで確実に到達させる) */
+/* 中央のフロー接続線SVG */
 .ef-connectors {
   grid-column: 2;
   grid-row: 1 / 5;
@@ -271,7 +288,7 @@ body {
 }
 
 .flow-line-base {
-  stroke: #383a44;
+  stroke: #343640;
   stroke-width: 2.4px;
 }
 
@@ -402,15 +419,6 @@ body {
   color: #d4d4d8;
 }
 
-/* kWh/d 用の1段階小さい単位フォント */
-.ef-unit-sub {
-  font-size: 12px;
-  font-weight: 400;
-  margin-left: 3px;
-  letter-spacing: 0;
-  opacity: 0.9;
-}
-
 /* 3段目 (0.5 kWh/d) と 4段目 (VALUE/SELF/COST/REV) は15px & 同色に */
 .ef-card-sub,
 .ef-card-highlight {
@@ -502,7 +510,6 @@ body {
   letter-spacing: 0.04em;
 }
 
-/* BATTERY 2段目: 0.00 kW (数値34px + 単位20px) */
 .ef-batt-value {
   font-family: var(--font-sans);
   font-size: 34px;
@@ -513,7 +520,6 @@ body {
   margin: 1px 0 3px;
 }
 
-/* BATTERY バー縦幅 30px */
 .ef-batt-bar-track {
   position: relative;
   width: 100%;
@@ -562,18 +568,34 @@ body {
 }
 
 /* ==========================================================================
-   PV STRINGS セクション: 中央屋根枠の×分割 + 外周4方角配置
+   PV STRINGS セクション: 中央 ROOF + 外周4方角配置
    ========================================================================== */
 .pv-xmap {
   position: relative;
   width: 100%;
-  aspect-ratio: 640 / 430;
-  min-height: 370px;
+  min-height: 386px;
+}
+
+/* 中央の ROOF 見出し + 屋根枠SVG */
+.pv-roof-center {
+  position: absolute;
+  left: 50%;
+  top: 54%;
+  transform: translate(-50%, -50%);
+  width: 244px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.pv-roof-heading {
+  margin: 0;
 }
 
 .pv-xmap-svg {
   width: 100%;
-  height: 100%;
+  height: auto;
   display: block;
 }
 
@@ -620,9 +642,8 @@ body {
   gap: 6px;
 }
 
-/* 上: NORTH (横長ボックスにして屋根枠 y=106 より上に収める) */
 .pv-quad-north {
-  top: 4px;
+  top: 2px;
   left: 50%;
   transform: translateX(-50%);
   align-items: center;
@@ -630,25 +651,22 @@ body {
   gap: 4px;
 }
 
-/* 左: WEST */
 .pv-quad-west {
-  left: 14px;
-  top: 52%;
+  left: 10px;
+  top: 54%;
   transform: translateY(-50%);
   align-items: flex-start;
 }
 
-/* 右: EAST */
 .pv-quad-east {
-  right: 14px;
-  top: 52%;
+  right: 10px;
+  top: 54%;
   transform: translateY(-50%);
   align-items: flex-start;
 }
 
-/* 下: SOUTH */
 .pv-quad-south {
-  bottom: 8px;
+  bottom: 4px;
   left: 50%;
   transform: translateX(-50%);
   align-items: center;
@@ -664,15 +682,14 @@ body {
 }
 
 .pv-quad-item {
-  background-color: #2f3137;
-  border: 1px solid #484b54;
+  background-color: #26282e;
+  border: 1px solid #454852;
   border-radius: 14px;
   padding: 8px 14px;
   min-width: 144px;
   transition: border-color 0.2s ease, transform 0.2s ease;
 }
 
-/* 北側だけ横長 (1行に PV4・3 panels・kW・kWh/d を横並び配置) */
 .pv-quad-item-wide {
   display: flex;
   align-items: baseline;
@@ -756,8 +773,7 @@ body {
 }
 
 /* ==========================================================================
-   BMS STATUS セクション: PACK / CELL / TEMP の3要素に分割
-   (#01〜#48 は CELL 要素内に配置)
+   BMS STATUS セクション: PACK → TEMP → CELL の3要素
    ========================================================================== */
 .bms-sections {
   display: flex;
@@ -766,8 +782,8 @@ body {
 }
 
 .bms-box {
-  background-color: #2f3137;
-  border: 1px solid #484b54;
+  background-color: #26282e;
+  border: 1px solid #454852;
   border-radius: 16px;
   padding: 12px 16px 14px;
   display: flex;
@@ -818,6 +834,21 @@ body {
   line-height: 1.45;
 }
 
+.bms-check-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  color: #aeb2be;
+  line-height: 1.45;
+}
+
+.bms-check-list strong {
+  color: #dcd5f2;
+  font-weight: 600;
+}
+
 .bms-eval-badge {
   color: #e4dff7;
   background-color: rgba(32, 30, 38, 0.78);
@@ -829,7 +860,15 @@ body {
   border-color: rgba(255, 174, 224, 0.65);
 }
 
-/* CELL 要素内の 12列×4段 セル一覧 */
+/* TEMP 要素内の 2行×8列 (16センサー) グリッド */
+.temps-grid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 5px;
+  margin-top: 6px;
+}
+
+/* CELL 要素内の 4行×12列 (48セル) グリッド */
 .cells-grid {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
@@ -838,8 +877,8 @@ body {
 }
 
 .cell-chip {
-  background-color: #25272c;
-  border: 1px solid #434650;
+  background-color: #1d1e23;
+  border: 1px solid #3f424c;
   border-radius: 7px;
   padding: 4px 2px;
   display: flex;
@@ -881,7 +920,7 @@ body {
 }
 
 .sim-summary-card {
-  background-color: #2f3137;
+  background-color: #26282e;
   border: 1px solid #454852;
   border-radius: 14px;
   padding: 10px 14px;
@@ -931,7 +970,7 @@ body {
 }
 
 .sim-chart-box {
-  background-color: #202126;
+  background-color: #1d1e23;
   border: 1px solid #3c3e47;
   border-radius: 16px;
   padding: 12px 12px 6px;
@@ -1000,7 +1039,7 @@ body {
 }
 
 .sim-month-cell {
-  background-color: #2f3137;
+  background-color: #26282e;
   border: 1px solid #454852;
   border-radius: 8px;
   padding: 5px 2px;
@@ -1046,62 +1085,81 @@ body {
 }
 
 @media (max-width: 680px) {
+  .top-bar {
+    padding: 0 12px;
+  }
+
   .ef-canvas {
     padding: 14px 12px 18px;
   }
+
   .ef-flow-layout {
     grid-template-columns: minmax(0, 1fr) 26px minmax(0, 1fr);
     grid-template-rows: 132px 18px 132px 18px 154px;
   }
+
   .ef-col-headers {
     grid-template-columns: minmax(0, 1fr) 26px minmax(0, 1fr);
   }
+
   .ef-connectors {
     width: 100%;
     height: 100%;
   }
+
   .ef-card {
     padding: 13px 13px 12px;
     border-radius: 22px;
   }
+
   .ef-card-title {
     font-size: 13.5px;
     gap: 5px;
   }
+
   .ef-outline-badge {
     font-size: 10px;
     padding: 2px 7px;
   }
+
   .ef-card-value,
   .ef-batt-value {
     font-size: 27px;
   }
+
   .ef-unit {
     font-size: 15px;
     margin-left: 3px;
   }
+
   .ef-card-sub,
   .ef-card-highlight,
   .ef-batt-bottom {
     font-size: 13.5px;
   }
+
+  /* スマホ表示では屋根の余白を詰め、コンパクトに中央表示 */
   .pv-xmap {
-    aspect-ratio: auto;
     min-height: 0;
     display: flex;
     flex-direction: column;
     gap: 10px;
   }
-  .pv-xmap-svg {
-    max-height: 220px;
+
+  .pv-roof-center {
+    position: static;
+    transform: none;
+    width: 196px;
+    margin: 0 auto 4px;
   }
+
   .pv-quad {
     position: static;
     transform: none;
     align-items: stretch;
     text-align: left;
   }
-  /* スマホ表示では PV1〜PV4 すべて NORTH と同じ1行横長レイアウトに統一 */
+
   .pv-quad-item,
   .pv-quad-item-wide {
     display: flex;
@@ -1112,19 +1170,28 @@ body {
     min-width: 0;
     width: 100%;
   }
+
   .pv-quad-kw {
     font-size: 21px;
     margin: 0;
   }
+
   .pv-quad-day {
     font-size: 13.5px;
   }
-  .sim-months-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
+
   .sim-summary-grid {
     grid-template-columns: 1fr;
   }
+
+  .sim-months-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .temps-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .cells-grid {
     grid-template-columns: repeat(6, minmax(0, 1fr));
   }
