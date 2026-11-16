@@ -56,7 +56,7 @@ function kwHtml(kw: number, unitClass = "ef-unit"): string {
 }
 
 function kwhDayHtml(kwh: number): string {
-  return `${kwh.toFixed(1)}<span class="ef-unit-sub">kWh/d</span>`;
+  return `${kwh.toFixed(1)} kWh/d`;
 }
 
 function formatTimeJst(
@@ -513,9 +513,6 @@ function renderDashboard(data: DashboardResponse): void {
     minCellIdx = cells.indexOf(minMvVal);
   }
 
-  el("bms-pack-pill").textContent =
-    typeof packV === "number" ? `PACK ${packV.toFixed(1)} V` : "PACK -- V";
-
   // 1. PACK 要素
   const avgCellVFromPack =
     typeof packV === "number" ? (packV / 48).toFixed(3) : "--";
@@ -554,7 +551,7 @@ function renderDashboard(data: DashboardResponse): void {
     cellsGrid.innerHTML = cells
       .map((mv, idx) => {
         const num = String(idx + 1).padStart(2, "0");
-        return `<div class="cell-chip"><span class="cell-id">#${num}</span><span class="cell-mv">${mv}mV</span></div>`;
+        return `<div class="cell-chip"><span class="cell-id">#${num}</span><span class="cell-mv">${mv}</span></div>`;
       })
       .join("");
   } else {
