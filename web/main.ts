@@ -1,3 +1,5 @@
+import { mountOrUpdateSimulationChart } from "./SimulationChart";
+
 interface DashboardResponse {
   hasData: boolean;
   gatewayOnline?: boolean;
@@ -62,13 +64,15 @@ function kwhDayHtml(kwh: number): string {
 function formatTimeJst(
   epochSec: number,
   tzOffsetMin = 540,
-): { text: string; minutesOfDay: number } {
+): { text: string; minutesOfDay: number; month: number } {
   const d = new Date((epochSec + tzOffsetMin * 60) * 1000);
   const hh = d.getUTCHours();
   const mm = d.getUTCMinutes();
+  const month = d.getUTCMonth() + 1;
   return {
     text: `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`,
     minutesOfDay: hh * 60 + mm,
+    month,
   };
 }
 
@@ -334,8 +338,9 @@ function renderDashboard(data: DashboardResponse): void {
   const latest = data.latest;
   if (!latest) {
     const nowSec = Math.floor(Date.now() / 1000);
-    const { text: timeText, minutesOfDay } = formatTimeJst(nowSec, tzMin);
+    const { text: timeText, minutesOfDay, month } = formatTimeJst(nowSec, tzMin);
     el("ef-time").textContent = timeText;
+    mountOrUpdateSimulationChart(month);
     positionSunMarker(
       minutesOfDay,
       data.sun.sunriseMin,
@@ -349,8 +354,9 @@ function renderDashboard(data: DashboardResponse): void {
 
   const ts =
     typeof latest.ts === "number" ? latest.ts : Math.floor(Date.now() / 1000);
-  const { text: timeText, minutesOfDay } = formatTimeJst(ts, tzMin);
+  const { text: timeText, minutesOfDay, month } = formatTimeJst(ts, tzMin);
   el("ef-time").textContent = timeText;
+  mountOrUpdateSimulationChart(month);
 
   // IoT (192.168.0.36) との接続状態: 直近データが取得できていれば ONLINE、古ければ OFFLINE
   const clientNowSec = Math.floor(Date.now() / 1000);
@@ -634,5 +640,6 @@ function setupControls(): void {
 }
 
 setupControls();
+mountOrUpdateSimulationChart(formatTimeJst(Math.floor(Date.now() / 1000)).month);
 refresh();
 scheduleRefresh(currentRefreshSec);

@@ -188,6 +188,7 @@
             <svg
               class="ef-connectors"
               viewBox="0 0 64 316"
+              preserveAspectRatio="none"
               aria-hidden="true"
             >
               <!-- ベースライン (非アクティブ時の暗い実線) -->
@@ -392,7 +393,32 @@
         </div>
       </section>
 
-      <!-- 3. BMS STATUS ウィジェット (外枠はBATTERYの紫・内部をPACK / CELL / TEMPの3要素に分割) -->
+      <!-- 3. ESTIMATED GENERATION ウィジェット (月別推定発電量シミュレーション・Recharts) -->
+      <section class="ef-shell ef-shell-solar" aria-label="Estimated Solar Generation">
+        <header class="ef-header">
+          <div class="ef-header-left">
+            <span class="ef-bolt" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path
+                  d="M2 13.5H14M4 13.5V8.5M8 13.5V4.5M12 13.5V6.5"
+                  stroke="#fbdd84"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                />
+              </svg>
+            </span>
+            <h2 class="ef-title ef-title-solar">ESTIMATED GENERATION</h2>
+            <span class="ef-pill ef-pill-solar">NERIMA · 5.90 kW SYSTEM</span>
+          </div>
+          <span class="ef-pill ef-pill-solar">ANNUAL 6,348 kWh</span>
+        </header>
+
+        <div class="ef-canvas ef-canvas-sim">
+          <div id="sim-chart-root"></div>
+        </div>
+      </section>
+
+      <!-- 4. BMS STATUS ウィジェット (外枠はBATTERYの紫・内部をPACK / CELL / TEMPの3要素に分割) -->
       <section class="ef-shell ef-shell-battery" aria-label="BMS Status Monitor">
         <header class="ef-header">
           <div class="ef-header-left">
