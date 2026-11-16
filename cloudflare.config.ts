@@ -20,8 +20,18 @@ export default defineConfig({
       SOLAR_LOCATION: bindings.text(process.env.SOLAR_LOCATION || "東京都練馬区"),
       // 買電単価 (円/kWh, 初期値: 35)
       SOLAR_BUY_PRICE_YEN: bindings.text(process.env.SOLAR_BUY_PRICE_YEN || "35"),
-      // 売電単価 (円/kWh, 初期値: 24)
+      // 売電単価 (円/kWh, 初期値: 24 ※年数別スケジュール未設定時のフォールバック)
       SOLAR_SELL_PRICE_YEN: bindings.text(process.env.SOLAR_SELL_PRICE_YEN || "24"),
+      // 年数別の売電単価スケジュール (初期投資支援スキーム + 卒FIT: 1〜4年目=24円, 5〜10年目=8.3円, 11年目以降=8.5円)
+      SOLAR_SELL_PRICE_SCHEDULE: bindings.text(
+        process.env.SOLAR_SELL_PRICE_SCHEDULE || "1-4:24,5-10:8.3,11+:8.5",
+      ),
+      // 導入・売電開始年月 (年数カウントの起点, 初期値: 2026-11)
+      SOLAR_START_YM: bindings.text(process.env.SOLAR_START_YM || "2026-11"),
+      // 計画試算用の想定自家消費率 (0.0〜1.0, 初期値: 0.65 = 自家消費65% / 売電35%)
+      SOLAR_SELF_CONSUME_RATIO: bindings.text(
+        process.env.SOLAR_SELF_CONSUME_RATIO || "0.65",
+      ),
       // 公開サイトの情報更新頻度 (分, 初期値: 1)
       SOLAR_REFRESH_MINUTES: bindings.text(process.env.SOLAR_REFRESH_MINUTES || "1"),
       // 蓄電池の定格容量 (kWh, カタログ値: 13.3)

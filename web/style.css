@@ -325,6 +325,7 @@ body {
   from {
     stroke-dashoffset: 22;
   }
+
   to {
     stroke-dashoffset: 0;
   }
@@ -334,6 +335,7 @@ body {
   from {
     stroke-dashoffset: 0;
   }
+
   to {
     stroke-dashoffset: 22;
   }
@@ -434,9 +436,11 @@ body {
   background-color: #443f30;
   border: 1.5px solid #d7bd72;
 }
+
 .ef-card-solar .ef-card-title {
   color: #fbdd84;
 }
+
 .ef-card-solar .ef-card-sub,
 .ef-card-solar .ef-card-highlight {
   color: #c2b99f;
@@ -447,9 +451,11 @@ body {
   background-color: #2b4133;
   border: 1.5px solid #4bc77c;
 }
+
 .ef-card-use .ef-card-title {
   color: #57f293;
 }
+
 .ef-card-use .ef-card-sub,
 .ef-card-use .ef-card-highlight {
   color: #a3c2ae;
@@ -460,9 +466,11 @@ body {
   background-color: #42353c;
   border: 1.5px solid #de92bc;
 }
+
 .ef-card-buy .ef-card-title {
   color: #ffaee0;
 }
+
 .ef-card-buy .ef-card-sub,
 .ef-card-buy .ef-card-highlight {
   color: #bda8b3;
@@ -473,9 +481,11 @@ body {
   background-color: #2f3941;
   border: 1.5px solid #74aede;
 }
+
 .ef-card-sell .ef-card-title {
   color: #88cdff;
 }
+
 .ef-card-sell .ef-card-sub,
 .ef-card-sell .ef-card-highlight {
   color: #a8b9c8;
@@ -723,12 +733,15 @@ body {
 .swatch-pv1 {
   background-color: #f0a04b;
 }
+
 .swatch-pv2 {
   background-color: #4cc3d9;
 }
+
 .swatch-pv3 {
   background-color: #6fd08c;
 }
+
 .swatch-pv4 {
   background-color: #ee7f6b;
 }
@@ -1107,6 +1120,44 @@ body {
   font-weight: 600;
 }
 
+.payback-tiers-bar {
+  background-color: #202227;
+  border: 1px solid #3c3e47;
+  border-radius: 12px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.payback-tiers-label {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: #b8bbc6;
+  white-space: nowrap;
+}
+
+.payback-tiers-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.payback-tier-chip {
+  color: #f3e4b2;
+  background-color: rgba(48, 44, 34, 0.72);
+  border: 1px solid rgba(215, 189, 114, 0.45);
+}
+
+.payback-tiers-note {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #9a9ea6;
+}
+
 .payback-bar-wrap {
   width: 100%;
 }
@@ -1148,7 +1199,7 @@ body {
 
 .payback-milestones-grid {
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: repeat(9, minmax(0, 1fr));
   gap: 5px;
 }
 

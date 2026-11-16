@@ -1,7 +1,17 @@
+export interface SellPriceTier {
+  startYear: number;
+  endYear: number | null;
+  priceYenPerKwh: number;
+}
+
 export interface SiteConfig {
   location: string;
   buyPriceYenPerKwh: number;
   sellPriceYenPerKwh: number;
+  sellPriceSchedule: SellPriceTier[];
+  sellPriceScheduleRaw: string;
+  startYm: string;
+  selfConsumeRatio: number;
   refreshIntervalSec: number;
   batteryCapacityKwh: number;
   paybackTargetYen: number;
@@ -21,6 +31,9 @@ export interface Env {
   SOLAR_LONGITUDE?: string;
   SOLAR_BUY_PRICE_YEN?: string;
   SOLAR_SELL_PRICE_YEN?: string;
+  SOLAR_SELL_PRICE_SCHEDULE?: string;
+  SOLAR_START_YM?: string;
+  SOLAR_SELF_CONSUME_RATIO?: string;
   SOLAR_REFRESH_MINUTES?: string;
   SOLAR_REFRESH_SEC?: string;
   SOLAR_BATTERY_CAPACITY_KWH?: string;
@@ -36,6 +49,10 @@ export interface Env {
 const DEFAULT_LOCATION = "東京都中央区";
 const DEFAULT_BUY_PRICE_YEN = 35;
 const DEFAULT_SELL_PRICE_YEN = 24;
+// 2025年度下半期〜 初期投資支援スキーム (1〜4年目: 24円, 5〜10年目: 8.3円) + 卒FIT (11年目以降: 8.5円)
+const DEFAULT_SELL_PRICE_SCHEDULE = "1-4:24,5-10:8.3,11+:8.5";
+const DEFAULT_START_YM = "2026-11";
+const DEFAULT_SELF_CONSUME_RATIO = 0.65;
 const DEFAULT_REFRESH_MINUTES = 1;
 const DEFAULT_BATTERY_CAPACITY_KWH = 13.3;
 const DEFAULT_PAYBACK_TARGET_YEN = 1100000;
@@ -191,16 +208,111 @@ function parsePositiveNumber(raw: string | undefined, fallback: number): number 
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
+/**
+ * "1-4:24,5-10:8.3,11+:8.5" のような年数別売電単価スケジュール文字列をパースする
+ */
+function parseSellPriceSchedule(
+  raw: string | undefined,
+  fallbackPrice: number,
+): SellPriceTier[] {
+  const src = (raw || DEFAULT_SELL_PRICE_SCHEDULE).trim();
+  const tiers: SellPriceTier[] = [];
+  for (const part of src.split(",")) {
+    const token = part.trim();
+    if (!token) continue;
+    const [rangePart, pricePart] = token.split(":").map((s) => s.trim());
+    if (!rangePart || !pricePart) continue;
+    const price = Number(pricePart);
+    if (!Number.isFinite(price) || price < 0) continue;
+
+    const mRange = /^(\d+)\s*-\s*(\d+)$/.exec(rangePart);
+    const mOpen = /^(\d+)\s*(?:\+|-)?$/.exec(rangePart);
+    if (mRange) {
+      const s = Number(mRange[1]);
+      const e = Number(mRange[2]);
+      if (s >= 1 && e >= s) {
+        tiers.push({ startYear: s, endYear: e, priceYenPerKwh: price });
+      }
+    } else if (mOpen) {
+      const s = Number(mOpen[1]);
+      const isOpenEnded = rangePart.endsWith("+") || rangePart.endsWith("-");
+      if (s >= 1) {
+        tiers.push({
+          startYear: s,
+          endYear: isOpenEnded ? null : s,
+          priceYenPerKwh: price,
+        });
+      }
+    }
+  }
+  if (tiers.length === 0) {
+    return [{ startYear: 1, endYear: null, priceYenPerKwh: fallbackPrice }];
+  }
+  tiers.sort((a, b) => a.startYear - b.startYear);
+  return tiers;
+}
+
+function getSellPriceForYear(
+  schedule: SellPriceTier[],
+  yearOfOperation: number,
+  fallbackPrice: number,
+): number {
+  const yr = Math.max(1, Math.floor(yearOfOperation));
+  for (const t of schedule) {
+    if (yr >= t.startYear && (t.endYear === null || yr <= t.endYear)) {
+      return t.priceYenPerKwh;
+    }
+  }
+  return schedule[schedule.length - 1]?.priceYenPerKwh ?? fallbackPrice;
+}
+
+function getOperationYearForYm(startYm: string, targetYm: string): number {
+  const ms = /^(\d{4})-(\d{2})$/.exec(startYm);
+  const mt = /^(\d{4})-(\d{2})$/.exec(targetYm);
+  if (!ms || !mt) return 1;
+  const startMonths = Number(ms[1]) * 12 + (Number(ms[2]) - 1);
+  const targetMonths = Number(mt[1]) * 12 + (Number(mt[2]) - 1);
+  const diff = Math.max(0, targetMonths - startMonths);
+  return Math.floor(diff / 12) + 1;
+}
+
 async function resolveSiteConfig(env: Env): Promise<SiteConfig> {
   const location = (env.SOLAR_LOCATION || DEFAULT_LOCATION).trim() || DEFAULT_LOCATION;
   const buyPriceYenPerKwh = parsePositiveNumber(
     env.SOLAR_BUY_PRICE_YEN,
     DEFAULT_BUY_PRICE_YEN,
   );
-  const sellPriceYenPerKwh = parsePositiveNumber(
+  const baseSellPriceYen = parsePositiveNumber(
     env.SOLAR_SELL_PRICE_YEN,
     DEFAULT_SELL_PRICE_YEN,
   );
+  const sellPriceScheduleRaw =
+    (env.SOLAR_SELL_PRICE_SCHEDULE || DEFAULT_SELL_PRICE_SCHEDULE).trim() ||
+    DEFAULT_SELL_PRICE_SCHEDULE;
+  const sellPriceSchedule = parseSellPriceSchedule(
+    sellPriceScheduleRaw,
+    baseSellPriceYen,
+  );
+  const startYmRaw = (env.SOLAR_START_YM || DEFAULT_START_YM).trim();
+  const startYm = /^\d{4}-\d{2}$/.test(startYmRaw)
+    ? startYmRaw
+    : DEFAULT_START_YM;
+  const rawSelfRatio = parsePositiveNumber(
+    env.SOLAR_SELF_CONSUME_RATIO,
+    DEFAULT_SELF_CONSUME_RATIO,
+  );
+  const selfConsumeRatio = Math.max(0.05, Math.min(1.0, rawSelfRatio));
+
+  // 現在年月の運転年数に応じた売電単価を sellPriceYenPerKwh にも反映
+  const nowJst = new Date(Date.now() + DEFAULT_TZ_OFFSET_MIN * 60 * 1000);
+  const currentYm = `${nowJst.getUTCFullYear()}-${String(nowJst.getUTCMonth() + 1).padStart(2, "0")}`;
+  const currentOpYear = getOperationYearForYm(startYm, currentYm);
+  const sellPriceYenPerKwh = getSellPriceForYear(
+    sellPriceSchedule,
+    currentOpYear,
+    baseSellPriceYen,
+  );
+
   const batteryCapacityKwh = parsePositiveNumber(
     env.SOLAR_BATTERY_CAPACITY_KWH,
     DEFAULT_BATTERY_CAPACITY_KWH,
@@ -246,6 +358,10 @@ async function resolveSiteConfig(env: Env): Promise<SiteConfig> {
     location,
     buyPriceYenPerKwh,
     sellPriceYenPerKwh,
+    sellPriceSchedule,
+    sellPriceScheduleRaw,
+    startYm,
+    selfConsumeRatio,
     refreshIntervalSec,
     batteryCapacityKwh,
     paybackTargetYen,
@@ -502,8 +618,14 @@ async function handleDashboard(env: Env): Promise<Response> {
     const sKwh = Math.max(0, d.solar_kwh ?? 0);
     const eKwh = Math.max(0, d.sell_kwh ?? 0);
     const selfKwh = Math.max(0, sKwh - eKwh);
+    const opYear = d.ym ? getOperationYearForYm(cfg.startYm, d.ym) : 1;
+    const sellPriceForDay = getSellPriceForYear(
+      cfg.sellPriceSchedule,
+      opYear,
+      cfg.sellPriceYenPerKwh,
+    );
     const benefit =
-      selfKwh * cfg.buyPriceYenPerKwh + eKwh * cfg.sellPriceYenPerKwh;
+      selfKwh * cfg.buyPriceYenPerKwh + eKwh * sellPriceForDay;
     totalSolarKwh += sKwh;
     totalSellKwh += eKwh;
     totalBenefitYen += benefit;
@@ -528,6 +650,9 @@ async function handleDashboard(env: Env): Promise<Response> {
     targetYen: cfg.paybackTargetYen,
     initialCostYen: cfg.initialCostYen,
     subsidyYen: cfg.subsidyYen,
+    sellPriceSchedule: cfg.sellPriceSchedule,
+    startYm: cfg.startYm,
+    selfConsumeRatio: cfg.selfConsumeRatio,
     totalSolarKwh: Math.round(totalSolarKwh * 10) / 10,
     totalSellKwh: Math.round(totalSellKwh * 10) / 10,
     totalBenefitYen: Math.round(totalBenefitYen),
