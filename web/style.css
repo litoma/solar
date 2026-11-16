@@ -866,12 +866,68 @@ body {
 }
 
 /* ==========================================================================
-   ESTIMATED GENERATION セクション (月別推定発電量シミュレーション・Recharts)
+   ECONOMICAL セクション (月別推定発電量 vs 実績発電量・Recharts)
    ========================================================================== */
 .sim-container {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.sim-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.sim-summary-card {
+  background-color: #2f3137;
+  border: 1px solid #454852;
+  border-radius: 14px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sim-summary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sim-summary-title {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: #b8bbc6;
+}
+
+.sim-pct-badge {
+  color: #57f293;
+  background-color: rgba(31, 69, 48, 0.55);
+  border: 1px solid rgba(87, 242, 147, 0.45);
+  font-weight: 600;
+}
+
+.sim-summary-val {
+  font-family: var(--font-sans);
+  font-size: 22px;
+  font-weight: 500;
+  color: #f0f0f5;
+  line-height: 1.15;
+}
+
+.sim-summary-sep {
+  margin: 0 5px;
+  color: #8a8e99;
+  font-size: 16px;
+}
+
+.sim-summary-target {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: #c2b99f;
 }
 
 .sim-chart-box {
@@ -885,18 +941,20 @@ body {
   background-color: #25262c;
   border: 1px solid #d7bd72;
   border-radius: 12px;
-  padding: 8px 12px;
+  padding: 9px 12px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   font-family: var(--font-mono);
+  min-width: 170px;
 }
 
 .sim-tooltip-title {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11.5px;
+  font-size: 12px;
+  font-weight: 600;
   color: #fbdd84;
-  margin-bottom: 2px;
+  margin-bottom: 5px;
 }
 
 .sim-tooltip-tag {
@@ -908,23 +966,31 @@ body {
   color: #ffe89e;
 }
 
-.sim-tooltip-val {
-  font-family: var(--font-sans);
-  font-size: 18px;
-  font-weight: 600;
-  color: #f4f4f6;
+.sim-tooltip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11.5px;
+  line-height: 1.5;
 }
 
-.sim-tooltip-val span {
-  font-size: 12px;
-  font-weight: 400;
-  color: #c2c5d0;
-}
-
-.sim-tooltip-sub {
-  font-size: 11px;
+.sim-tooltip-label {
   color: #aeb2be;
-  margin-top: 2px;
+}
+
+.sim-tooltip-actual {
+  color: #57f293;
+  font-weight: 600;
+}
+
+.sim-tooltip-est {
+  color: #e2dcc8;
+}
+
+.sim-tooltip-pct {
+  color: #fbdd84;
+  font-weight: 600;
 }
 
 .sim-months-grid {
@@ -961,44 +1027,22 @@ body {
 }
 
 .sim-month-val {
-  font-size: 11.5px;
+  font-size: 10.5px;
   font-weight: 600;
   color: #eceef4;
+  white-space: nowrap;
 }
 
-.sim-impact-row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.sim-impact-chip {
-  background-color: #2f3137;
-  border: 1px solid #454852;
-  border-radius: 12px;
-  padding: 8px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.sim-impact-key {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: #b4b7c2;
-}
-
-.sim-impact-val {
-  font-family: var(--font-mono);
-  font-size: 13.5px;
-  font-weight: 600;
-  color: #fbdd84;
-}
-
-.sim-impact-val small {
-  font-size: 11px;
+.sim-month-val small {
+  font-size: 9px;
   font-weight: 400;
-  color: #c2c5d0;
+  color: #9da1ae;
+}
+
+.sim-month-pct {
+  font-size: 10px;
+  font-weight: 600;
+  color: #57f293;
 }
 
 @media (max-width: 680px) {
@@ -1076,9 +1120,9 @@ body {
     font-size: 13.5px;
   }
   .sim-months-grid {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
-  .sim-impact-row {
+  .sim-summary-grid {
     grid-template-columns: 1fr;
   }
   .cells-grid {

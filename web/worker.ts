@@ -411,6 +411,40 @@ async function handleDashboard(env: Env): Promise<Response> {
     latest && typeof latest.ts === "number" && nowSec - latest.ts <= 240,
   );
 
+  // 当年(JST)の月別実績発電量 (kWh) を日ごとの MAX(solar_day_kwh) の合計から算出
+  const jstDate = new Date((refTs + tzSec) * 1000);
+  const jstYear = jstDate.getUTCFullYear();
+  const yearStartUtc = Math.floor(Date.UTC(jstYear, 0, 1) / 1000) - tzSec;
+  const yearEndUtc = Math.floor(Date.UTC(jstYear + 1, 0, 1) / 1000) - tzSec;
+
+  const monthlyRowsResult = await env.DB.prepare(
+    `SELECT
+       CAST(strftime('%m', day_ts + ?, 'unixepoch') AS INTEGER) AS month,
+       ROUND(SUM(day_kwh), 2) AS actual_kwh
+     FROM (
+       SELECT
+         (ts + ?) / 86400 AS jst_day,
+         MIN(ts) AS day_ts,
+         COALESCE(
+           MAX(solar_day_kwh),
+           SUM(CASE WHEN solar_w > 0 THEN solar_w ELSE 0 END) / 60000.0
+         ) AS day_kwh
+       FROM minute_samples
+       WHERE ts >= ? AND ts < ?
+       GROUP BY (ts + ?) / 86400
+     )
+     GROUP BY month`,
+  )
+    .bind(tzSec, tzSec, yearStartUtc, yearEndUtc, tzSec)
+    .all<{ month: number; actual_kwh: number | null }>();
+
+  const monthlyActualKwh: Record<number, number> = {};
+  for (const r of monthlyRowsResult.results || []) {
+    if (typeof r.month === "number" && typeof r.actual_kwh === "number") {
+      monthlyActualKwh[r.month] = Math.round(r.actual_kwh * 10) / 10;
+    }
+  }
+
   const sun = computeSunTimes(
     refTs,
     cfg.latitude,
@@ -456,6 +490,7 @@ async function handleDashboard(env: Env): Promise<Response> {
     latest: latest || null,
     sellDayKwhComputed: sellDayKwhFromSeries,
     pvDayKwh,
+    monthlyActualKwh,
     snapshot: latestSnap
       ? {
           ts: latestSnap.ts,

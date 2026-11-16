@@ -35,6 +35,7 @@ interface DashboardResponse {
     pv3: number;
     pv4: number;
   };
+  monthlyActualKwh?: Record<number, number>;
   snapshot: {
     ts: number;
     cells_mv: number[];
@@ -340,7 +341,7 @@ function renderDashboard(data: DashboardResponse): void {
     const nowSec = Math.floor(Date.now() / 1000);
     const { text: timeText, minutesOfDay, month } = formatTimeJst(nowSec, tzMin);
     el("ef-time").textContent = timeText;
-    mountOrUpdateSimulationChart(month);
+    mountOrUpdateSimulationChart(month, data.monthlyActualKwh || {});
     positionSunMarker(
       minutesOfDay,
       data.sun.sunriseMin,
@@ -356,7 +357,7 @@ function renderDashboard(data: DashboardResponse): void {
     typeof latest.ts === "number" ? latest.ts : Math.floor(Date.now() / 1000);
   const { text: timeText, minutesOfDay, month } = formatTimeJst(ts, tzMin);
   el("ef-time").textContent = timeText;
-  mountOrUpdateSimulationChart(month);
+  mountOrUpdateSimulationChart(month, data.monthlyActualKwh || {});
 
   // IoT (192.168.0.36) との接続状態: 直近データが取得できていれば ONLINE、古ければ OFFLINE
   const clientNowSec = Math.floor(Date.now() / 1000);
