@@ -1,5 +1,6 @@
 interface DashboardResponse {
   hasData: boolean;
+  gatewayOnline?: boolean;
   config: {
     location: string;
     buyPriceYenPerKwh: number;
@@ -26,6 +27,12 @@ interface DashboardResponse {
   } | null;
   latest: Record<string, number | null> | null;
   sellDayKwhComputed: number;
+  pvDayKwh?: {
+    pv1: number;
+    pv2: number;
+    pv3: number;
+    pv4: number;
+  };
   snapshot: {
     ts: number;
     cells_mv: number[];
@@ -46,6 +53,10 @@ function el<T extends HTMLElement | SVGElement>(id: string): T {
 
 function kwHtml(kw: number, unitClass = "ef-unit"): string {
   return `${kw.toFixed(2)}<span class="${unitClass}">kW</span>`;
+}
+
+function kwhDayHtml(kwh: number): string {
+  return `${kwh.toFixed(1)}<span class="ef-unit-sub">kWh/d</span>`;
 }
 
 function formatTimeJst(
@@ -232,6 +243,7 @@ function positionSunMarker(
 }
 
 /**
+ * 送電線の点線はすべて送電元 (BUY=ピンク / SOLAR=黄色 / BATTERY=紫) の色で描画する
  * 1段目: BUY / SELL (y=68)
  * 2段目: SOLAR / USE (y=226)
  * 3段目: BATTERY (y=316)
@@ -253,39 +265,57 @@ function updateFlowLines(
   // 待機買電 (<= 0.08kW) のときは買電アニメーション線を動かさない
   const buyActive = buyKw > STANDBY_BUY_MAX_KW;
   const sellActive = sellKw >= 0.02;
-  const battCharging = battChargeKw >= 0.03; // 正 = 充電 (SOLAR/BUY -> BATTERY: 上から下)
-  const battDischarging = battChargeKw <= -0.03; // 負 = 放電 (BATTERY -> USE: 下から上)
+  const battCharging = battChargeKw >= 0.03; // 正 = 充電 (上から下)
+  const battDischarging = battChargeKw <= -0.03; // 負 = 放電 (下から上)
+  const battAbsKw = Math.abs(battChargeKw);
 
-  setLine("line-buy", buyActive ? "active-pink" : null);
-  setLine("line-sell", sellActive ? "active-blue" : null);
-  setLine("line-use", useActive ? "active-green" : null);
+  // 1. BUY から出る線: 送電元は BUY (ピンク)
+  setLine("line-buy", buyActive ? "active-buy" : null);
 
-  if (solarActive) {
-    setLine("line-solar", sellActive ? "active-blue" : "active-green");
+  // 2. SOLAR から出る線: 送電元は SOLAR (黄色)
+  setLine("line-solar", solarActive ? "active-solar" : null);
+
+  // 3. SELL へ入る線 & 中段縦ライン (y=68 <-> y=226)
+  if (sellActive) {
+    // 売電時の送電元は SOLAR (または放電中の BATTERY)
+    const exportColor = solarActive ? "active-solar" : "active-battery";
+    setLine("line-sell", exportColor);
+    setLine("line-trunk-mid", `${exportColor} flow-reverse`);
   } else {
-    setLine("line-solar", null);
+    setLine("line-sell", null);
+    if (buyActive && (useActive || battCharging)) {
+      // 買電して USE または BATTERY へ送る場合、送電元は BUY (ピンク・上から下)
+      setLine("line-trunk-mid", "active-buy");
+    } else {
+      setLine("line-trunk-mid", null);
+    }
   }
 
-  // 下段縦ライン (y=226 SOLAR/USE段 <-> y=316 BATTERY段)
+  // 4. BATTERY 縦ライン (y=226 <-> y=316)
   if (battDischarging) {
-    // BATTERY(y=316) -> USE(y=226) へ下から上へ流れる
-    setLine("line-batt", "active-purple flow-reverse");
+    // 放電時: 送電元は BATTERY (紫・下から上)
+    setLine("line-batt", "active-battery flow-reverse");
   } else if (battCharging) {
-    // SOLAR(y=226) -> BATTERY(y=316) へ上から下へ流れる
-    setLine("line-batt", "active-purple");
+    // 充電時: 送電元は SOLAR (黄色) または BUY (ピンク) (上から下)
+    const chargeSourceColor = solarActive ? "active-solar" : "active-buy";
+    setLine("line-batt", chargeSourceColor);
   } else {
     setLine("line-batt", null);
   }
 
-  // 中段縦ライン (y=68 BUY/SELL段 <-> y=226 SOLAR/USE段)
-  if (sellActive && solarActive) {
-    // SOLAR(y=226) -> SELL(y=68) へ下から上へ流れる
-    setLine("line-trunk-mid", "active-blue flow-reverse");
-  } else if (buyActive && (useActive || battCharging)) {
-    // BUY(y=68) -> USE(y=226) または BATTERY(y=316) へ上から下へ流れる
-    setLine("line-trunk-mid", "active-pink");
+  // 5. USE へ入る線: 主たる送電元の色にする (SOLAR=黄色 / BATTERY=紫 / BUY=ピンク)
+  if (useActive) {
+    let useSourceColor = "active-solar";
+    if (solarActive && (!battDischarging || solarKw >= battAbsKw)) {
+      useSourceColor = "active-solar";
+    } else if (battDischarging) {
+      useSourceColor = "active-battery";
+    } else if (buyActive) {
+      useSourceColor = "active-buy";
+    }
+    setLine("line-use", useSourceColor);
   } else {
-    setLine("line-trunk-mid", null);
+    setLine("line-use", null);
   }
 }
 
@@ -296,7 +326,10 @@ function renderDashboard(data: DashboardResponse): void {
   el("sun-rise-label").textContent = data.sun.sunrise;
   el("sun-noon-label").textContent = "12:00";
   el("sun-set-label").textContent = data.sun.sunset;
-  el("val-batt-cap").textContent = `CAPACITY ${cfg.batteryCapacityKwh.toFixed(1)} kWh`;
+  el("val-batt-cap").textContent = `MAX ${cfg.batteryCapacityKwh.toFixed(1)} kWh`;
+
+  const statusPill = el("ef-status-pill");
+  const statusText = el("ef-status-text");
 
   const latest = data.latest;
   if (!latest) {
@@ -309,8 +342,8 @@ function renderDashboard(data: DashboardResponse): void {
       data.sun.sunsetMin,
       data.weather,
     );
-    el("ef-status-pill").dataset.state = "idle";
-    el("ef-status-text").textContent = "NO DATA";
+    statusPill.dataset.state = "offline";
+    statusText.textContent = "OFFLINE";
     return;
   }
 
@@ -318,6 +351,15 @@ function renderDashboard(data: DashboardResponse): void {
     typeof latest.ts === "number" ? latest.ts : Math.floor(Date.now() / 1000);
   const { text: timeText, minutesOfDay } = formatTimeJst(ts, tzMin);
   el("ef-time").textContent = timeText;
+
+  // IoT (192.168.0.36) との接続状態: 直近データが取得できていれば ONLINE、古ければ OFFLINE
+  const clientNowSec = Math.floor(Date.now() / 1000);
+  const isOnline =
+    typeof data.gatewayOnline === "boolean"
+      ? data.gatewayOnline
+      : Math.abs(clientNowSec - ts) <= 240;
+  statusPill.dataset.state = isOnline ? "online" : "offline";
+  statusText.textContent = isOnline ? "ONLINE" : "OFFLINE";
 
   // ゲートウェイの電力値 (W -> kW)
   const pvSumW =
@@ -347,27 +389,7 @@ function renderDashboard(data: DashboardResponse): void {
     data.weather,
   );
 
-  // ステータスピル判定 (待機買電 <= 0.08kW は IMPORTING にしない)
-  const statusPill = el("ef-status-pill");
-  const statusText = el("ef-status-text");
-  if (sellKw >= 0.03) {
-    statusPill.dataset.state = "exporting";
-    statusText.textContent = "EXPORTING";
-  } else if (battChargeKw >= 0.04) {
-    statusPill.dataset.state = "charging";
-    statusText.textContent = "CHARGING";
-  } else if (battChargeKw <= -0.04) {
-    statusPill.dataset.state = "discharging";
-    statusText.textContent = "DISCHARGING";
-  } else if (buyKw > STANDBY_BUY_MAX_KW) {
-    statusPill.dataset.state = "importing";
-    statusText.textContent = "IMPORTING";
-  } else {
-    statusPill.dataset.state = "idle";
-    statusText.textContent = "IDLE";
-  }
-
-  // 日積算 (kWh) & 金額換算 (¥)
+  // 日積算 (kWh/d) & 金額換算 (¥)
   const solarToday = latest.solar_day_kwh ?? 0;
   const useToday = latest.load_day_kwh ?? 0;
   const buyToday = latest.buy_day_kwh ?? 0;
@@ -385,7 +407,7 @@ function renderDashboard(data: DashboardResponse): void {
         )
       : 100;
 
-  // BUY カード (2段目の kW のみ小フォント化、待機買電時は STANDBY バッジ表示)
+  // BUY カード
   el("val-buy-kw").innerHTML = kwHtml(buyKw);
   const buyBadge = el("buy-mode-badge");
   if (isStandbyBuy) {
@@ -393,29 +415,29 @@ function renderDashboard(data: DashboardResponse): void {
   } else {
     buyBadge.setAttribute("hidden", "");
   }
-  el("val-buy-today").textContent = `TODAY ${buyToday.toFixed(1)} kWh`;
+  el("val-buy-today").innerHTML = kwhDayHtml(buyToday);
   el("val-buy-yen").textContent = `COST ¥${buyCostYen.toLocaleString("ja-JP")}`;
 
   // SELL カード
   el("val-sell-kw").innerHTML = kwHtml(sellKw);
-  el("val-sell-today").textContent = `TODAY ${sellToday.toFixed(1)} kWh`;
+  el("val-sell-today").innerHTML = kwhDayHtml(sellToday);
   el("val-sell-yen").textContent = `REV ¥${sellRevYen.toLocaleString("ja-JP")}`;
 
   // SOLAR カード
   el("val-solar-kw").innerHTML = kwHtml(solarKw);
-  el("val-solar-today").textContent = `TODAY ${solarToday.toFixed(1)} kWh`;
+  el("val-solar-today").innerHTML = kwhDayHtml(solarToday);
   el("val-solar-yen").textContent =
     `VALUE ¥${solarValueYen.toLocaleString("ja-JP")}`;
 
   // USE カード
   el("val-use-kw").innerHTML = kwHtml(useKw);
-  el("val-use-today").textContent = `TODAY ${useToday.toFixed(1)} kWh`;
+  el("val-use-today").innerHTML = kwhDayHtml(useToday);
   el("val-use-self").textContent = `SELF ${selfPct}%`;
 
-  // フロー接続線
+  // フロー接続線 (送電元の色で描画)
   updateFlowLines(solarKw, useKw, buyKw, sellKw, battChargeKw);
 
-  // BATTERY カード (1段目右上=状態バッジ、2段目=kW、バー上=%とkWh)
+  // BATTERY カード
   const soc = Math.max(0, Math.min(100, Math.round(latest.soc ?? 0)));
   const capKwh = cfg.batteryCapacityKwh;
   const storedKwh = (capKwh * soc) / 100;
@@ -441,19 +463,33 @@ function renderDashboard(data: DashboardResponse): void {
     el("val-batt-est").textContent = `EST --h --m`;
   }
 
-  // PV STRINGS (単位を kW に統一)
+  // PV STRINGS (単位: kW & 1日発電量: kWh/d)
   el("pv-total-pill").textContent =
     `TOTAL ${(Math.max(0, pvSumW) / 1000).toFixed(2)} kW`;
 
+  // サーバー側計算の pvDayKwh (無い場合は series から積算)
+  const pvDayMap: Record<number, number> = {
+    1: data.pvDayKwh?.pv1 ?? 0,
+    2: data.pvDayKwh?.pv2 ?? 0,
+    3: data.pvDayKwh?.pv3 ?? 0,
+    4: data.pvDayKwh?.pv4 ?? 0,
+  };
+  if (!data.pvDayKwh && Array.isArray(data.series)) {
+    for (let i = 1; i <= 4; i++) {
+      let wh = 0;
+      for (const r of data.series) {
+        const w = r[`pv${i}_p_avg_w`];
+        if (typeof w === "number" && w > 0) wh += w / 60;
+      }
+      pvDayMap[i] = wh / 1000;
+    }
+  }
+
   for (let i = 1; i <= 4; i++) {
     const p = latest[`pv${i}_p_avg_w`];
-    const v = latest[`pv${i}_v`];
-    const a = latest[`pv${i}_i`];
     const pKw = typeof p === "number" ? Math.max(0, p) / 1000 : 0;
     el(`pv${i}-w`).innerHTML = kwHtml(pKw, "ef-unit-sm");
-    el(`pv${i}-vi`).textContent =
-      `${typeof v === "number" ? v.toFixed(1) : "--"} V / ` +
-      `${typeof a === "number" ? a.toFixed(1) : "--"} A`;
+    el(`pv${i}-day`).innerHTML = kwhDayHtml(pvDayMap[i] ?? 0);
 
     const roofGroup = document.getElementById(`roof-group-pv${i}`);
     if (roofGroup) {
@@ -461,7 +497,7 @@ function renderDashboard(data: DashboardResponse): void {
     }
   }
 
-  // BMS STATUS (上段: 12列×4段の48セル一覧 / 下段: 5列診断テーブル)
+  // BMS STATUS (PACK / CELL / TEMP の3要素)
   const packV = latest.pack_v;
   const cMin = latest.cell_min_mv;
   const cMax = latest.cell_max_mv;
@@ -480,27 +516,14 @@ function renderDashboard(data: DashboardResponse): void {
   el("bms-pack-pill").textContent =
     typeof packV === "number" ? `PACK ${packV.toFixed(1)} V` : "PACK -- V";
 
-  // 48セル一覧 (12列×4段)
-  const cellsGrid = el("cells-grid");
-  if (cells.length > 0) {
-    cellsGrid.innerHTML = cells
-      .map((mv, idx) => {
-        const num = String(idx + 1).padStart(2, "0");
-        return `<div class="cell-chip"><span class="cell-id">#${num}</span><span class="cell-mv">${mv}mV</span></div>`;
-      })
-      .join("");
-  } else {
-    cellsGrid.innerHTML = `<div class="cell-chip"><span class="cell-id">--</span><span class="cell-mv">未取得</span></div>`;
-  }
-
-  // テーブル1行目: PACK
+  // 1. PACK 要素
   const avgCellVFromPack =
     typeof packV === "number" ? (packV / 48).toFixed(3) : "--";
   el("bms-pack-val").textContent =
     typeof packV === "number" ? `${packV.toFixed(1)} V` : "-- V";
   el("bms-pack-sub").textContent = `平均 ${avgCellVFromPack} V × 48直列`;
 
-  // テーブル2行目: CELL
+  // 2. CELL 要素 (+ 48セル12列グリッド)
   const deltaMv =
     typeof cMax === "number" && typeof cMin === "number" ? cMax - cMin : null;
   const minCellText =
@@ -526,7 +549,19 @@ function renderDashboard(data: DashboardResponse): void {
     cellBadge.dataset.level = "warn";
   }
 
-  // テーブル3行目: TEMP
+  const cellsGrid = el("cells-grid");
+  if (cells.length > 0) {
+    cellsGrid.innerHTML = cells
+      .map((mv, idx) => {
+        const num = String(idx + 1).padStart(2, "0");
+        return `<div class="cell-chip"><span class="cell-id">#${num}</span><span class="cell-mv">${mv}mV</span></div>`;
+      })
+      .join("");
+  } else {
+    cellsGrid.innerHTML = `<div class="cell-chip"><span class="cell-id">--</span><span class="cell-mv">未取得</span></div>`;
+  }
+
+  // 3. TEMP 要素
   const deltaTemp =
     typeof tMax === "number" && typeof tMin === "number" ? tMax - tMin : null;
   el("bms-temp-val").textContent = `${tMin ?? "--"}〜${tMax ?? "--"} °C`;

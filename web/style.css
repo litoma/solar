@@ -31,7 +31,7 @@ body {
   gap: 18px;
 }
 
-/* 外枠コンテナ (ENERGY FLOW = ダークグレー / PV STRINGS = 黄色 / BMS STATUS = 紫) */
+/* 外枠コンテナ (EP MONITOR = ダークグレー / PV STRINGS = 黄色 / BMS STATUS = 紫) */
 .ef-shell {
   background-color: #2c2c2c;
   border: 1.5px solid #383838;
@@ -115,12 +115,13 @@ body {
   color: #e4ddf9;
 }
 
+/* IoT (192.168.0.36) 接続ステータスピル: ONLINE / OFFLINE */
 .ef-status-pill {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background-color: #213273;
-  border: 1px solid #2b459e;
+  background-color: #1f4530;
+  border: 1px solid #367853;
   color: #e5e5e5;
   font-family: var(--font-mono);
   font-size: 13px;
@@ -134,44 +135,26 @@ body {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background-color: #88cdff;
-  box-shadow: 0 0 6px rgba(136, 205, 255, 0.8);
-}
-
-.ef-status-pill[data-state="importing"] {
-  background-color: #4a233b;
-  border-color: #7d3b63;
-}
-.ef-status-pill[data-state="importing"] .ef-status-dot {
-  background-color: #ffaee0;
-  box-shadow: 0 0 6px rgba(255, 174, 224, 0.8);
-}
-
-.ef-status-pill[data-state="charging"] {
-  background-color: #1f4530;
-  border-color: #367853;
-}
-.ef-status-pill[data-state="charging"] .ef-status-dot {
   background-color: #57f293;
   box-shadow: 0 0 6px rgba(87, 242, 147, 0.8);
 }
 
-.ef-status-pill[data-state="discharging"] {
-  background-color: #3c315b;
-  border-color: #69569c;
+.ef-status-pill[data-state="online"] {
+  background-color: #1f4530;
+  border-color: #367853;
 }
-.ef-status-pill[data-state="discharging"] .ef-status-dot {
-  background-color: #d5cbf9;
-  box-shadow: 0 0 6px rgba(213, 203, 249, 0.8);
+.ef-status-pill[data-state="online"] .ef-status-dot {
+  background-color: #57f293;
+  box-shadow: 0 0 6px rgba(87, 242, 147, 0.8);
 }
 
-.ef-status-pill[data-state="idle"] {
-  background-color: #303036;
-  border-color: #484852;
+.ef-status-pill[data-state="offline"] {
+  background-color: #422630;
+  border-color: #783e52;
 }
-.ef-status-pill[data-state="idle"] .ef-status-dot {
-  background-color: #a0a4b0;
-  box-shadow: none;
+.ef-status-pill[data-state="offline"] .ef-status-dot {
+  background-color: #ff7b9c;
+  box-shadow: 0 0 6px rgba(255, 123, 156, 0.7);
 }
 
 /* 内側ダークキャンバス */
@@ -190,7 +173,7 @@ body {
 .ef-canvas-bms {
   background-color: #252525;
   border: 1px solid rgba(191, 182, 224, 0.28);
-  padding: 18px 18px 20px;
+  padding: 16px 18px 18px;
 }
 
 /* 太陽軌道セクション */
@@ -271,43 +254,42 @@ body {
   grid-row: 5;
 }
 
-/* 中央のフロー接続線SVG (行1〜行4の中央列に配置) */
+/* 中央のフロー接続線SVG (縦・横の太さを統一し、送電元の3色で表示) */
 .ef-connectors {
   grid-column: 2;
   grid-row: 1 / 5;
   width: 64px;
   height: 316px;
   pointer-events: none;
+  display: block;
 }
 
 .flow-line-base {
   stroke: #383a44;
-  stroke-width: 2;
+  stroke-width: 2.4px;
 }
 
 .flow-line {
   stroke: transparent;
-  stroke-width: 2.2;
+  stroke-width: 2.4px;
   stroke-dasharray: 6 5;
   stroke-linecap: round;
 }
 
-.flow-line.active-blue {
-  stroke: #74aede;
+/* 送電元 = SOLAR (黄色) */
+.flow-line.active-solar {
+  stroke: #d7bd72;
   animation: dash-flow 1.2s linear infinite;
 }
 
-.flow-line.active-green {
-  stroke: #4bc77c;
-  animation: dash-flow 1.2s linear infinite;
-}
-
-.flow-line.active-pink {
+/* 送電元 = BUY (ピンク) */
+.flow-line.active-buy {
   stroke: #de92bc;
   animation: dash-flow 1.2s linear infinite;
 }
 
-.flow-line.active-purple {
+/* 送電元 = BATTERY (紫) */
+.flow-line.active-battery {
   stroke: #bfb6e0;
   animation: dash-flow 1.2s linear infinite;
 }
@@ -364,7 +346,7 @@ body {
   flex-shrink: 0;
 }
 
-/* 枠付きピルバッジ共通 (BUYのSTANDBY / BATTERYのIDLE等 / BMSの評価バッジ) */
+/* 枠付きピルバッジ共通 */
 .ef-outline-badge {
   font-family: var(--font-mono);
   font-size: 11px;
@@ -414,7 +396,16 @@ body {
   color: #d4d4d8;
 }
 
-/* 3段目 (TODAY〜) と 4段目 (VALUE/SELF/COST/REV) を1段階大きく (15px) & 同色に */
+/* kWh/d 用の1段階小さい単位フォント */
+.ef-unit-sub {
+  font-size: 12px;
+  font-weight: 400;
+  margin-left: 3px;
+  letter-spacing: 0;
+  opacity: 0.9;
+}
+
+/* 3段目 (0.5 kWh/d) と 4段目 (VALUE/SELF/COST/REV) は15px & 同色に */
 .ef-card-sub,
 .ef-card-highlight {
   font-family: var(--font-mono);
@@ -516,7 +507,7 @@ body {
   margin: 1px 0 3px;
 }
 
-/* BATTERY バー縦幅を少し大きく (30px) */
+/* BATTERY バー縦幅 30px */
 .ef-batt-bar-track {
   position: relative;
   width: 100%;
@@ -565,18 +556,13 @@ body {
 }
 
 /* ==========================================================================
-   PV STRINGS セクション: ×方角4分割 + 中央枠に色分けしたパネル配置
-   PV1〜4の色分け:
-     PV1 (WEST 5枚) : アンバー (#f0a04b)
-     PV2 (EAST 4枚) : ティール (#4cc3d9)
-     PV3 (WEST 3枚) : ライムミント (#6fd08c)
-     PV4 (NORTH 3枚): コーラル (#ee7f6b)
+   PV STRINGS セクション: 中央屋根枠の×分割 + 外周4方角配置
    ========================================================================== */
 .pv-xmap {
   position: relative;
   width: 100%;
-  aspect-ratio: 640 / 420;
-  min-height: 360px;
+  aspect-ratio: 640 / 430;
+  min-height: 370px;
 }
 
 .pv-xmap-svg {
@@ -628,34 +614,35 @@ body {
   gap: 6px;
 }
 
-/* 上: NORTH */
+/* 上: NORTH (横長ボックスにして屋根枠 y=106 より上に収める) */
 .pv-quad-north {
-  top: 6px;
+  top: 4px;
   left: 50%;
   transform: translateX(-50%);
   align-items: center;
   text-align: center;
+  gap: 4px;
 }
 
 /* 左: WEST */
 .pv-quad-west {
-  left: 16px;
-  top: 50%;
+  left: 14px;
+  top: 52%;
   transform: translateY(-50%);
   align-items: flex-start;
 }
 
 /* 右: EAST */
 .pv-quad-east {
-  right: 16px;
-  top: 50%;
+  right: 14px;
+  top: 52%;
   transform: translateY(-50%);
   align-items: flex-start;
 }
 
 /* 下: SOUTH */
 .pv-quad-south {
-  bottom: 10px;
+  bottom: 8px;
   left: 50%;
   transform: translateX(-50%);
   align-items: center;
@@ -664,7 +651,7 @@ body {
 
 .pv-quad-dir {
   font-family: var(--font-mono);
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   letter-spacing: 0.12em;
   color: #fbdd84;
@@ -674,9 +661,19 @@ body {
   background-color: #2f3137;
   border: 1px solid #484b54;
   border-radius: 14px;
-  padding: 7px 14px;
-  min-width: 138px;
+  padding: 8px 14px;
+  min-width: 144px;
   transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+/* 北側だけ横長 (1行に PV4・3 panels・kW・kWh/d を横並び配置) */
+.pv-quad-item-wide {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 6px 18px;
+  min-width: 280px;
+  justify-content: space-between;
 }
 
 .pv-quad-item.is-hovered {
@@ -690,6 +687,7 @@ body {
   gap: 7px;
   font-family: var(--font-mono);
   font-size: 13px;
+  white-space: nowrap;
 }
 
 .pv-swatch {
@@ -729,12 +727,19 @@ body {
   color: #e4e4e4;
   line-height: 1.15;
   margin: 2px 0;
+  white-space: nowrap;
 }
 
-.pv-quad-vi {
+.pv-quad-item-wide .pv-quad-kw {
+  margin: 0;
+}
+
+.pv-quad-day {
   font-family: var(--font-mono);
-  font-size: 12px;
-  color: #b2b5c0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #c2c5d0;
+  white-space: nowrap;
 }
 
 .pv-quad-nothing {
@@ -745,19 +750,90 @@ body {
 }
 
 /* ==========================================================================
-   BMS STATUS セクション: 上段12列×4段セルグリッド + 下段5列診断テーブル
-   中身は全体のダーク基調に馴染むスレートトーン (#2f3137 / #484b54)
+   BMS STATUS セクション: PACK / CELL / TEMP の3要素に分割
+   (#01〜#48 は CELL 要素内に配置)
    ========================================================================== */
+.bms-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bms-box {
+  background-color: #2f3137;
+  border: 1px solid #484b54;
+  border-radius: 16px;
+  padding: 12px 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bms-box-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.bms-box-title-group {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.bms-box-key {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: #d5cbf9;
+  letter-spacing: 0.05em;
+  min-width: 44px;
+}
+
+.bms-box-val {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 600;
+  color: #f0f0f5;
+}
+
+.bms-box-sub {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: #c2c5d0;
+}
+
+.bms-box-reason {
+  font-size: 12px;
+  color: #aeb2be;
+  line-height: 1.45;
+}
+
+.bms-eval-badge {
+  color: #e4dff7;
+  background-color: rgba(32, 30, 38, 0.78);
+  border: 1px solid rgba(191, 182, 224, 0.55);
+}
+
+.bms-eval-badge[data-level="warn"] {
+  color: #ffd6eb;
+  border-color: rgba(255, 174, 224, 0.65);
+}
+
+/* CELL 要素内の 12列×4段 セル一覧 */
 .cells-grid {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 5px;
-  margin-bottom: 16px;
+  margin-top: 6px;
 }
 
 .cell-chip {
-  background-color: #2f3137;
-  border: 1px solid #484b54;
+  background-color: #25272c;
+  border: 1px solid #434650;
   border-radius: 7px;
   padding: 4px 2px;
   display: flex;
@@ -781,86 +857,6 @@ body {
   font-weight: 500;
   color: #eceef4;
   line-height: 1.15;
-}
-
-/* 下段: 5列診断テーブル */
-.bms-table-wrap {
-  width: 100%;
-  overflow-x: auto;
-  border: 1px solid #42444d;
-  border-radius: 12px;
-  background-color: #2b2d33;
-}
-
-.bms-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12.5px;
-  text-align: left;
-}
-
-.bms-table th,
-.bms-table td {
-  padding: 9px 11px;
-  border-bottom: 1px solid #3c3e47;
-  vertical-align: middle;
-}
-
-.bms-table tbody tr:last-child td {
-  border-bottom: none;
-}
-
-.bms-table thead th {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 600;
-  color: #a8acb8;
-  background-color: #24262b;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-}
-
-.bms-col-key {
-  font-family: var(--font-mono);
-  font-weight: 600;
-  color: #d5cbf9;
-  white-space: nowrap;
-}
-
-.bms-col-val {
-  font-family: var(--font-mono);
-  font-weight: 600;
-  color: #f0f0f5;
-  white-space: nowrap;
-}
-
-.bms-col-sub {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: #c2c5d0;
-  white-space: nowrap;
-}
-
-.bms-col-judge {
-  white-space: nowrap;
-}
-
-.bms-col-reason {
-  font-size: 11.5px;
-  color: #b0b4c0;
-  line-height: 1.45;
-  min-width: 210px;
-}
-
-.bms-eval-badge {
-  color: #e4dff7;
-  background-color: rgba(32, 30, 38, 0.78);
-  border: 1px solid rgba(191, 182, 224, 0.55);
-}
-
-.bms-eval-badge[data-level="warn"] {
-  color: #ffd6eb;
-  border-color: rgba(255, 174, 224, 0.65);
 }
 
 @media (max-width: 680px) {
@@ -899,6 +895,9 @@ body {
     transform: none;
     align-items: stretch;
     text-align: left;
+  }
+  .pv-quad-item-wide {
+    min-width: 0;
   }
   .cells-grid {
     grid-template-columns: repeat(6, minmax(0, 1fr));

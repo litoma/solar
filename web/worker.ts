@@ -375,15 +375,41 @@ async function handleDashboard(env: Env): Promise<Response> {
 
   const dayRows = dayRowsResult.results || [];
 
-  // 売電電力量 (kWh) を1分値の grid_w < 0 (負の部分の絶対値×1分) から積算
+  // 売電電力量 (kWh) と PV1〜4別の1日発電量 (kWh/d) を1分値から積算
   let sellWh = 0;
+  let pv1Wh = 0;
+  let pv2Wh = 0;
+  let pv3Wh = 0;
+  let pv4Wh = 0;
   for (const r of dayRows) {
     const g = r.grid_w;
     if (typeof g === "number" && g < 0) {
       sellWh += -g / 60;
     }
+    if (typeof r.pv1_p_avg_w === "number" && r.pv1_p_avg_w > 0) {
+      pv1Wh += r.pv1_p_avg_w / 60;
+    }
+    if (typeof r.pv2_p_avg_w === "number" && r.pv2_p_avg_w > 0) {
+      pv2Wh += r.pv2_p_avg_w / 60;
+    }
+    if (typeof r.pv3_p_avg_w === "number" && r.pv3_p_avg_w > 0) {
+      pv3Wh += r.pv3_p_avg_w / 60;
+    }
+    if (typeof r.pv4_p_avg_w === "number" && r.pv4_p_avg_w > 0) {
+      pv4Wh += r.pv4_p_avg_w / 60;
+    }
   }
   const sellDayKwhFromSeries = Math.round((sellWh / 1000) * 100) / 100;
+  const pvDayKwh = {
+    pv1: Math.round((pv1Wh / 1000) * 100) / 100,
+    pv2: Math.round((pv2Wh / 1000) * 100) / 100,
+    pv3: Math.round((pv3Wh / 1000) * 100) / 100,
+    pv4: Math.round((pv4Wh / 1000) * 100) / 100,
+  };
+  const nowSec = Math.floor(Date.now() / 1000);
+  const gatewayOnline = Boolean(
+    latest && typeof latest.ts === "number" && nowSec - latest.ts <= 240,
+  );
 
   const sun = computeSunTimes(
     refTs,
@@ -423,11 +449,13 @@ async function handleDashboard(env: Env): Promise<Response> {
 
   return jsonResponse({
     hasData: Boolean(latest),
+    gatewayOnline,
     config: cfg,
     sun,
     weather,
     latest: latest || null,
     sellDayKwhComputed: sellDayKwhFromSeries,
+    pvDayKwh,
     snapshot: latestSnap
       ? {
           ts: latestSnap.ts,
