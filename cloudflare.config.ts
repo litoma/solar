@@ -28,6 +28,18 @@ export default defineConfig({
       SOLAR_BATTERY_CAPACITY_KWH: bindings.text(
         process.env.SOLAR_BATTERY_CAPACITY_KWH || "13.3",
       ),
+      // 投資回収目標額 (円, 初期値: 1100000 = 350万円 - 補助金240万円)
+      SOLAR_PAYBACK_TARGET_YEN: bindings.text(
+        process.env.SOLAR_PAYBACK_TARGET_YEN || "1100000",
+      ),
+      // 導入総額 (円, 初期値: 3500000)
+      SOLAR_INITIAL_COST_YEN: bindings.text(
+        process.env.SOLAR_INITIAL_COST_YEN || "3500000",
+      ),
+      // 自治体補助金 (円, 初期値: 2400000)
+      SOLAR_SUBSIDY_YEN: bindings.text(
+        process.env.SOLAR_SUBSIDY_YEN || "2400000",
+      ),
       // 取り込みトークンのSHA-256ハッシュ (平文トークンはサーバの config/epcube.env にのみ保持)
       INGEST_TOKEN_SHA256: bindings.text(
         process.env.INGEST_TOKEN_SHA256 ||

@@ -421,7 +421,32 @@
         </div>
       </section>
 
-      <!-- 4. BMS STATUS ウィジェット (PACK → TEMP → CELL の順) -->
+      <!-- 4. PAYBACK PLAN ウィジェット (投資回収計画と実績進捗・Recharts) -->
+      <section class="ef-shell ef-shell-solar" aria-label="Investment Payback Plan">
+        <header class="ef-header">
+          <div class="ef-header-left">
+            <span class="ef-bolt" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path
+                  d="M2 11.5L6.2 7.3L9.2 10.3L14 4.5M14 4.5H10.2M14 4.5V8.3"
+                  stroke="#fbdd84"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </span>
+            <h2 class="ef-title ef-title-solar">PAYBACK PLAN</h2>
+            <span class="ef-pill ef-pill-solar" id="payback-header-pill">TARGET ¥1,100,000</span>
+          </div>
+        </header>
+
+        <div class="ef-canvas ef-canvas-sim">
+          <div id="payback-chart-root"></div>
+        </div>
+      </section>
+
+      <!-- 5. BMS STATUS ウィジェット (PACK → TEMP → CELL の順) -->
       <section class="ef-shell ef-shell-battery" aria-label="BMS Status Monitor">
         <header class="ef-header">
           <div class="ef-header-left">

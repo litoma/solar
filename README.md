@@ -48,6 +48,8 @@ HTTP API から取得してローカル SQLite に保存し、Cloudflare Workers
 | `SOLAR_SELL_PRICE_YEN` | `24` | **`24`** | 電力会社へ電力を売却するときの売電単価（円/kWh） |
 | `SOLAR_REFRESH_MINUTES` | `1` | **`1`** | 公開サイトの情報更新頻度（分。秒指定の `SOLAR_REFRESH_SEC` も可） |
 | `SOLAR_BATTERY_CAPACITY_KWH` | `13.3` | **`13.3`** | 蓄電池の定格容量（kWh、カタログ値 13.3kWh） |
+| `SOLAR_PAYBACK_TARGET_YEN` | `1100000` | **`1100000`** | 補助金控除後の実質自己負担・投資回収目標額（円、初期値110万円） |
+| `SOLAR_INITIAL_COST_YEN` / `SOLAR_SUBSIDY_YEN` | `3500000` / `2400000` | **`3500000` / `2400000`** | 導入総額（350万円）および自治体補助金（240万円） |
 | `SOLAR_LATITUDE` / `SOLAR_LONGITUDE` | 自動解決 | 自動解決 (`35.7356`, `139.6517`) | 緯度・経度を直接数値で上書きしたい場合のみ指定 |
 
 ## 2. ローカル収集・D1同期 (`epcube-collector`)

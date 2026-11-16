@@ -1,3 +1,4 @@
+import { mountOrUpdatePaybackChart, type PaybackData } from "./PaybackChart";
 import { mountOrUpdateSimulationChart } from "./SimulationChart";
 
 interface DashboardResponse {
@@ -9,6 +10,9 @@ interface DashboardResponse {
     sellPriceYenPerKwh: number;
     refreshIntervalSec: number;
     batteryCapacityKwh: number;
+    paybackTargetYen?: number;
+    initialCostYen?: number;
+    subsidyYen?: number;
     latitude: number;
     longitude: number;
     timezoneOffsetMinutes: number;
@@ -36,6 +40,7 @@ interface DashboardResponse {
     pv4: number;
   };
   monthlyActualKwh?: Record<number, number>;
+  payback?: PaybackData;
   snapshot: {
     ts: number;
     cells_mv: number[];
@@ -65,15 +70,17 @@ function kwhDayHtml(kwh: number): string {
 function formatTimeJst(
   epochSec: number,
   tzOffsetMin = 540,
-): { text: string; minutesOfDay: number; month: number } {
+): { text: string; minutesOfDay: number; month: number; year: number } {
   const d = new Date((epochSec + tzOffsetMin * 60) * 1000);
   const hh = d.getUTCHours();
   const mm = d.getUTCMinutes();
   const month = d.getUTCMonth() + 1;
+  const year = d.getUTCFullYear();
   return {
     text: `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`,
     minutesOfDay: hh * 60 + mm,
     month,
+    year,
   };
 }
 
@@ -342,12 +349,37 @@ function renderDashboard(data: DashboardResponse): void {
   const statusPill = el("ef-status-pill");
   const statusText = el("ef-status-text");
 
+  const fallbackPayback: PaybackData = data.payback || {
+    targetYen: cfg.paybackTargetYen ?? 1100000,
+    initialCostYen: cfg.initialCostYen ?? 3500000,
+    subsidyYen: cfg.subsidyYen ?? 2400000,
+    totalSolarKwh: 0,
+    totalSellKwh: 0,
+    totalBenefitYen: 0,
+    activeDays: 0,
+    firstDate: null,
+    byYearMonth: {},
+  };
+  const headerTargetPill = document.getElementById("payback-header-pill");
+  if (headerTargetPill) {
+    headerTargetPill.textContent = `TARGET ¥${fallbackPayback.targetYen.toLocaleString("ja-JP")}`;
+  }
+
   const latest = data.latest;
   if (!latest) {
     const nowSec = Math.floor(Date.now() / 1000);
-    const { text: timeText, minutesOfDay, month } = formatTimeJst(nowSec, tzMin);
+    const { text: timeText, minutesOfDay, month, year } = formatTimeJst(
+      nowSec,
+      tzMin,
+    );
     el("ef-time").textContent = timeText;
     mountOrUpdateSimulationChart(month, data.monthlyActualKwh || {});
+    mountOrUpdatePaybackChart(
+      fallbackPayback,
+      cfg.buyPriceYenPerKwh,
+      year,
+      month,
+    );
     positionSunMarker(
       minutesOfDay,
       data.sun.sunriseMin,
@@ -361,9 +393,18 @@ function renderDashboard(data: DashboardResponse): void {
 
   const ts =
     typeof latest.ts === "number" ? latest.ts : Math.floor(Date.now() / 1000);
-  const { text: timeText, minutesOfDay, month } = formatTimeJst(ts, tzMin);
+  const { text: timeText, minutesOfDay, month, year } = formatTimeJst(
+    ts,
+    tzMin,
+  );
   el("ef-time").textContent = timeText;
   mountOrUpdateSimulationChart(month, data.monthlyActualKwh || {});
+  mountOrUpdatePaybackChart(
+    fallbackPayback,
+    cfg.buyPriceYenPerKwh,
+    year,
+    month,
+  );
 
   // IoT (192.168.0.36) との接続状態: 直近データが取得できていれば ONLINE、古ければ OFFLINE
   const clientNowSec = Math.floor(Date.now() / 1000);
@@ -710,6 +751,23 @@ function setupControls(): void {
 }
 
 setupControls();
-mountOrUpdateSimulationChart(formatTimeJst(Math.floor(Date.now() / 1000)).month);
+const initTime = formatTimeJst(Math.floor(Date.now() / 1000));
+mountOrUpdateSimulationChart(initTime.month);
+mountOrUpdatePaybackChart(
+  {
+    targetYen: 1100000,
+    initialCostYen: 3500000,
+    subsidyYen: 2400000,
+    totalSolarKwh: 0,
+    totalSellKwh: 0,
+    totalBenefitYen: 0,
+    activeDays: 0,
+    firstDate: null,
+    byYearMonth: {},
+  },
+  35,
+  initTime.year,
+  initTime.month,
+);
 refresh();
 scheduleRefresh(currentRefreshSec);

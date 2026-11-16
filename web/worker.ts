@@ -4,6 +4,9 @@ export interface SiteConfig {
   sellPriceYenPerKwh: number;
   refreshIntervalSec: number;
   batteryCapacityKwh: number;
+  paybackTargetYen: number;
+  initialCostYen: number;
+  subsidyYen: number;
   latitude: number;
   longitude: number;
   timezoneOffsetMinutes: number;
@@ -21,6 +24,9 @@ export interface Env {
   SOLAR_REFRESH_MINUTES?: string;
   SOLAR_REFRESH_SEC?: string;
   SOLAR_BATTERY_CAPACITY_KWH?: string;
+  SOLAR_PAYBACK_TARGET_YEN?: string;
+  SOLAR_INITIAL_COST_YEN?: string;
+  SOLAR_SUBSIDY_YEN?: string;
   // 取り込み認証 (平文シークレットまたはSHA-256ハッシュ)
   INGEST_TOKEN?: string;
   INGEST_TOKEN_SHA256?: string;
@@ -32,6 +38,9 @@ const DEFAULT_BUY_PRICE_YEN = 35;
 const DEFAULT_SELL_PRICE_YEN = 24;
 const DEFAULT_REFRESH_MINUTES = 1;
 const DEFAULT_BATTERY_CAPACITY_KWH = 13.3;
+const DEFAULT_PAYBACK_TARGET_YEN = 1100000;
+const DEFAULT_INITIAL_COST_YEN = 3500000;
+const DEFAULT_SUBSIDY_YEN = 2400000;
 const DEFAULT_TZ_OFFSET_MIN = 540; // JST (UTC+9)
 
 // 主要地域の緯度・経度テーブル
@@ -196,6 +205,15 @@ async function resolveSiteConfig(env: Env): Promise<SiteConfig> {
     env.SOLAR_BATTERY_CAPACITY_KWH,
     DEFAULT_BATTERY_CAPACITY_KWH,
   );
+  const paybackTargetYen = Math.round(
+    parsePositiveNumber(env.SOLAR_PAYBACK_TARGET_YEN, DEFAULT_PAYBACK_TARGET_YEN),
+  );
+  const initialCostYen = Math.round(
+    parsePositiveNumber(env.SOLAR_INITIAL_COST_YEN, DEFAULT_INITIAL_COST_YEN),
+  );
+  const subsidyYen = Math.round(
+    parsePositiveNumber(env.SOLAR_SUBSIDY_YEN, DEFAULT_SUBSIDY_YEN),
+  );
 
   let refreshIntervalSec = DEFAULT_REFRESH_MINUTES * 60;
   if (env.SOLAR_REFRESH_SEC) {
@@ -230,6 +248,9 @@ async function resolveSiteConfig(env: Env): Promise<SiteConfig> {
     sellPriceYenPerKwh,
     refreshIntervalSec,
     batteryCapacityKwh,
+    paybackTargetYen,
+    initialCostYen,
+    subsidyYen,
     latitude: coords.lat,
     longitude: coords.lon,
     timezoneOffsetMinutes: DEFAULT_TZ_OFFSET_MIN,
@@ -445,6 +466,76 @@ async function handleDashboard(env: Env): Promise<Response> {
     }
   }
 
+  // 全期間の投資回収実績 (日ごとの太陽光発電量・売電量から、自家消費節約額 + 売電収益を積算)
+  const allDaysResult = await env.DB.prepare(
+    `SELECT
+       strftime('%Y-%m-%d', ts + ?, 'unixepoch') AS jst_date,
+       strftime('%Y-%m', ts + ?, 'unixepoch') AS ym,
+       COALESCE(
+         MAX(solar_day_kwh),
+         SUM(CASE WHEN solar_w > 0 THEN solar_w ELSE 0 END) / 60000.0
+       ) AS solar_kwh,
+       SUM(CASE WHEN grid_w < 0 THEN -grid_w ELSE 0 END) / 60000.0 AS sell_kwh
+     FROM minute_samples
+     GROUP BY jst_date
+     ORDER BY jst_date ASC`,
+  )
+    .bind(tzSec, tzSec)
+    .all<{
+      jst_date: string;
+      ym: string;
+      solar_kwh: number | null;
+      sell_kwh: number | null;
+    }>();
+
+  let totalSolarKwh = 0;
+  let totalSellKwh = 0;
+  let totalBenefitYen = 0;
+  let activeDays = 0;
+  let firstDate: string | null = null;
+  const byYearMonth: Record<
+    string,
+    { solarKwh: number; sellKwh: number; benefitYen: number; days: number }
+  > = {};
+
+  for (const d of allDaysResult.results || []) {
+    const sKwh = Math.max(0, d.solar_kwh ?? 0);
+    const eKwh = Math.max(0, d.sell_kwh ?? 0);
+    const selfKwh = Math.max(0, sKwh - eKwh);
+    const benefit =
+      selfKwh * cfg.buyPriceYenPerKwh + eKwh * cfg.sellPriceYenPerKwh;
+    totalSolarKwh += sKwh;
+    totalSellKwh += eKwh;
+    totalBenefitYen += benefit;
+    activeDays += 1;
+    if (!firstDate && d.jst_date) firstDate = d.jst_date;
+    if (d.ym) {
+      const cur = byYearMonth[d.ym] || {
+        solarKwh: 0,
+        sellKwh: 0,
+        benefitYen: 0,
+        days: 0,
+      };
+      cur.solarKwh = Math.round((cur.solarKwh + sKwh) * 100) / 100;
+      cur.sellKwh = Math.round((cur.sellKwh + eKwh) * 100) / 100;
+      cur.benefitYen = Math.round(cur.benefitYen + benefit);
+      cur.days += 1;
+      byYearMonth[d.ym] = cur;
+    }
+  }
+
+  const payback = {
+    targetYen: cfg.paybackTargetYen,
+    initialCostYen: cfg.initialCostYen,
+    subsidyYen: cfg.subsidyYen,
+    totalSolarKwh: Math.round(totalSolarKwh * 10) / 10,
+    totalSellKwh: Math.round(totalSellKwh * 10) / 10,
+    totalBenefitYen: Math.round(totalBenefitYen),
+    activeDays,
+    firstDate,
+    byYearMonth,
+  };
+
   const sun = computeSunTimes(
     refTs,
     cfg.latitude,
@@ -491,6 +582,7 @@ async function handleDashboard(env: Env): Promise<Response> {
     sellDayKwhComputed: sellDayKwhFromSeries,
     pvDayKwh,
     monthlyActualKwh,
+    payback,
     snapshot: latestSnap
       ? {
           ts: latestSnap.ts,
