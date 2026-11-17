@@ -110,18 +110,20 @@ function buildWeatherIconSvg(
 ): { svg: string; ringColor: string; glowColor: string } {
   const cond = (condition || "CLEAR").toUpperCase();
   const nightRing = "#44454a";
-  const nightGlow = "rgba(110, 114, 126, 0.14)";
+  const nightGlow = "rgba(110, 114, 126, 0.28)";
+  const dayRing = "#d7bd72";
+  const dayGlow = "rgba(251, 221, 132, 0.25)";
 
   if (cond.includes("THUNDER")) {
     return {
-      ringColor: isNight ? nightRing : "#d7bd72",
-      glowColor: isNight ? nightGlow : "rgba(251, 221, 132, 0.18)",
-      svg: `
+      ringColor: isNight ? nightRing : dayRing,
+      glowColor: isNight ? nightGlow : dayGlow,
+      svg: `<g transform="translate(0.5, 0.2)">
         <path d="M-5.5,0.5 H4.5 A3.2,3.2 0 0,0 4.5,-5.8 A4.2,4.2 0 0,0 -3.5,-6.5 A3.4,3.4 0 0,0 -5.5,0.5 Z"
               fill="#353740" stroke="#d9dce3" stroke-width="1.3" stroke-linejoin="round" />
         <path d="M0.5,0.5 L-1.8,4.6 H0.8 L-0.8,8.2 L3.2,3.6 H0.6 Z"
               fill="#fbdd84" stroke="#fbdd84" stroke-width="0.6" stroke-linejoin="round" />
-      `,
+      </g>`,
     };
   }
 
@@ -131,52 +133,52 @@ function buildWeatherIconSvg(
     cond.includes("SHOWER")
   ) {
     return {
-      ringColor: isNight ? nightRing : "#d7bd72",
-      glowColor: isNight ? nightGlow : "rgba(251, 221, 132, 0.18)",
-      svg: `
+      ringColor: isNight ? nightRing : dayRing,
+      glowColor: isNight ? nightGlow : dayGlow,
+      svg: `<g transform="translate(0.5, 0.8)">
         <path d="M-5.5,0.2 H4.5 A3.2,3.2 0 0,0 4.5,-6.0 A4.2,4.2 0 0,0 -3.5,-6.7 A3.4,3.4 0 0,0 -5.5,0.2 Z"
               fill="#313842" stroke="#d9dce3" stroke-width="1.35" stroke-linejoin="round" />
         <line x1="-3.5" y1="2.6" x2="-4.6" y2="6.2" stroke="#88cdff" stroke-width="1.4" stroke-linecap="round" />
         <line x1="0.2" y1="2.6" x2="-0.9" y2="6.2" stroke="#88cdff" stroke-width="1.4" stroke-linecap="round" />
         <line x1="3.9" y1="2.6" x2="2.8" y2="6.2" stroke="#88cdff" stroke-width="1.4" stroke-linecap="round" />
-      `,
+      </g>`,
     };
   }
 
   if (cond.includes("SNOW")) {
     return {
-      ringColor: isNight ? nightRing : "#d7bd72",
-      glowColor: isNight ? nightGlow : "rgba(251, 221, 132, 0.18)",
-      svg: `
+      ringColor: isNight ? nightRing : dayRing,
+      glowColor: isNight ? nightGlow : dayGlow,
+      svg: `<g transform="translate(0.5, 0.8)">
         <path d="M-5.5,0.2 H4.5 A3.2,3.2 0 0,0 4.5,-6.0 A4.2,4.2 0 0,0 -3.5,-6.7 A3.4,3.4 0 0,0 -5.5,0.2 Z"
               fill="#323640" stroke="#d9dce3" stroke-width="1.35" stroke-linejoin="round" />
         <circle cx="-3.2" cy="4.4" r="1.2" fill="#e5f3ff" />
         <circle cx="0.3" cy="5.4" r="1.2" fill="#e5f3ff" />
         <circle cx="3.8" cy="4.4" r="1.2" fill="#e5f3ff" />
-      `,
+      </g>`,
     };
   }
 
   if (cond.includes("PARTLY") || cond.includes("MAINLY")) {
     return {
-      ringColor: isNight ? nightRing : "#d7bd72",
-      glowColor: isNight ? nightGlow : "rgba(251, 221, 132, 0.18)",
-      svg: `
+      ringColor: isNight ? nightRing : dayRing,
+      glowColor: isNight ? nightGlow : dayGlow,
+      svg: `<g transform="translate(0.3, 0.6)">
         <circle cx="-3.2" cy="-3.2" r="3.4" fill="#fbdd84" />
         <path d="M-4.2,3.6 H5.0 A3.0,3.0 0 0,0 5.0,-2.2 A3.9,3.9 0 0,0 -2.4,-2.9 A3.1,3.1 0 0,0 -4.2,3.6 Z"
               fill="#353740" stroke="#e2e4ec" stroke-width="1.35" stroke-linejoin="round" />
-      `,
+      </g>`,
     };
   }
 
   if (cond.includes("CLOUD") || cond.includes("FOG")) {
     return {
-      ringColor: isNight ? nightRing : "#d7bd72",
-      glowColor: isNight ? nightGlow : "rgba(251, 221, 132, 0.18)",
-      svg: `
+      ringColor: isNight ? nightRing : dayRing,
+      glowColor: isNight ? nightGlow : dayGlow,
+      svg: `<g transform="translate(0.4, 1.0)">
         <path d="M-5.5,2.8 H4.8 A3.3,3.3 0 0,0 4.8,-3.6 A4.3,4.3 0 0,0 -3.4,-4.4 A3.5,3.5 0 0,0 -5.5,2.8 Z"
               fill="#353740" stroke="#d9dce3" stroke-width="1.4" stroke-linejoin="round" />
-      `,
+      </g>`,
     };
   }
 
@@ -185,16 +187,16 @@ function buildWeatherIconSvg(
     return {
       ringColor: nightRing,
       glowColor: nightGlow,
-      svg: `
+      svg: `<g transform="translate(0.5, 0.5)">
         <path d="M2.2,-5.8 A6.0,6.0 0 1,0 5.8,3.2 A4.6,4.6 0 1,1 2.2,-5.8 Z"
               fill="#fbdd84" />
-      `,
+      </g>`,
     };
   }
 
   return {
-    ringColor: "#d7bd72",
-    glowColor: "rgba(251, 221, 132, 0.22)",
+    ringColor: dayRing,
+    glowColor: dayGlow,
     svg: `
       <circle cx="0" cy="0" r="4.2" fill="#fbdd84" />
       <g stroke="#fbdd84" stroke-width="1.4" stroke-linecap="round">
@@ -262,9 +264,9 @@ function positionSunMarker(
 
 /**
  * 送電線の点線はすべて送電元 (BUY=ピンク / SOLAR=黄色 / BATTERY=紫) の色で描画する
- * 1段目: BUY / SELL (y=68)
- * 2段目: SOLAR / USE (y=226)
- * 3段目: BATTERY (y=316)
+ * 1段目: SOLAR / USE
+ * 2段目: BATTERY (中央)
+ * 3段目: BUY / SELL
  */
 function updateFlowLines(
   solarKw: number,
@@ -293,30 +295,33 @@ function updateFlowLines(
   // 2. SOLAR から出る線: 送電元は SOLAR (黄色)
   setLine("line-solar", solarActive ? "active-solar" : null);
 
-  // 3. SELL へ入る線 & 中段縦ライン (y=68 <-> y=226)
+  // 3. SELL へ入る線 & 下段縦ライン (BATTERY <-> BUY/SELL)
   if (sellActive && (solarActive || battDischarging)) {
     const exportColor = solarActive ? "active-solar" : "active-battery";
     setLine("line-sell", exportColor);
-    setLine("line-trunk-mid", `${exportColor} flow-reverse`);
+    setLine("line-trunk-low", exportColor);
   } else {
     setLine("line-sell", null);
     if (buyActive && (useActive || battCharging)) {
-      setLine("line-trunk-mid", "active-buy");
+      // 買電して BATTERY 経由で USE または BATTERY 充電へ送る (ピンク・下から上)
+      setLine("line-trunk-low", "active-buy flow-reverse");
     } else {
-      setLine("line-trunk-mid", null);
+      setLine("line-trunk-low", null);
     }
   }
 
-  // 4. BATTERY 縦ライン (y=226 <-> y=316)
+  // 4. 上段縦ライン (SOLAR/USE <-> BATTERY)
   if (battDischarging) {
     // 放電時: 送電元は BATTERY (紫・下から上)
-    setLine("line-batt", "active-battery flow-reverse");
-  } else if (battCharging && (solarActive || buyActive)) {
-    // 充電時: 送電元は SOLAR (黄色) または BUY (ピンク) (上から下)
-    const chargeSourceColor = solarActive ? "active-solar" : "active-buy";
-    setLine("line-batt", chargeSourceColor);
+    setLine("line-trunk-high", "active-battery flow-reverse");
+  } else if (battCharging && solarActive) {
+    // 太陽光から充電時: 送電元は SOLAR (黄色・上から下)
+    setLine("line-trunk-high", "active-solar");
+  } else if (buyActive && useActive) {
+    // 買電して BATTERY 経由で USE へ供給時: 送電元は BUY (ピンク・下から上)
+    setLine("line-trunk-high", "active-buy flow-reverse");
   } else {
-    setLine("line-batt", null);
+    setLine("line-trunk-high", null);
   }
 
   // 5. USE へ入る線: 実際に動いている送電元 (SOLAR / BATTERY / BUY) があるときのみ同じ色で点灯

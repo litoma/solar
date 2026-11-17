@@ -36,23 +36,23 @@
           </span>
           <h2 class="ef-title">SUMMARY</h2>
         </div>
-        <span class="ef-pill" id="ef-time">--:-- UPDATE</span>
+        <span class="ef-pill ef-pill-time" id="ef-time">--:-- UPDATE</span>
       </header>
 
       <div class="ef-canvas">
-        <!-- 太陽軌道・外気温テキスト(枠なし)・天気アイコン (BUY〜SELLの左右幅に揃えた全幅設計) -->
+        <!-- 太陽軌道・外気温テキスト(枠なし)・天気アイコン (上部余白を少し詰め、BUY〜SELLの左右幅に揃えた設計) -->
         <div class="ef-sun-wrap">
-          <svg class="ef-sun-svg" viewBox="0 0 600 144" preserveAspectRatio="xMidYMid meet"
+          <svg class="ef-sun-svg" viewBox="0 10 600 134" preserveAspectRatio="xMidYMid meet"
             aria-label="Solar Elevation & Weather Curve">
             <!-- 地平線 (実線・左右端0〜600までフル幅) -->
             <line x1="0" y1="98" x2="600" y2="98" stroke="#44454a" stroke-width="1.6" />
-            <!-- 太陽軌道の真ん中 (12:00の上) の簡易的な家のアイコン (接地面を水平線 y=98 に重ね、窓付き) -->
-            <g transform="translate(300, 86)" aria-hidden="true">
-              <path d="M-12 2 L0 -8 L12 2 M-8.5 0 V12 H8.5 V0" fill="none" stroke="#44454a" stroke-width="1.6"
+            <!-- 太陽軌道の真ん中 (12:00の上) の家のアイコン (一回り大きく、接地面を y=98 に合わせ、窓付き) -->
+            <g transform="translate(300, 82)" aria-hidden="true">
+              <path d="M-15 2 L0 -10 L15 2 M-11 0 V16 H11 V0" fill="none" stroke="#44454a" stroke-width="1.8"
                 stroke-linecap="round" stroke-linejoin="round" />
-              <rect x="-3.2" y="2.5" width="6.4" height="5" rx="0.6" fill="none" stroke="#44454a" stroke-width="1.2" />
-              <line x1="0" y1="2.5" x2="0" y2="7.5" stroke="#44454a" stroke-width="0.9" />
-              <line x1="-3.2" y1="5" x2="3.2" y2="5" stroke="#44454a" stroke-width="0.9" />
+              <rect x="-4" y="3" width="8" height="6" rx="0.8" fill="none" stroke="#44454a" stroke-width="1.3" />
+              <line x1="0" y1="3" x2="0" y2="9" stroke="#44454a" stroke-width="1.0" />
+              <line x1="-4" y1="6" x2="4" y2="6" stroke="#44454a" stroke-width="1.0" />
             </g>
             <!-- 日の出前・日の入り後の破線カーブ -->
             <path d="M 12 98 Q 76 138 140 98" fill="none" stroke="#4d4e54" stroke-width="1.5" stroke-dasharray="4 4" />
@@ -71,13 +71,13 @@
             <text x="300" y="120" class="sun-time-label" id="sun-noon-label">12:00</text>
             <text x="460" y="120" class="sun-time-label" id="sun-set-label">--:--</text>
 
-            <!-- 現在時刻マーカー: 外気温テキスト(枠なし) + 天気アイコン -->
+            <!-- 現在時刻マーカー: 外気温テキスト(枠なし) + 天気アイコン (外側の半透明枠を太めに) -->
             <g id="sun-marker-group" transform="translate(300, 36)">
-              <g id="sun-badge-group" transform="translate(0, -24)">
+              <g id="sun-badge-group" transform="translate(0, -25)">
                 <text x="0" y="0" class="sun-badge-text" id="sun-badge-temp">--°C</text>
               </g>
-              <circle cx="0" cy="0" r="16" fill="rgba(251, 221, 132, 0.16)" id="sun-marker-glow" />
-              <circle cx="0" cy="0" r="12" fill="#0f1012" stroke="#d7bd72" stroke-width="1.6" id="sun-marker-ring" />
+              <circle cx="0" cy="0" r="19" fill="rgba(251, 221, 132, 0.25)" id="sun-marker-glow" />
+              <circle cx="0" cy="0" r="12" fill="#0f1012" stroke="#d7bd72" stroke-width="1.8" id="sun-marker-ring" />
               <g id="sun-weather-icon"></g>
             </g>
           </svg>
@@ -90,43 +90,9 @@
           <div class="ef-col-label">OUTPUT</div>
         </div>
 
-        <!-- 1段目: BUY / SELL, 2段目: SOLAR / USE, 3段目: BATTERY -->
+        <!-- 1段目: SOLAR / USE, 2段目: BATTERY, 3段目: BUY / SELL -->
         <div class="ef-flow-layout">
-          <!-- BUY (1段目・左) -->
-          <article class="ef-card ef-card-buy" id="card-buy">
-            <div class="ef-card-head">
-              <span class="ef-card-title">
-                <svg class="ef-card-icon" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                  <path
-                    d="M5.5 2V5.5M10.5 2V5.5M3.5 5.5H12.5V8.5C12.5 10.7 10.7 12.5 8.5 12.5H7.5C5.3 12.5 3.5 10.7 3.5 8.5V5.5ZM8 12.5V14.5"
-                    stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
-                BUY
-              </span>
-              <span class="ef-outline-badge ef-buy-badge" id="buy-mode-badge" hidden>STANDBY</span>
-            </div>
-            <div class="ef-card-value" id="val-buy-kw">0.00<span class="ef-unit">kW</span></div>
-            <div class="ef-card-sub" id="val-buy-today">0.0 kWh/d</div>
-            <div class="ef-card-highlight" id="val-buy-yen">COST ¥--</div>
-          </article>
-
-          <!-- SELL (1段目・右) -->
-          <article class="ef-card ef-card-sell" id="card-sell">
-            <div class="ef-card-head">
-              <span class="ef-card-title">
-                <svg class="ef-card-icon" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                  <path d="M8 13.5V3.5M8 3.5L4.2 7.3M8 3.5L11.8 7.3M3 13.5H13" stroke="currentColor" stroke-width="1.5"
-                    stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
-                SELL
-              </span>
-            </div>
-            <div class="ef-card-value" id="val-sell-kw">0.00<span class="ef-unit">kW</span></div>
-            <div class="ef-card-sub" id="val-sell-today">0.0 kWh/d</div>
-            <div class="ef-card-highlight" id="val-sell-yen">REV ¥--</div>
-          </article>
-
-          <!-- SOLAR (2段目・左) -->
+          <!-- SOLAR (1段目・左) -->
           <article class="ef-card ef-card-solar" id="card-solar">
             <div class="ef-card-head">
               <span class="ef-card-title">
@@ -141,11 +107,11 @@
               </span>
             </div>
             <div class="ef-card-value" id="val-solar-kw">0.00<span class="ef-unit">kW</span></div>
-            <div class="ef-card-sub" id="val-solar-today">0.0 kWh/d</div>
+            <div class="ef-card-sub" id="val-solar-today">0.00 kWh/d</div>
             <div class="ef-card-highlight" id="val-solar-yen">VALUE ¥--</div>
           </article>
 
-          <!-- USE (2段目・右) -->
+          <!-- USE (1段目・右) -->
           <article class="ef-card ef-card-use" id="card-use">
             <div class="ef-card-head">
               <span class="ef-card-title">
@@ -157,31 +123,20 @@
               </span>
             </div>
             <div class="ef-card-value" id="val-use-kw">0.00<span class="ef-unit">kW</span></div>
-            <div class="ef-card-sub" id="val-use-today">0.0 kWh/d</div>
+            <div class="ef-card-sub" id="val-use-today">0.00 kWh/d</div>
             <div class="ef-card-highlight" id="val-use-self">SELF --%</div>
           </article>
 
-          <!-- 中央フロー接続線レイヤ (縦・横の太さを完全統一し、送電元の色で描画) -->
-          <svg class="ef-connectors" viewBox="0 0 64 316" preserveAspectRatio="none" aria-hidden="true">
-            <!-- ベースライン (非アクティブ時の暗い実線) -->
-            <line x1="0" y1="68" x2="64" y2="68" class="flow-line-base" vector-effect="non-scaling-stroke" />
-            <line x1="0" y1="226" x2="64" y2="226" class="flow-line-base" vector-effect="non-scaling-stroke" />
-            <line x1="32" y1="68" x2="32" y2="316" class="flow-line-base" vector-effect="non-scaling-stroke" />
-
-            <!-- アクティブ破線 -->
-            <line id="line-buy" x1="0" y1="68" x2="32" y2="68" class="flow-line" vector-effect="non-scaling-stroke" />
-            <line id="line-sell" x1="32" y1="68" x2="64" y2="68" class="flow-line" vector-effect="non-scaling-stroke" />
-            <line id="line-trunk-mid" x1="32" y1="68" x2="32" y2="226" class="flow-line"
-              vector-effect="non-scaling-stroke" />
-            <line id="line-solar" x1="0" y1="226" x2="32" y2="226" class="flow-line"
-              vector-effect="non-scaling-stroke" />
-            <line id="line-use" x1="32" y1="226" x2="64" y2="226" class="flow-line"
-              vector-effect="non-scaling-stroke" />
-            <line id="line-batt" x1="32" y1="226" x2="32" y2="316" class="flow-line"
-              vector-effect="non-scaling-stroke" />
+          <!-- 上段コネクタ: SOLAR / USE ⇄ BATTERY 上端 -->
+          <svg class="ef-connectors ef-connectors-top" viewBox="0 0 64 166" preserveAspectRatio="none" aria-hidden="true">
+            <line x1="0" y1="71" x2="64" y2="71" class="flow-line-base" vector-effect="non-scaling-stroke" />
+            <line x1="32" y1="71" x2="32" y2="166" class="flow-line-base" vector-effect="non-scaling-stroke" />
+            <line id="line-solar" x1="0" y1="71" x2="32" y2="71" class="flow-line" vector-effect="non-scaling-stroke" />
+            <line id="line-use" x1="32" y1="71" x2="64" y2="71" class="flow-line" vector-effect="non-scaling-stroke" />
+            <line id="line-trunk-high" x1="32" y1="71" x2="32" y2="166" class="flow-line" vector-effect="non-scaling-stroke" />
           </svg>
 
-          <!-- BATTERY (3段目ワイド: 1段目右上に状態バッジ、2段目にkW、バー上に%・kWh、左下 MAX) -->
+          <!-- BATTERY (2段目ワイド) -->
           <article class="ef-card-battery" id="card-battery">
             <div class="ef-batt-top">
               <span class="ef-batt-label">
@@ -204,6 +159,49 @@
               <span id="val-batt-cap">MAX 13.3 kWh</span>
               <span id="val-batt-est">EST --h --m</span>
             </div>
+          </article>
+
+          <!-- 下段コネクタ: BATTERY 下端 ⇄ BUY / SELL -->
+          <svg class="ef-connectors ef-connectors-bottom" viewBox="0 0 64 166" preserveAspectRatio="none" aria-hidden="true">
+            <line x1="32" y1="0" x2="32" y2="95" class="flow-line-base" vector-effect="non-scaling-stroke" />
+            <line x1="0" y1="95" x2="64" y2="95" class="flow-line-base" vector-effect="non-scaling-stroke" />
+            <line id="line-trunk-low" x1="32" y1="0" x2="32" y2="95" class="flow-line" vector-effect="non-scaling-stroke" />
+            <line id="line-buy" x1="0" y1="95" x2="32" y2="95" class="flow-line" vector-effect="non-scaling-stroke" />
+            <line id="line-sell" x1="32" y1="95" x2="64" y2="95" class="flow-line" vector-effect="non-scaling-stroke" />
+          </svg>
+
+          <!-- BUY (3段目・左) -->
+          <article class="ef-card ef-card-buy" id="card-buy">
+            <div class="ef-card-head">
+              <span class="ef-card-title">
+                <svg class="ef-card-icon" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path
+                    d="M5.5 2V5.5M10.5 2V5.5M3.5 5.5H12.5V8.5C12.5 10.7 10.7 12.5 8.5 12.5H7.5C5.3 12.5 3.5 10.7 3.5 8.5V5.5ZM8 12.5V14.5"
+                    stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                BUY
+              </span>
+              <span class="ef-outline-badge ef-buy-badge" id="buy-mode-badge" hidden>STANDBY</span>
+            </div>
+            <div class="ef-card-value" id="val-buy-kw">0.00<span class="ef-unit">kW</span></div>
+            <div class="ef-card-sub" id="val-buy-today">0.00 kWh/d</div>
+            <div class="ef-card-highlight" id="val-buy-yen">COST ¥--</div>
+          </article>
+
+          <!-- SELL (3段目・右) -->
+          <article class="ef-card ef-card-sell" id="card-sell">
+            <div class="ef-card-head">
+              <span class="ef-card-title">
+                <svg class="ef-card-icon" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M8 13.5V3.5M8 3.5L4.2 7.3M8 3.5L11.8 7.3M3 13.5H13" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                SELL
+              </span>
+            </div>
+            <div class="ef-card-value" id="val-sell-kw">0.00<span class="ef-unit">kW</span></div>
+            <div class="ef-card-sub" id="val-sell-today">0.00 kWh/d</div>
+            <div class="ef-card-highlight" id="val-sell-yen">REV ¥--</div>
           </article>
         </div>
       </div>
@@ -268,8 +266,8 @@
                     <rect x="228.5" y="173.5" width="12.5" height="29" rx="2" class="roof-mod mod-pv1" />
                     <rect x="228.5" y="205.5" width="12.5" height="29" rx="2" class="roof-mod mod-pv1" />
                     <rect x="228.5" y="237.5" width="12.5" height="29" rx="2" class="roof-mod mod-pv1" />
-                    <!-- 右列 32TM-310 (1枚: 1762×767) -->
-                    <rect x="245" y="205.5" width="12.5" height="29" rx="2" class="roof-mod mod-pv1" />
+                    <!-- 右列 32TM-310 (1枚: 緑の上から2つ目 y=189.5 に合わせる) -->
+                    <rect x="245" y="189.5" width="12.5" height="29" rx="2" class="roof-mod mod-pv1" />
                   </g>
 
                   <!-- EAST (右三角領域, 中心 y=220): 北側(上)=36TM-350(2枚), 南側(下)=48TM-465(2枚) -->
@@ -419,8 +417,8 @@
       </div>
     </section>
 
-    <!-- 3. ECONOMICAL ウィジェット (推定発電量と実績発電量の比較・Recharts) -->
-    <section class="ef-shell ef-shell-solar" aria-label="Economical Solar Generation">
+    <!-- 3. PV GENERATION ウィジェット (推定発電量と実績発電量の比較・Recharts) -->
+    <section class="ef-shell ef-shell-solar" aria-label="PV Generation">
       <header class="ef-header">
         <div class="ef-header-left">
           <span class="ef-bolt" aria-hidden="true">
@@ -429,7 +427,7 @@
                 stroke-linecap="round" />
             </svg>
           </span>
-          <h2 class="ef-title ef-title-solar">ECONOMICAL</h2>
+          <h2 class="ef-title ef-title-solar">PV GENERATION</h2>
         </div>
       </header>
 
@@ -470,7 +468,6 @@
             </svg>
           </span>
           <h2 class="ef-title ef-title-battery">BMS STATUS</h2>
-          <span class="ef-pill ef-pill-battery">48 CELLS · 16 TEMPS</span>
         </div>
       </header>
 

@@ -122,9 +122,18 @@ interface TooltipPayloadItem {
   payload?: YearlyMilestonePoint;
 }
 
-function formatManYen(yen: number): string {
-  const man = yen / 10000;
-  return `${man.toFixed(1)}万円`;
+function formatCompactYen(yen: number): string {
+  if (yen >= 1_000_000) {
+    const m = (yen / 1_000_000)
+      .toFixed(2)
+      .replace(/\.00$/, "")
+      .replace(/(\.\d)0$/, "$1");
+    return `¥${m}M`;
+  }
+  if (yen >= 1_000) {
+    return `¥${Math.round(yen / 1_000)}k`;
+  }
+  return `¥${Math.round(yen)}`;
 }
 
 function CustomPaybackTooltip({
@@ -429,7 +438,8 @@ function PaybackChartView({
                 />
                 <YAxis
                   domain={[0, maxYMan]}
-                  unit="万"
+                  width={52}
+                  tickFormatter={(v: number) => formatCompactYen(v * 10000)}
                   tick={{
                     fill: "#9a9ea6",
                     fontSize: 11,
@@ -457,7 +467,7 @@ function PaybackChartView({
                   strokeWidth={1.8}
                   strokeDasharray="5 4"
                   label={{
-                    value: `回収目標 ${targetMan.toFixed(0)}万円`,
+                    value: `回収目標 ${formatCompactYen(targetYen)}`,
                     position: "insideTopLeft",
                     fill: "#fbdd84",
                     fontSize: 11.5,
@@ -465,7 +475,7 @@ function PaybackChartView({
                   }}
                 />
                 <Bar
-                  name="計画累計回収 (万円)"
+                  name="計画累計回収"
                   dataKey="plannedCumMan"
                   fill="rgba(215, 189, 114, 0.35)"
                   stroke="#d7bd72"
@@ -475,7 +485,7 @@ function PaybackChartView({
                   isAnimationActive={false}
                 />
                 <Bar
-                  name="実績累計回収 (万円)"
+                  name="実績累計回収"
                   dataKey="actualCumMan"
                   stackId="actual"
                   fill="#57f293"
@@ -486,7 +496,7 @@ function PaybackChartView({
                   isAnimationActive={false}
                 />
                 <Bar
-                  name="実績ペース予測 (万円)"
+                  name="実績ペース予測"
                   dataKey="projectedDeltaMan"
                   stackId="actual"
                   fill={PROJECTED_FILL}
@@ -514,7 +524,7 @@ function PaybackChartView({
                 <span className="sim-month-val">
                   {pt.yearIndex === 0
                     ? `¥${pt.actualCumYen.toLocaleString("ja-JP")}`
-                    : formatManYen(pt.plannedCumYen)}
+                    : formatCompactYen(pt.plannedCumYen)}
                 </span>
                 <span
                   className="sim-month-pct"
@@ -541,8 +551,8 @@ function PaybackChartView({
                 ¥{targetYen.toLocaleString("ja-JP")}
               </div>
               <div className="payback-kpi-sub">
-                総額 {(initialCostYen / 10000).toFixed(0)}万円 − 補助金{" "}
-                {(subsidyYen / 10000).toFixed(0)}万円
+                総額 {formatCompactYen(initialCostYen)} − 補助金{" "}
+                {formatCompactYen(subsidyYen)}
               </div>
             </div>
 
