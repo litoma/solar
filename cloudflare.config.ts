@@ -26,8 +26,12 @@ export default defineConfig({
       SOLAR_SELL_PRICE_SCHEDULE: bindings.text(
         process.env.SOLAR_SELL_PRICE_SCHEDULE || "1-4:24,5-10:8.3,11+:8.5",
       ),
-      // 導入・売電開始年月 (年数カウントの起点, 初期値: 2026-11)
+      // 導入・発電開始年月 (初期値: 2026-11)
       SOLAR_START_YM: bindings.text(process.env.SOLAR_START_YM || "2026-11"),
+      // 売電(FIT)開始日 (この日までは売電単価0円、初期値: 2027-04-01)
+      SOLAR_SELL_START_DATE: bindings.text(
+        process.env.SOLAR_SELL_START_DATE || "2027-04-01",
+      ),
       // 計画試算用の想定自家消費率 (0.0〜1.0, 初期値: 0.65 = 自家消費65% / 売電35%)
       SOLAR_SELF_CONSUME_RATIO: bindings.text(
         process.env.SOLAR_SELF_CONSUME_RATIO || "0.65",

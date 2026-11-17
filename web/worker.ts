@@ -11,6 +11,7 @@ export interface SiteConfig {
   sellPriceSchedule: SellPriceTier[];
   sellPriceScheduleRaw: string;
   startYm: string;
+  sellStartDate: string;
   selfConsumeRatio: number;
   refreshIntervalSec: number;
   batteryCapacityKwh: number;
@@ -33,6 +34,7 @@ export interface Env {
   SOLAR_SELL_PRICE_YEN?: string;
   SOLAR_SELL_PRICE_SCHEDULE?: string;
   SOLAR_START_YM?: string;
+  SOLAR_SELL_START_DATE?: string;
   SOLAR_SELF_CONSUME_RATIO?: string;
   SOLAR_REFRESH_MINUTES?: string;
   SOLAR_REFRESH_SEC?: string;
@@ -52,6 +54,7 @@ const DEFAULT_SELL_PRICE_YEN = 24;
 // 2025年度下半期〜 初期投資支援スキーム (1〜4年目: 24円, 5〜10年目: 8.3円) + 卒FIT (11年目以降: 8.5円)
 const DEFAULT_SELL_PRICE_SCHEDULE = "1-4:24,5-10:8.3,11+:8.5";
 const DEFAULT_START_YM = "2026-11";
+const DEFAULT_SELL_START_DATE = "2027-04-01";
 const DEFAULT_SELF_CONSUME_RATIO = 0.65;
 const DEFAULT_REFRESH_MINUTES = 1;
 const DEFAULT_BATTERY_CAPACITY_KWH = 13.3;
@@ -297,21 +300,31 @@ async function resolveSiteConfig(env: Env): Promise<SiteConfig> {
   const startYm = /^\d{4}-\d{2}$/.test(startYmRaw)
     ? startYmRaw
     : DEFAULT_START_YM;
+  const sellStartRaw = (env.SOLAR_SELL_START_DATE || DEFAULT_SELL_START_DATE)
+    .trim()
+    .replace(/\//g, "-");
+  const sellStartDate = /^\d{4}-\d{2}-\d{2}$/.test(sellStartRaw)
+    ? sellStartRaw
+    : DEFAULT_SELL_START_DATE;
   const rawSelfRatio = parsePositiveNumber(
     env.SOLAR_SELF_CONSUME_RATIO,
     DEFAULT_SELF_CONSUME_RATIO,
   );
   const selfConsumeRatio = Math.max(0.05, Math.min(1.0, rawSelfRatio));
 
-  // 現在年月の運転年数に応じた売電単価を sellPriceYenPerKwh にも反映
+  // 現在日付が売電開始日前なら売電単価0円、開始日以降なら売電開始日を起点に年数判定
   const nowJst = new Date(Date.now() + DEFAULT_TZ_OFFSET_MIN * 60 * 1000);
-  const currentYm = `${nowJst.getUTCFullYear()}-${String(nowJst.getUTCMonth() + 1).padStart(2, "0")}`;
-  const currentOpYear = getOperationYearForYm(startYm, currentYm);
-  const sellPriceYenPerKwh = getSellPriceForYear(
-    sellPriceSchedule,
-    currentOpYear,
-    baseSellPriceYen,
-  );
+  const currentDate = `${nowJst.getUTCFullYear()}-${String(nowJst.getUTCMonth() + 1).padStart(2, "0")}-${String(nowJst.getUTCDate()).padStart(2, "0")}`;
+  const currentYm = currentDate.slice(0, 7);
+  const sellStartYm = sellStartDate.slice(0, 7);
+  const sellPriceYenPerKwh =
+    currentDate < sellStartDate
+      ? 0
+      : getSellPriceForYear(
+          sellPriceSchedule,
+          getOperationYearForYm(sellStartYm, currentYm),
+          baseSellPriceYen,
+        );
 
   const batteryCapacityKwh = parsePositiveNumber(
     env.SOLAR_BATTERY_CAPACITY_KWH,
@@ -361,6 +374,7 @@ async function resolveSiteConfig(env: Env): Promise<SiteConfig> {
     sellPriceSchedule,
     sellPriceScheduleRaw,
     startYm,
+    sellStartDate,
     selfConsumeRatio,
     refreshIntervalSec,
     batteryCapacityKwh,
@@ -614,16 +628,20 @@ async function handleDashboard(env: Env): Promise<Response> {
     { solarKwh: number; sellKwh: number; benefitYen: number; days: number }
   > = {};
 
+  const sellStartYm = cfg.sellStartDate.slice(0, 7);
   for (const d of allDaysResult.results || []) {
     const sKwh = Math.max(0, d.solar_kwh ?? 0);
     const eKwh = Math.max(0, d.sell_kwh ?? 0);
     const selfKwh = Math.max(0, sKwh - eKwh);
-    const opYear = d.ym ? getOperationYearForYm(cfg.startYm, d.ym) : 1;
-    const sellPriceForDay = getSellPriceForYear(
-      cfg.sellPriceSchedule,
-      opYear,
-      cfg.sellPriceYenPerKwh,
-    );
+    let sellPriceForDay = 0;
+    if (d.jst_date && d.jst_date >= cfg.sellStartDate) {
+      const opYear = getOperationYearForYm(sellStartYm, d.ym);
+      sellPriceForDay = getSellPriceForYear(
+        cfg.sellPriceSchedule,
+        opYear,
+        cfg.sellPriceYenPerKwh,
+      );
+    }
     const benefit =
       selfKwh * cfg.buyPriceYenPerKwh + eKwh * sellPriceForDay;
     totalSolarKwh += sKwh;
@@ -652,6 +670,7 @@ async function handleDashboard(env: Env): Promise<Response> {
     subsidyYen: cfg.subsidyYen,
     sellPriceSchedule: cfg.sellPriceSchedule,
     startYm: cfg.startYm,
+    sellStartDate: cfg.sellStartDate,
     selfConsumeRatio: cfg.selfConsumeRatio,
     totalSolarKwh: Math.round(totalSolarKwh * 10) / 10,
     totalSellKwh: Math.round(totalSellKwh * 10) / 10,

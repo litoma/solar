@@ -56,6 +56,7 @@ export interface PaybackData {
   subsidyYen: number;
   sellPriceSchedule?: SellPriceTier[];
   startYm?: string;
+  sellStartDate?: string;
   selfConsumeRatio?: number;
   totalSolarKwh: number;
   totalSellKwh: number;
@@ -212,25 +213,51 @@ function PaybackChartView({
     startMonth = Number(ymSrc.slice(5, 7)) || currentMonth;
   }
 
-  // 指定した運転年数(1年目, 2年目, ...)における1kWhあたりの期待メリット単価 (自家消費×買電単価 + 売電×年数別売電単価)
-  const unitValueForYear = (opYear: number): number => {
-    const sellPrice = getSellPriceForYear(tiers, opYear);
+  // 売電開始年月 (初期値 2027-04-01 → 2027-04)
+  const sellStartDate = payback.sellStartDate || "2027-04-01";
+  let sellStartYear = 2027;
+  let sellStartMonth = 4;
+  if (/^\d{4}-\d{2}/.test(sellStartDate)) {
+    sellStartYear = Number(sellStartDate.slice(0, 4)) || 2027;
+    sellStartMonth = Number(sellStartDate.slice(5, 7)) || 4;
+  }
+  const sellStartTotalMonths = sellStartYear * 12 + (sellStartMonth - 1);
+
+  // 指定した年月における売電単価 (売電開始日前は0円、開始日以降は開始年月からの経過年数で判定)
+  const sellPriceForCalendarYm = (calYear: number, calMonth: number): number => {
+    const curTotalMonths = calYear * 12 + (calMonth - 1);
+    if (curTotalMonths < sellStartTotalMonths) {
+      return 0;
+    }
+    const fitOpYear = Math.floor((curTotalMonths - sellStartTotalMonths) / 12) + 1;
+    return getSellPriceForYear(tiers, fitOpYear);
+  };
+
+  // 指定年月における1kWhあたりの期待メリット単価 (売電開始前は自家消費分のみ、開始後は自家消費+売電)
+  const unitValueForCalendarYm = (calYear: number, calMonth: number): number => {
+    const sellPrice = sellPriceForCalendarYm(calYear, calMonth);
     return selfRatio * buyPriceYenPerKwh + exportRatio * sellPrice;
   };
 
-  const annualBenefitForYear = (opYear: number): number =>
-    Math.round(ANNUAL_TOTAL_KWH * unitValueForYear(opYear));
+  // 指定した運転年数での年間想定メリット (表示用: FIT 1年目・5年目)
+  const annualBenefitForFitYear = (fitYear: number): number => {
+    const sellPrice = getSellPriceForYear(tiers, fitYear);
+    return Math.round(
+      ANNUAL_TOTAL_KWH * (selfRatio * buyPriceYenPerKwh + exportRatio * sellPrice),
+    );
+  };
 
-  // 月次ステップで計画回収期間 (年数別売電単価を適用して何年何ヶ月で targetYen に到達するか) を精密計算
+  // 月次ステップで計画回収期間 (2026-11〜2027-03は売電0円、2027-04からFIT単価適用) を精密計算
   let cumPlanYen = 0;
   let paybackMonthsCount = 0;
   let breakEvenYear = startYear;
   let breakEvenMonth = startMonth;
   for (let step = 0; step < 360; step++) {
-    const opYear = Math.floor(step / 12) + 1;
-    const m = ((startMonth - 1 + step) % 12) + 1;
-    const y = startYear + Math.floor((startMonth - 1 + step) / 12);
-    const monthEstYen = (MONTHLY_EST_KWH[m] ?? 500) * unitValueForYear(opYear);
+    const absM = startYear * 12 + (startMonth - 1) + step;
+    const y = Math.floor(absM / 12);
+    const m = (absM % 12) + 1;
+    const monthEstYen =
+      (MONTHLY_EST_KWH[m] ?? 500) * unitValueForCalendarYm(y, m);
     cumPlanYen += monthEstYen;
     paybackMonthsCount = step + 1;
     if (cumPlanYen >= targetYen) {
@@ -247,9 +274,8 @@ function PaybackChartView({
   for (const [ym, stat] of Object.entries(payback.byYearMonth || {})) {
     const y = Number(ym.slice(0, 4)) || startYear;
     const m = Number(ym.slice(5, 7)) || currentMonth;
-    const diffM = Math.max(0, (y - startYear) * 12 + (m - startMonth));
-    const opYear = Math.floor(diffM / 12) + 1;
-    const estMonthYen = (MONTHLY_EST_KWH[m] ?? 500) * unitValueForYear(opYear);
+    const estMonthYen =
+      (MONTHLY_EST_KWH[m] ?? 500) * unitValueForCalendarYm(y, m);
     const daysInM = DAYS_IN_MONTH[m] ?? 30;
     expectedYenForActiveDays += (estMonthYen / daysInM) * stat.days;
   }
@@ -259,9 +285,8 @@ function PaybackChartView({
       : 1.0;
   const paceRatio = Math.max(0.3, Math.min(2.0, rawPaceRatio));
 
-  // グラフの年数レンジ (ペイ達成年の+2年後まで、最低8年間表示して5年目以降の単価変化も可視化)
-  const breakEvenYearIndex = Math.ceil(paybackMonthsCount / 12);
-  const maxYears = Math.max(8, breakEvenYearIndex + 2);
+  // グラフ表示範囲は達成翌年 (例: 2032年達成なら 2033年) まで
+  const maxYears = Math.max(1, breakEvenYear + 1 - startYear);
 
   const points: YearlyMilestonePoint[] = [];
   let runningPlanYen = 0;
@@ -275,8 +300,8 @@ function PaybackChartView({
     yearIndex: 0,
     label: String(startYear),
     subLabel: `現在 ${startYear}/${String(startMonth).padStart(2, "0")}`,
-    sellPriceYen: getSellPriceForYear(tiers, 1),
-    annualPlanYen: annualBenefitForYear(1),
+    sellPriceYen: sellPriceForCalendarYm(startYear, startMonth),
+    annualPlanYen: annualBenefitForFitYear(1),
     plannedCumMan: 0,
     actualCumMan: actualManFixed,
     projectedDeltaMan: 0,
@@ -290,11 +315,19 @@ function PaybackChartView({
   });
 
   for (let yr = 1; yr <= maxYears; yr++) {
-    const yrPlanYen = annualBenefitForYear(yr);
-    const yrSellPrice = getSellPriceForYear(tiers, yr);
+    let yrPlanYen = 0;
+    for (let k = 0; k < 12; k++) {
+      const absM = startYear * 12 + (startMonth - 1) + (yr - 1) * 12 + k;
+      const y = Math.floor(absM / 12);
+      const m = (absM % 12) + 1;
+      yrPlanYen +=
+        (MONTHLY_EST_KWH[m] ?? 500) * unitValueForCalendarYm(y, m);
+    }
+    yrPlanYen = Math.round(yrPlanYen);
+    const calYear = startYear + yr;
+    const yrSellPrice = sellPriceForCalendarYm(calYear, startMonth);
     runningPlanYen += yrPlanYen;
     runningProjectedYen += Math.round(yrPlanYen * paceRatio);
-    const calYear = startYear + yr;
     const projectedMan = Math.round((runningProjectedYen / 10000) * 10) / 10;
     const deltaMan = Math.max(
       0,
@@ -315,7 +348,7 @@ function PaybackChartView({
       projectedCumYen: runningProjectedYen,
       remainingPlanYen: Math.max(0, targetYen - runningPlanYen),
       pctOfTarget: (runningPlanYen / targetYen) * 100,
-      isBreakEvenYear: yr === breakEvenYearIndex,
+      isBreakEvenYear: calYear === breakEvenYear,
     });
   }
 
@@ -336,8 +369,8 @@ function PaybackChartView({
       ? Math.round(payback.totalBenefitYen / payback.activeDays)
       : 0;
 
-  const yr1to4Benefit = annualBenefitForYear(1);
-  const yr5to10Benefit = annualBenefitForYear(5);
+  const yr1to4Benefit = annualBenefitForFitYear(1);
+  const yr5to10Benefit = annualBenefitForFitYear(5);
 
   const onScroll = () => {
     const el = scrollerRef.current;
@@ -468,7 +501,10 @@ function PaybackChartView({
             </ResponsiveContainer>
           </div>
 
-          <div className="payback-milestones-grid">
+          <div
+            className="payback-milestones-grid"
+            style={{ "--milestones-cols": points.length } as React.CSSProperties}
+          >
             {points.map((pt) => (
               <div
                 key={pt.yearIndex}
@@ -551,6 +587,9 @@ function PaybackChartView({
           <div className="payback-tiers-bar">
             <span className="payback-tiers-label">売電単価設定 (FIT/卒FIT):</span>
             <div className="payback-tiers-chips">
+              <span className="ef-outline-badge payback-tier-chip">
+                売電開始: {sellStartDate.replace(/-/g, "/")}〜
+              </span>
               {tiers.map((t, i) => (
                 <span key={i} className="ef-outline-badge payback-tier-chip">
                   {formatTierLabel(t)}

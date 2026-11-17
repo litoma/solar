@@ -46,10 +46,13 @@
             aria-label="Solar Elevation & Weather Curve">
             <!-- 地平線 (実線・左右端0〜600までフル幅) -->
             <line x1="0" y1="98" x2="600" y2="98" stroke="#44454a" stroke-width="1.6" />
-            <!-- 太陽軌道の真ん中 (12:00の上) の簡易的な家のアイコン -->
+            <!-- 太陽軌道の真ん中 (12:00の上) の簡易的な家のアイコン (接地面を水平線 y=98 に重ね、窓付き) -->
             <g transform="translate(300, 86)" aria-hidden="true">
-              <path d="M-11 2 L0 -8 L11 2 M-8 0 V11 H8 V0" fill="none" stroke="#44454a" stroke-width="1.8"
+              <path d="M-12 2 L0 -8 L12 2 M-8.5 0 V12 H8.5 V0" fill="none" stroke="#44454a" stroke-width="1.6"
                 stroke-linecap="round" stroke-linejoin="round" />
+              <rect x="-3.2" y="2.5" width="6.4" height="5" rx="0.6" fill="none" stroke="#44454a" stroke-width="1.2" />
+              <line x1="0" y1="2.5" x2="0" y2="7.5" stroke="#44454a" stroke-width="0.9" />
+              <line x1="-3.2" y1="5" x2="3.2" y2="5" stroke="#44454a" stroke-width="0.9" />
             </g>
             <!-- 日の出前・日の入り後の破線カーブ -->
             <path d="M 12 98 Q 76 138 140 98" fill="none" stroke="#4d4e54" stroke-width="1.5" stroke-dasharray="4 4" />
@@ -247,36 +250,36 @@
 
                   <!-- NORTH (上三角領域): PV4 (CS6.2-48TM-445 × 3 panels) -->
                   <g class="roof-group" id="roof-group-pv4" data-pv="4">
-                    <rect x="284" y="122" width="33" height="22" rx="3" class="roof-mod mod-pv4" />
-                    <rect x="323" y="122" width="33" height="22" rx="3" class="roof-mod mod-pv4" />
-                    <rect x="303.5" y="148" width="33" height="22" rx="3" class="roof-mod mod-pv4" />
+                    <rect x="289" y="124" width="29" height="18.5" rx="2.5" class="roof-mod mod-pv4" />
+                    <rect x="322" y="124" width="29" height="18.5" rx="2.5" class="roof-mod mod-pv4" />
+                    <rect x="305.5" y="146.5" width="29" height="18.5" rx="2.5" class="roof-mod mod-pv4" />
                   </g>
 
-                  <!-- WEST (左三角領域): PV3 (48TM-465 × 3) + PV1 (48TM-465 × 1 + 32TM-310 × 4) -->
+                  <!-- WEST (左三角領域, 中心 y=220 に上下中央配置): PV3 (48TM-465 × 3) + PV1 (48TM-465 × 1 + 32TM-310 × 4) -->
                   <g class="roof-group" id="roof-group-pv3" data-pv="3">
-                    <rect x="204" y="140" width="19" height="29" rx="3" class="roof-mod mod-pv3" />
-                    <rect x="204" y="172" width="19" height="29" rx="3" class="roof-mod mod-pv3" />
-                    <rect x="204" y="204" width="19" height="29" rx="3" class="roof-mod mod-pv3" />
+                    <rect x="206" y="157.5" width="18.5" height="29" rx="2.5" class="roof-mod mod-pv3" />
+                    <rect x="206" y="189.5" width="18.5" height="29" rx="2.5" class="roof-mod mod-pv3" />
+                    <rect x="206" y="221.5" width="18.5" height="29" rx="2.5" class="roof-mod mod-pv3" />
                   </g>
                   <g class="roof-group" id="roof-group-pv1" data-pv="1">
-                    <!-- 左列最下段 48TM-465 (1枚) -->
-                    <rect x="204" y="236" width="19" height="29" rx="3" class="roof-mod mod-pv1" />
-                    <!-- 中列 32TM-310 (3枚) -->
-                    <rect x="227" y="174" width="19" height="20" rx="2.5" class="roof-mod mod-pv1" />
-                    <rect x="227" y="198" width="19" height="20" rx="2.5" class="roof-mod mod-pv1" />
-                    <rect x="227" y="222" width="19" height="20" rx="2.5" class="roof-mod mod-pv1" />
-                    <!-- 右列 32TM-310 (1枚) -->
-                    <rect x="250" y="198" width="19" height="20" rx="2.5" class="roof-mod mod-pv1" />
+                    <!-- 左列最南端 48TM-465 (1枚: 1762×1134) -->
+                    <rect x="206" y="253.5" width="18.5" height="29" rx="2.5" class="roof-mod mod-pv1" />
+                    <!-- 中列 32TM-310 (3枚: 1762×767 細長スリム) -->
+                    <rect x="228.5" y="173.5" width="12.5" height="29" rx="2" class="roof-mod mod-pv1" />
+                    <rect x="228.5" y="205.5" width="12.5" height="29" rx="2" class="roof-mod mod-pv1" />
+                    <rect x="228.5" y="237.5" width="12.5" height="29" rx="2" class="roof-mod mod-pv1" />
+                    <!-- 右列 32TM-310 (1枚: 1762×767) -->
+                    <rect x="245" y="205.5" width="12.5" height="29" rx="2" class="roof-mod mod-pv1" />
                   </g>
 
-                  <!-- EAST (右三角領域): PV2 (48TM-465 × 2 + 36TM-350 × 2) -->
+                  <!-- EAST (右三角領域, 中心 y=220): 北側(上)=36TM-350(2枚), 南側(下)=48TM-465(2枚) -->
                   <g class="roof-group" id="roof-group-pv2" data-pv="2">
-                    <!-- 上段 48TM-465 (2枚) -->
-                    <rect x="380" y="178" width="21" height="32" rx="3" class="roof-mod mod-pv2" />
-                    <rect x="405" y="178" width="21" height="32" rx="3" class="roof-mod mod-pv2" />
-                    <!-- 下段 36TM-350 (2枚) -->
-                    <rect x="380" y="214" width="21" height="24" rx="3" class="roof-mod mod-pv2" />
-                    <rect x="405" y="214" width="21" height="24" rx="3" class="roof-mod mod-pv2" />
+                    <!-- 北側 (上段): CS6.2-36TM-350 (1334×1134) -->
+                    <rect x="382" y="192" width="18.5" height="22" rx="2.5" class="roof-mod mod-pv2" />
+                    <rect x="404.5" y="192" width="18.5" height="22" rx="2.5" class="roof-mod mod-pv2" />
+                    <!-- 南側 (下段): CS6.2-48TM-465 (1762×1134) -->
+                    <rect x="382" y="218" width="18.5" height="29" rx="2.5" class="roof-mod mod-pv2" />
+                    <rect x="404.5" y="218" width="18.5" height="29" rx="2.5" class="roof-mod mod-pv2" />
                   </g>
                 </svg>
               </div>
@@ -340,56 +343,78 @@
             </div>
           </div>
 
-          <!-- 2ページ目: 太陽光パネル詳細情報 -->
+          <!-- 2ページ目: 太陽光パネル詳細情報 (Canadian Solar TOPHiKu6) -->
           <div class="pv-page pv-specs-page">
             <div class="pv-specs-grid">
               <div class="pv-spec-card">
-                <div class="pv-spec-model">CS6.2-48TM-465</div>
-                <div class="pv-spec-meta">
-                  <span class="pv-spec-qty">6枚</span>
-                  <span class="pv-spec-dir">西と東</span>
+                <div class="pv-spec-head">
+                  <span class="pv-spec-model">CS6.2-48TM-465</span>
+                  <span class="ef-outline-badge pv-spec-dir-badge">WEST 4 · EAST 2</span>
                 </div>
-                <div class="pv-spec-cap">465 W × 6 = 2.790 kW</div>
+                <div class="pv-spec-meta">
+                  <span class="pv-spec-qty">6 panels</span>
+                  <span class="pv-spec-cap">465 W × 6 = 2.790 kW</span>
+                </div>
+                <div class="pv-spec-detail">
+                  1,762 × 1,134 × 30 mm · 21.3 kg · 変換効率 23.3% · N型 TOPCon
+                </div>
               </div>
 
               <div class="pv-spec-card">
-                <div class="pv-spec-model">CS6.2-36TM-350</div>
-                <div class="pv-spec-meta">
-                  <span class="pv-spec-qty">2枚</span>
-                  <span class="pv-spec-dir">東</span>
+                <div class="pv-spec-head">
+                  <span class="pv-spec-model">CS6.2-36TM-350</span>
+                  <span class="ef-outline-badge pv-spec-dir-badge">EAST 2</span>
                 </div>
-                <div class="pv-spec-cap">350 W × 2 = 0.700 kW</div>
+                <div class="pv-spec-meta">
+                  <span class="pv-spec-qty">2 panels</span>
+                  <span class="pv-spec-cap">350 W × 2 = 0.700 kW</span>
+                </div>
+                <div class="pv-spec-detail">
+                  1,334 × 1,134 × 30 mm · 16.3 kg · 変換効率 23.1% · N型 TOPCon
+                </div>
               </div>
 
               <div class="pv-spec-card">
-                <div class="pv-spec-model">CS6.2-32TM-310</div>
-                <div class="pv-spec-meta">
-                  <span class="pv-spec-qty">4枚</span>
-                  <span class="pv-spec-dir">西</span>
+                <div class="pv-spec-head">
+                  <span class="pv-spec-model">CS6.2-32TM-310</span>
+                  <span class="ef-outline-badge pv-spec-dir-badge">WEST 4</span>
                 </div>
-                <div class="pv-spec-cap">310 W × 4 = 1.240 kW</div>
+                <div class="pv-spec-meta">
+                  <span class="pv-spec-qty">4 panels</span>
+                  <span class="pv-spec-cap">310 W × 4 = 1.240 kW</span>
+                </div>
+                <div class="pv-spec-detail">
+                  1,762 × 767 × 30 mm · 14.7 kg · 変換効率 22.9% · N型 TOPCon
+                </div>
               </div>
 
               <div class="pv-spec-card">
-                <div class="pv-spec-model">CS6.2-48TM-445</div>
-                <div class="pv-spec-meta">
-                  <span class="pv-spec-qty">3枚</span>
-                  <span class="pv-spec-dir">北</span>
+                <div class="pv-spec-head">
+                  <span class="pv-spec-model">CS6.2-48TM-445</span>
+                  <span class="ef-outline-badge pv-spec-dir-badge">NORTH 3</span>
                 </div>
-                <div class="pv-spec-cap">445 W × 3 = 1.335 kW</div>
+                <div class="pv-spec-meta">
+                  <span class="pv-spec-qty">3 panels</span>
+                  <span class="pv-spec-cap">445 W × 3 = 1.335 kW</span>
+                </div>
+                <div class="pv-spec-detail">
+                  1,762 × 1,134 × 30 mm · 21.3 kg · 変換効率 22.3% · 防眩アンチグレア
+                </div>
               </div>
             </div>
 
             <div class="pv-specs-footer">
-              <span>合計 15枚 · 6.065 kW</span>
+              <span>Canadian Solar TOPHiKu6 · 温度係数 -0.29%/°C · 出力保証 30年 / 製品保証 25年</span>
               <span>PCS: EP Cube PCS-JP2-6G (5.90 kW)</span>
             </div>
           </div>
         </div>
 
         <div class="pv-dots" id="pv-dots" role="tablist" aria-label="PV Strings pages">
-          <button type="button" role="tab" aria-selected="true" aria-label="ページ 1" class="pv-dot is-active" data-page="0"></button>
-          <button type="button" role="tab" aria-selected="false" aria-label="ページ 2" class="pv-dot" data-page="1"></button>
+          <button type="button" role="tab" aria-selected="true" aria-label="ページ 1" class="pv-dot is-active"
+            data-page="0"></button>
+          <button type="button" role="tab" aria-selected="false" aria-label="ページ 2" class="pv-dot"
+            data-page="1"></button>
         </div>
       </div>
     </section>
@@ -419,13 +444,8 @@
         <div class="ef-header-left">
           <span class="ef-bolt" aria-hidden="true">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path
-                d="M2 11.5L6.2 7.3L9.2 10.3L14 4.5M14 4.5H10.2M14 4.5V8.3"
-                stroke="#57f293"
-                stroke-width="1.6"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
+              <path d="M2 11.5L6.2 7.3L9.2 10.3L14 4.5M14 4.5H10.2M14 4.5V8.3" stroke="#57f293" stroke-width="1.6"
+                stroke-linecap="round" stroke-linejoin="round" />
             </svg>
           </span>
           <h2 class="ef-title ef-title-use">PAYBACK PLAN</h2>
@@ -443,15 +463,7 @@
         <div class="ef-header-left">
           <span class="ef-bolt" aria-hidden="true">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <rect
-                x="1.5"
-                y="4"
-                width="11.5"
-                height="8"
-                rx="2"
-                stroke="#d5cbf9"
-                stroke-width="1.5"
-              />
+              <rect x="1.5" y="4" width="11.5" height="8" rx="2" stroke="#d5cbf9" stroke-width="1.5" />
               <path d="M14.2 6.2V9.8" stroke="#d5cbf9" stroke-width="1.6" stroke-linecap="round" />
               <rect x="3.5" y="6" width="3" height="4" rx="0.6" fill="#d5cbf9" />
               <rect x="7.5" y="6" width="3" height="4" rx="0.6" fill="#d5cbf9" />
