@@ -347,13 +347,46 @@
       </div>
     </section>
 
-    <!-- 4. BMS STATUS ウィジェット (PACK → TEMP → CELL の順) -->
+    <!-- 4. PAYBACK PLAN ウィジェット (投資回収計画と実績進捗・Recharts) -->
+    <section class="ef-shell ef-shell-payback" aria-label="Investment Payback Plan">
+      <header class="ef-header">
+        <div class="ef-header-left">
+          <span class="ef-bolt" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path
+                d="M2 11.5L6.2 7.3L9.2 10.3L14 4.5M14 4.5H10.2M14 4.5V8.3"
+                stroke="#57f293"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </span>
+          <h2 class="ef-title ef-title-use">PAYBACK PLAN</h2>
+          <span class="ef-pill" id="payback-header-pill">TARGET ¥1,100,000</span>
+        </div>
+      </header>
+
+      <div class="ef-canvas ef-canvas-sim">
+        <div id="payback-chart-root"></div>
+      </div>
+    </section>
+
+    <!-- 5. BMS STATUS ウィジェット (PACK → TEMP → CELL の順) -->
     <section class="ef-shell ef-shell-battery" aria-label="BMS Status Monitor">
       <header class="ef-header">
         <div class="ef-header-left">
           <span class="ef-bolt" aria-hidden="true">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <rect x="1.5" y="4" width="11.5" height="8" rx="2" stroke="#d5cbf9" stroke-width="1.5" />
+              <rect
+                x="1.5"
+                y="4"
+                width="11.5"
+                height="8"
+                rx="2"
+                stroke="#d5cbf9"
+                stroke-width="1.5"
+              />
               <path d="M14.2 6.2V9.8" stroke="#d5cbf9" stroke-width="1.6" stroke-linecap="round" />
               <rect x="3.5" y="6" width="3" height="4" rx="0.6" fill="#d5cbf9" />
               <rect x="7.5" y="6" width="3" height="4" rx="0.6" fill="#d5cbf9" />
@@ -364,67 +397,15 @@
         </div>
       </header>
 
-      <!-- 4. PAYBACK PLAN ウィジェット (投資回収計画と実績進捗・Recharts) -->
-      <section class="ef-shell ef-shell-payback" aria-label="Investment Payback Plan">
-        <header class="ef-header">
-          <div class="ef-header-left">
-            <span class="ef-bolt" aria-hidden="true">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path
-                  d="M2 11.5L6.2 7.3L9.2 10.3L14 4.5M14 4.5H10.2M14 4.5V8.3"
-                  stroke="#57f293"
-                  stroke-width="1.6"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
-            </span>
-            <h2 class="ef-title ef-title-use">PAYBACK PLAN</h2>
-            <span class="ef-pill" id="payback-header-pill">TARGET ¥1,100,000</span>
-          </div>
-        </header>
-
-        <div class="ef-canvas ef-canvas-sim">
-          <div id="payback-chart-root"></div>
-        </div>
-      </section>
-
-      <!-- 5. BMS STATUS ウィジェット (PACK → TEMP → CELL の順) -->
-      <section class="ef-shell ef-shell-battery" aria-label="BMS Status Monitor">
-        <header class="ef-header">
-          <div class="ef-header-left">
-            <span class="ef-bolt" aria-hidden="true">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <rect
-                  x="1.5"
-                  y="4"
-                  width="11.5"
-                  height="8"
-                  rx="2"
-                  stroke="#d5cbf9"
-                  stroke-width="1.5"
-                />
-                <path d="M14.2 6.2V9.8" stroke="#d5cbf9" stroke-width="1.6" stroke-linecap="round" />
-                <rect x="3.5" y="6" width="3" height="4" rx="0.6" fill="#d5cbf9" />
-                <rect x="7.5" y="6" width="3" height="4" rx="0.6" fill="#d5cbf9" />
-              </svg>
-            </span>
-            <h2 class="ef-title ef-title-battery">BMS STATUS</h2>
-            <span class="ef-pill ef-pill-battery">48 CELLS · 16 TEMPS</span>
-          </div>
-        </header>
-
-        <div class="ef-canvas ef-canvas-bms">
-          <div class="bms-sections">
-            <!-- 要素1: PACK (48セル合計電圧・確認観点の要約) -->
-            <article class="bms-box" id="bms-box-pack">
-              <div class="bms-box-head">
-                <div class="bms-box-title-group">
-                  <span class="bms-box-key">PACK</span>
-                  <span class="bms-box-val" id="bms-pack-val">-- V</span>
-                  <span class="bms-box-sub" id="bms-pack-sub">平均 -- V × 48直列</span>
-                </div>
-                <span class="ef-outline-badge bms-eval-badge" id="bms-pack-badge">48S LFP</span>
+      <div class="ef-canvas ef-canvas-bms">
+        <div class="bms-sections">
+          <!-- 要素1: PACK (48セル合計電圧・確認観点の要約) -->
+          <article class="bms-box" id="bms-box-pack">
+            <div class="bms-box-head">
+              <div class="bms-box-title-group">
+                <span class="bms-box-key">PACK</span>
+                <span class="bms-box-val" id="bms-pack-val">-- V</span>
+                <span class="bms-box-sub" id="bms-pack-sub">平均 -- V × 48直列</span>
               </div>
               <span class="ef-outline-badge bms-eval-badge" id="bms-pack-badge">48S LFP</span>
             </div>

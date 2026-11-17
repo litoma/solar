@@ -68,9 +68,10 @@ export interface PaybackData {
   >;
 }
 
-// 実績ペース予測は実績累計回収(緑)と同系色の淡いグリーン
-const PROJECTED_COLOR = "#8be8b0";
-const PROJECTED_FILL = "rgba(139, 232, 176, 0.32)";
+// 実績ペース予測は実績累計回収(鮮やかな緑 #57f293)と同系色つつ、明確に見分けられる落ち着いたダークティール＋破線枠
+const PROJECTED_COLOR = "#3ca882";
+const PROJECTED_FILL = "rgba(46, 132, 104, 0.28)";
+const PROJECTED_TEXT_COLOR = "#5ec49f";
 
 const DEFAULT_TIERS: SellPriceTier[] = [
   { startYear: 1, endYear: 4, priceYenPerKwh: 24 },
@@ -105,10 +106,11 @@ interface YearlyMilestonePoint {
   sellPriceYen: number;
   annualPlanYen: number;
   plannedCumMan: number; // 万円単位 (グラフ描画用)
-  actualCumMan: number | null; // 万円単位 (現在までの実績)
-  projectedCumMan: number; // 万円単位 (現在の実績ペースでの予測)
+  actualCumMan: number; // 万円単位 (現在までの実績: 積み上げ棒の下段)
+  projectedDeltaMan: number; // 万円単位 (予測の積み増し分: 積み上げ棒の上段)
+  projectedCumMan: number; // 万円単位 (現在の実績ペースでの予測合計)
   plannedCumYen: number;
-  actualCumYen: number | null;
+  actualCumYen: number;
   projectedCumYen: number;
   remainingPlanYen: number;
   pctOfTarget: number;
@@ -140,7 +142,7 @@ function CustomPaybackTooltip({
   return (
     <div className="sim-tooltip">
       <div className="sim-tooltip-title">
-        {p.label} ({p.subLabel})
+        {p.label}年 ({p.subLabel})
         {p.isBreakEvenYear ? (
           <span className="sim-tooltip-tag">ペイ達成年</span>
         ) : null}
@@ -151,14 +153,12 @@ function CustomPaybackTooltip({
           ¥{p.plannedCumYen.toLocaleString("ja-JP")} ({p.pctOfTarget.toFixed(0)}%)
         </span>
       </div>
-      {p.actualCumYen !== null ? (
-        <div className="sim-tooltip-row">
-          <span className="sim-tooltip-label">実績累計回収:</span>
-          <span className="sim-tooltip-actual">
-            ¥{p.actualCumYen.toLocaleString("ja-JP")}
-          </span>
-        </div>
-      ) : null}
+      <div className="sim-tooltip-row">
+        <span className="sim-tooltip-label">実績累計回収:</span>
+        <span className="sim-tooltip-actual">
+          ¥{p.actualCumYen.toLocaleString("ja-JP")}
+        </span>
+      </div>
       <div className="sim-tooltip-row">
         <span className="sim-tooltip-label">実績ペース予測:</span>
         <span className="sim-tooltip-pct">
@@ -267,16 +267,20 @@ function PaybackChartView({
   let runningPlanYen = 0;
   let runningProjectedYen = payback.totalBenefitYen;
 
-  // 0年目 (現在)
+  const actualManFixed =
+    Math.round((payback.totalBenefitYen / 10000) * 100) / 100;
+
+  // 0年目 (開始年・現在: 例 2026)
   points.push({
     yearIndex: 0,
-    label: "現在",
-    subLabel: `${startYear}/${String(startMonth).padStart(2, "0")}`,
+    label: String(startYear),
+    subLabel: `現在 ${startYear}/${String(startMonth).padStart(2, "0")}`,
     sellPriceYen: getSellPriceForYear(tiers, 1),
     annualPlanYen: annualBenefitForYear(1),
     plannedCumMan: 0,
-    actualCumMan: Math.round((payback.totalBenefitYen / 10000) * 100) / 100,
-    projectedCumMan: Math.round((payback.totalBenefitYen / 10000) * 100) / 100,
+    actualCumMan: actualManFixed,
+    projectedDeltaMan: 0,
+    projectedCumMan: actualManFixed,
     plannedCumYen: 0,
     actualCumYen: payback.totalBenefitYen,
     projectedCumYen: payback.totalBenefitYen,
@@ -291,17 +295,23 @@ function PaybackChartView({
     runningPlanYen += yrPlanYen;
     runningProjectedYen += Math.round(yrPlanYen * paceRatio);
     const calYear = startYear + yr;
+    const projectedMan = Math.round((runningProjectedYen / 10000) * 10) / 10;
+    const deltaMan = Math.max(
+      0,
+      Math.round((projectedMan - actualManFixed) * 100) / 100,
+    );
     points.push({
       yearIndex: yr,
-      label: `${yr}年目`,
-      subLabel: `${calYear}年`,
+      label: String(calYear),
+      subLabel: `${yr}年目`,
       sellPriceYen: yrSellPrice,
       annualPlanYen: yrPlanYen,
       plannedCumMan: Math.round((runningPlanYen / 10000) * 10) / 10,
-      actualCumMan: null,
-      projectedCumMan: Math.round((runningProjectedYen / 10000) * 10) / 10,
+      actualCumMan: actualManFixed,
+      projectedDeltaMan: deltaMan,
+      projectedCumMan: projectedMan,
       plannedCumYen: runningPlanYen,
-      actualCumYen: null,
+      actualCumYen: payback.totalBenefitYen,
       projectedCumYen: runningProjectedYen,
       remainingPlanYen: Math.max(0, targetYen - runningPlanYen),
       pctOfTarget: (runningPlanYen / targetYen) * 100,
@@ -428,27 +438,30 @@ function PaybackChartView({
                   stroke="#d7bd72"
                   strokeWidth={1}
                   radius={[4, 4, 0, 0]}
-                  maxBarSize={16}
+                  maxBarSize={18}
                   isAnimationActive={false}
                 />
                 <Bar
                   name="実績累計回収 (万円)"
                   dataKey="actualCumMan"
+                  stackId="actual"
                   fill="#57f293"
                   stroke="#4bc77c"
                   strokeWidth={1}
-                  radius={[4, 4, 0, 0]}
-                  maxBarSize={16}
+                  radius={[0, 0, 0, 0]}
+                  maxBarSize={18}
                   isAnimationActive={false}
                 />
                 <Bar
                   name="実績ペース予測 (万円)"
-                  dataKey="projectedCumMan"
+                  dataKey="projectedDeltaMan"
+                  stackId="actual"
                   fill={PROJECTED_FILL}
                   stroke={PROJECTED_COLOR}
                   strokeWidth={1}
+                  strokeDasharray="3 2"
                   radius={[4, 4, 0, 0]}
-                  maxBarSize={16}
+                  maxBarSize={18}
                   isAnimationActive={false}
                 />
               </ComposedChart>
@@ -464,12 +477,12 @@ function PaybackChartView({
                 <span className="sim-month-name">{pt.label}</span>
                 <span className="sim-month-val">
                   {pt.yearIndex === 0
-                    ? `¥${(pt.actualCumYen ?? 0).toLocaleString("ja-JP")}`
+                    ? `¥${pt.actualCumYen.toLocaleString("ja-JP")}`
                     : formatManYen(pt.plannedCumYen)}
                 </span>
                 <span
                   className="sim-month-pct"
-                  style={{ color: PROJECTED_COLOR }}
+                  style={{ color: PROJECTED_TEXT_COLOR }}
                 >
                   {pt.pctOfTarget.toFixed(pt.yearIndex === 0 ? 2 : 0)}%
                 </span>

@@ -50,25 +50,19 @@ body {
 }
 
 /* 外枠コンテナ (SUMMARY = ダークグレー / PV STRINGS & ECONOMICAL = 黄色 / BMS STATUS = 紫) */
+/* 外枠コンテナ (枠線なし、背景色は #161618) */
 .ef-shell {
   background-color: #161618;
-  border: 1.5px solid #383838;
+  border: none;
   border-radius: 20px;
   padding: 14px 16px 16px;
   box-shadow: 0 18px 42px rgba(0, 0, 0, 0.45);
 }
 
-/* 背景色は共通 (#161618)。外枠線の色のみで SOLAR(黄) / USE(緑) / BATTERY(紫) を表現 */
-.ef-shell-solar {
-  border-color: #d7bd72;
-}
-
-.ef-shell-payback {
-  border-color: #4bc77c;
-}
-
+.ef-shell-solar,
+.ef-shell-payback,
 .ef-shell-battery {
-  border-color: #bfb6e0;
+  border: none;
 }
 
 /* 各ウィジェットの上部ヘッダー */
