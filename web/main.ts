@@ -115,7 +115,7 @@ function buildWeatherIconSvg(
   if (cond.includes("THUNDER")) {
     return {
       ringColor: isNight ? nightRing : "#d7bd72",
-      glowColor: isNight ? nightGlow : "rgba(251, 221, 132, 0.20)",
+      glowColor: isNight ? nightGlow : "rgba(251, 221, 132, 0.18)",
       svg: `
         <path d="M-5.5,0.5 H4.5 A3.2,3.2 0 0,0 4.5,-5.8 A4.2,4.2 0 0,0 -3.5,-6.5 A3.4,3.4 0 0,0 -5.5,0.5 Z"
               fill="#353740" stroke="#d9dce3" stroke-width="1.3" stroke-linejoin="round" />
@@ -131,8 +131,8 @@ function buildWeatherIconSvg(
     cond.includes("SHOWER")
   ) {
     return {
-      ringColor: isNight ? nightRing : "#74aede",
-      glowColor: isNight ? nightGlow : "rgba(136, 205, 255, 0.20)",
+      ringColor: isNight ? nightRing : "#d7bd72",
+      glowColor: isNight ? nightGlow : "rgba(251, 221, 132, 0.18)",
       svg: `
         <path d="M-5.5,0.2 H4.5 A3.2,3.2 0 0,0 4.5,-6.0 A4.2,4.2 0 0,0 -3.5,-6.7 A3.4,3.4 0 0,0 -5.5,0.2 Z"
               fill="#313842" stroke="#d9dce3" stroke-width="1.35" stroke-linejoin="round" />
@@ -145,8 +145,8 @@ function buildWeatherIconSvg(
 
   if (cond.includes("SNOW")) {
     return {
-      ringColor: isNight ? nightRing : "#9cc9f0",
-      glowColor: isNight ? nightGlow : "rgba(180, 220, 255, 0.20)",
+      ringColor: isNight ? nightRing : "#d7bd72",
+      glowColor: isNight ? nightGlow : "rgba(251, 221, 132, 0.18)",
       svg: `
         <path d="M-5.5,0.2 H4.5 A3.2,3.2 0 0,0 4.5,-6.0 A4.2,4.2 0 0,0 -3.5,-6.7 A3.4,3.4 0 0,0 -5.5,0.2 Z"
               fill="#323640" stroke="#d9dce3" stroke-width="1.35" stroke-linejoin="round" />
@@ -171,8 +171,8 @@ function buildWeatherIconSvg(
 
   if (cond.includes("CLOUD") || cond.includes("FOG")) {
     return {
-      ringColor: isNight ? nightRing : "#9a9ea6",
-      glowColor: isNight ? nightGlow : "rgba(180, 186, 198, 0.16)",
+      ringColor: isNight ? nightRing : "#d7bd72",
+      glowColor: isNight ? nightGlow : "rgba(251, 221, 132, 0.18)",
       svg: `
         <path d="M-5.5,2.8 H4.8 A3.3,3.3 0 0,0 4.8,-3.6 A4.3,4.3 0 0,0 -3.4,-4.4 A3.5,3.5 0 0,0 -5.5,2.8 Z"
               fill="#353740" stroke="#d9dce3" stroke-width="1.4" stroke-linejoin="round" />
@@ -475,8 +475,8 @@ function renderDashboard(data: DashboardResponse): void {
   const selfPct =
     useToday > 0.05
       ? Math.round(
-          Math.max(0, Math.min(100, ((useToday - buyToday) / useToday) * 100)),
-        )
+        Math.max(0, Math.min(100, ((useToday - buyToday) / useToday) * 100)),
+      )
       : 100;
 
   // BUY カード

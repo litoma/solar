@@ -1,443 +1,386 @@
 <!doctype html>
 <html lang="ja">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>EP VIEW</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="/web/style.css" />
-  </head>
-  <body>
-    <main class="page">
-      <!-- 最上部ヘッダー: EP VIEW (アイコンなし) & ONLINE/OFFLINE (ef-shellと同じ横幅) -->
-      <header class="top-bar" aria-label="Site Header">
-        <h1 class="top-bar-title">EP VIEW</h1>
-        <div class="ef-status-pill" id="ef-status-pill" data-state="online">
-          <span class="ef-status-dot" id="ef-status-dot"></span>
-          <span id="ef-status-text">ONLINE</span>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EP VIEW</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="/web/style.css" />
+</head>
+
+<body>
+  <main class="page">
+    <!-- 最上部ヘッダー: EP VIEW (アイコンなし) & ONLINE/OFFLINE (ef-shellと同じ横幅) -->
+    <header class="top-bar" aria-label="Site Header">
+      <h1 class="top-bar-title">EP VIEW</h1>
+      <div class="ef-status-pill" id="ef-status-pill" data-state="online">
+        <span class="ef-status-dot" id="ef-status-dot"></span>
+        <span id="ef-status-text">ONLINE</span>
+      </div>
+    </header>
+
+    <!-- 1. SUMMARY ウィジェット (左: 雷アイコン + SUMMARY / 右: 時刻) -->
+    <section class="ef-shell" aria-label="Summary Monitor">
+      <header class="ef-header">
+        <div class="ef-header-left">
+          <span class="ef-bolt" aria-hidden="true">
+            <svg width="14" height="18" viewBox="0 0 14 18" fill="none">
+              <path d="M8.2 1L1.5 10.2H7.1L5.8 17L12.5 7.8H6.9L8.2 1Z" stroke="#d9d9d9" stroke-width="1.6"
+                stroke-linejoin="round" />
+            </svg>
+          </span>
+          <h2 class="ef-title">SUMMARY</h2>
         </div>
+        <span class="ef-pill" id="ef-time">--:--</span>
       </header>
 
-      <!-- 1. SUMMARY ウィジェット (左: 雷アイコン + SUMMARY / 右: 時刻) -->
-      <section class="ef-shell" aria-label="Summary Monitor">
-        <header class="ef-header">
-          <div class="ef-header-left">
-            <span class="ef-bolt" aria-hidden="true">
-              <svg width="14" height="18" viewBox="0 0 14 18" fill="none">
-                <path
-                  d="M8.2 1L1.5 10.2H7.1L5.8 17L12.5 7.8H6.9L8.2 1Z"
-                  stroke="#d9d9d9"
-                  stroke-width="1.6"
-                  stroke-linejoin="round"
-                />
-              </svg>
-            </span>
-            <h2 class="ef-title">SUMMARY</h2>
-          </div>
-          <span class="ef-pill" id="ef-time">--:--</span>
-        </header>
+      <div class="ef-canvas">
+        <!-- 太陽軌道・外気温テキスト(枠なし)・天気アイコン (BUY〜SELLの左右幅に揃えた全幅設計) -->
+        <div class="ef-sun-wrap">
+          <svg class="ef-sun-svg" viewBox="0 0 600 144" preserveAspectRatio="xMidYMid meet"
+            aria-label="Solar Elevation & Weather Curve">
+            <!-- 地平線 (実線・左右端0〜600までフル幅) -->
+            <line x1="0" y1="98" x2="600" y2="98" stroke="#44454a" stroke-width="1.6" />
+            <!-- 日の出前・日の入り後の破線カーブ -->
+            <path d="M 12 98 Q 76 138 140 98" fill="none" stroke="#4d4e54" stroke-width="1.5" stroke-dasharray="4 4" />
+            <path d="M 460 98 Q 524 138 588 98" fill="none" stroke="#4d4e54" stroke-width="1.5"
+              stroke-dasharray="4 4" />
+            <!-- 日中の太陽軌道アーク (角度をつけた大きな円弧: 頂点 y=36) -->
+            <path id="sun-arc-path" d="M 140 98 Q 300 -26 460 98" fill="none" stroke="#d7bd72" stroke-width="2.3"
+              stroke-linecap="round" />
+            <!-- 日の出・南中・日の入り ドット -->
+            <circle cx="140" cy="98" r="3.2" fill="#fbdd84" />
+            <circle cx="300" cy="36" r="3.2" fill="#fbdd84" />
+            <circle cx="460" cy="98" r="3.2" fill="#fbdd84" />
 
-        <div class="ef-canvas">
-          <!-- 太陽軌道・外気温テキスト(枠なし)・天気アイコン (BUY〜SELLの左右幅に揃えた全幅設計) -->
-          <div class="ef-sun-wrap">
-            <svg
-              class="ef-sun-svg"
-              viewBox="0 0 600 144"
-              preserveAspectRatio="xMidYMid meet"
-              aria-label="Solar Elevation & Weather Curve"
-            >
-              <!-- 地平線 (実線・左右端0〜600までフル幅) -->
-              <line
-                x1="0"
-                y1="98"
-                x2="600"
-                y2="98"
-                stroke="#44454a"
-                stroke-width="1.6"
-              />
-              <!-- 日の出前・日の入り後の破線カーブ -->
-              <path
-                d="M 12 98 Q 76 138 140 98"
-                fill="none"
-                stroke="#4d4e54"
-                stroke-width="1.5"
-                stroke-dasharray="4 4"
-              />
-              <path
-                d="M 460 98 Q 524 138 588 98"
-                fill="none"
-                stroke="#4d4e54"
-                stroke-width="1.5"
-                stroke-dasharray="4 4"
-              />
-              <!-- 日中の太陽軌道アーク (角度をつけた大きな円弧: 頂点 y=36) -->
-              <path
-                id="sun-arc-path"
-                d="M 140 98 Q 300 -26 460 98"
-                fill="none"
-                stroke="#d7bd72"
-                stroke-width="2.3"
-                stroke-linecap="round"
-              />
-              <!-- 日の出・南中・日の入り ドット -->
-              <circle cx="140" cy="98" r="3.2" fill="#fbdd84" />
-              <circle cx="300" cy="36" r="3.2" fill="#fbdd84" />
-              <circle cx="460" cy="98" r="3.2" fill="#fbdd84" />
+            <!-- 時刻ラベル -->
+            <text x="140" y="120" class="sun-time-label" id="sun-rise-label">--:--</text>
+            <text x="300" y="120" class="sun-time-label" id="sun-noon-label">12:00</text>
+            <text x="460" y="120" class="sun-time-label" id="sun-set-label">--:--</text>
 
-              <!-- 時刻ラベル -->
-              <text x="140" y="120" class="sun-time-label" id="sun-rise-label">--:--</text>
-              <text x="300" y="120" class="sun-time-label" id="sun-noon-label">12:00</text>
-              <text x="460" y="120" class="sun-time-label" id="sun-set-label">--:--</text>
+            <!-- 現在時刻マーカー: 外気温テキスト(枠なし) + 天気アイコン -->
+            <g id="sun-marker-group" transform="translate(300, 36)">
+              <g id="sun-badge-group" transform="translate(0, -24)">
+                <text x="0" y="0" class="sun-badge-text" id="sun-badge-temp">--°C</text>
+              </g>
+              <circle cx="0" cy="0" r="16" fill="rgba(251, 221, 132, 0.16)" id="sun-marker-glow" />
+              <circle cx="0" cy="0" r="12" fill="#161618" stroke="#d7bd72" stroke-width="1.6" id="sun-marker-ring" />
+              <g id="sun-weather-icon"></g>
+            </g>
+          </svg>
+        </div>
 
-              <!-- 現在時刻マーカー: 外気温テキスト(枠なし) + 天気アイコン -->
-              <g id="sun-marker-group" transform="translate(300, 36)">
-                <g id="sun-badge-group" transform="translate(0, -24)">
-                  <text x="0" y="0" class="sun-badge-text" id="sun-badge-temp">--°C</text>
-                </g>
-                <circle cx="0" cy="0" r="16" fill="rgba(251, 221, 132, 0.16)" id="sun-marker-glow" />
-                <circle
-                  cx="0"
-                  cy="0"
-                  r="12"
-                  fill="#161618"
-                  stroke="#d7bd72"
-                  stroke-width="1.6"
-                  id="sun-marker-ring"
-                />
-                <g id="sun-weather-icon"></g>
+        <!-- INPUT / OUTPUT 見出し -->
+        <div class="ef-col-headers">
+          <div class="ef-col-label">INPUT</div>
+          <div class="ef-col-spacer"></div>
+          <div class="ef-col-label">OUTPUT</div>
+        </div>
+
+        <!-- 1段目: BUY / SELL, 2段目: SOLAR / USE, 3段目: BATTERY -->
+        <div class="ef-flow-layout">
+          <!-- BUY (1段目・左) -->
+          <article class="ef-card ef-card-buy" id="card-buy">
+            <div class="ef-card-head">
+              <span class="ef-card-title">
+                <svg class="ef-card-icon" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path
+                    d="M5.5 2V5.5M10.5 2V5.5M3.5 5.5H12.5V8.5C12.5 10.7 10.7 12.5 8.5 12.5H7.5C5.3 12.5 3.5 10.7 3.5 8.5V5.5ZM8 12.5V14.5"
+                    stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                BUY
+              </span>
+              <span class="ef-outline-badge ef-buy-badge" id="buy-mode-badge" hidden>STANDBY</span>
+            </div>
+            <div class="ef-card-value" id="val-buy-kw">0.00<span class="ef-unit">kW</span></div>
+            <div class="ef-card-sub" id="val-buy-today">0.0 kWh/d</div>
+            <div class="ef-card-highlight" id="val-buy-yen">COST ¥--</div>
+          </article>
+
+          <!-- SELL (1段目・右) -->
+          <article class="ef-card ef-card-sell" id="card-sell">
+            <div class="ef-card-head">
+              <span class="ef-card-title">
+                <svg class="ef-card-icon" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M8 13.5V3.5M8 3.5L4.2 7.3M8 3.5L11.8 7.3M3 13.5H13" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                SELL
+              </span>
+            </div>
+            <div class="ef-card-value" id="val-sell-kw">0.00<span class="ef-unit">kW</span></div>
+            <div class="ef-card-sub" id="val-sell-today">0.0 kWh/d</div>
+            <div class="ef-card-highlight" id="val-sell-yen">REV ¥--</div>
+          </article>
+
+          <!-- SOLAR (2段目・左) -->
+          <article class="ef-card ef-card-solar" id="card-solar">
+            <div class="ef-card-head">
+              <span class="ef-card-title">
+                <svg class="ef-card-icon" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <rect x="1.5" y="2.5" width="13" height="11" rx="2" stroke="currentColor" stroke-width="1.5" />
+                  <line x1="1.5" y1="6.2" x2="14.5" y2="6.2" stroke="currentColor" stroke-width="1.2" />
+                  <line x1="1.5" y1="9.8" x2="14.5" y2="9.8" stroke="currentColor" stroke-width="1.2" />
+                  <line x1="5.8" y1="2.5" x2="5.8" y2="13.5" stroke="currentColor" stroke-width="1.2" />
+                  <line x1="10.2" y1="2.5" x2="10.2" y2="13.5" stroke="currentColor" stroke-width="1.2" />
+                </svg>
+                SOLAR
+              </span>
+            </div>
+            <div class="ef-card-value" id="val-solar-kw">0.00<span class="ef-unit">kW</span></div>
+            <div class="ef-card-sub" id="val-solar-today">0.0 kWh/d</div>
+            <div class="ef-card-highlight" id="val-solar-yen">VALUE ¥--</div>
+          </article>
+
+          <!-- USE (2段目・右) -->
+          <article class="ef-card ef-card-use" id="card-use">
+            <div class="ef-card-head">
+              <span class="ef-card-title">
+                <svg class="ef-card-icon" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M2.2 7.5L8 2.5L13.8 7.5M4 6.3V13.2H12V6.3" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                USE
+              </span>
+            </div>
+            <div class="ef-card-value" id="val-use-kw">0.00<span class="ef-unit">kW</span></div>
+            <div class="ef-card-sub" id="val-use-today">0.0 kWh/d</div>
+            <div class="ef-card-highlight" id="val-use-self">SELF --%</div>
+          </article>
+
+          <!-- 中央フロー接続線レイヤ (縦・横の太さを完全統一し、送電元の色で描画) -->
+          <svg class="ef-connectors" viewBox="0 0 64 316" preserveAspectRatio="none" aria-hidden="true">
+            <!-- ベースライン (非アクティブ時の暗い実線) -->
+            <line x1="0" y1="68" x2="64" y2="68" class="flow-line-base" vector-effect="non-scaling-stroke" />
+            <line x1="0" y1="226" x2="64" y2="226" class="flow-line-base" vector-effect="non-scaling-stroke" />
+            <line x1="32" y1="68" x2="32" y2="316" class="flow-line-base" vector-effect="non-scaling-stroke" />
+
+            <!-- アクティブ破線 -->
+            <line id="line-buy" x1="0" y1="68" x2="32" y2="68" class="flow-line" vector-effect="non-scaling-stroke" />
+            <line id="line-sell" x1="32" y1="68" x2="64" y2="68" class="flow-line" vector-effect="non-scaling-stroke" />
+            <line id="line-trunk-mid" x1="32" y1="68" x2="32" y2="226" class="flow-line"
+              vector-effect="non-scaling-stroke" />
+            <line id="line-solar" x1="0" y1="226" x2="32" y2="226" class="flow-line"
+              vector-effect="non-scaling-stroke" />
+            <line id="line-use" x1="32" y1="226" x2="64" y2="226" class="flow-line"
+              vector-effect="non-scaling-stroke" />
+            <line id="line-batt" x1="32" y1="226" x2="32" y2="316" class="flow-line"
+              vector-effect="non-scaling-stroke" />
+          </svg>
+
+          <!-- BATTERY (3段目ワイド: 1段目右上に状態バッジ、2段目にkW、バー上に%・kWh、左下 MAX) -->
+          <article class="ef-card-battery" id="card-battery">
+            <div class="ef-batt-top">
+              <span class="ef-batt-label">
+                <svg class="ef-card-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <rect x="1.5" y="4" width="11.5" height="8" rx="2" stroke="currentColor" stroke-width="1.5" />
+                  <path d="M14.2 6.2V9.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+                  <rect x="3.5" y="6" width="3" height="4" rx="0.6" fill="currentColor" />
+                  <rect x="7.5" y="6" width="3" height="4" rx="0.6" fill="currentColor" />
+                </svg>
+                BATTERY
+              </span>
+              <span class="ef-outline-badge ef-batt-badge" id="val-batt-state">IDLE</span>
+            </div>
+            <div class="ef-batt-value" id="val-batt-kw">0.00<span class="ef-unit">kW</span></div>
+            <div class="ef-batt-bar-track">
+              <div class="ef-batt-bar-fill" id="val-batt-bar" style="width: 0%"></div>
+              <span class="ef-batt-bar-text" id="val-batt-soc">--% (-- kWh)</span>
+            </div>
+            <div class="ef-batt-bottom">
+              <span id="val-batt-cap">MAX 13.3 kWh</span>
+              <span id="val-batt-est">EST --h --m</span>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. PV STRINGS ウィジェット (中央ROOF見出し + コンパクト屋根枠 + 4方角) -->
+    <section class="ef-shell ef-shell-solar" aria-label="PV Strings Monitor">
+      <header class="ef-header">
+        <div class="ef-header-left">
+          <span class="ef-bolt" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <rect x="1.5" y="2.5" width="13" height="11" rx="2" stroke="#fbdd84" stroke-width="1.5" />
+              <line x1="1.5" y1="6.2" x2="14.5" y2="6.2" stroke="#fbdd84" stroke-width="1.2" />
+              <line x1="1.5" y1="9.8" x2="14.5" y2="9.8" stroke="#fbdd84" stroke-width="1.2" />
+              <line x1="5.8" y1="2.5" x2="5.8" y2="13.5" stroke="#fbdd84" stroke-width="1.2" />
+              <line x1="10.2" y1="2.5" x2="10.2" y2="13.5" stroke="#fbdd84" stroke-width="1.2" />
+            </svg>
+          </span>
+          <h2 class="ef-title ef-title-solar">PV STRINGS</h2>
+          <span class="ef-pill ef-pill-solar">15 PANELS · 6.065 kW</span>
+        </div>
+        <span class="ef-pill ef-pill-solar" id="pv-total-pill">TOTAL 0.00 kW</span>
+      </header>
+
+      <div class="ef-canvas ef-canvas-pv">
+        <div class="pv-xmap">
+          <!-- 真ん中の屋根ブロック (ROOF見出し + 余白を詰めた屋根SVG) -->
+          <div class="pv-roof-center">
+            <div class="ef-col-label pv-roof-heading">ROOF</div>
+            <svg class="pv-xmap-svg" viewBox="186 102 268 236" preserveAspectRatio="xMidYMid meet"
+              aria-label="Directional Roof Array Diagram">
+              <!-- 真ん中の屋根外枠 -->
+              <rect x="190" y="106" width="260" height="228" rx="18" fill="#1f2024" stroke="#646876"
+                stroke-width="1.8" />
+
+              <!-- 屋根枠内の × 稜線 (中心 320, 220) -->
+              <line x1="194" y1="110" x2="446" y2="330" stroke="#4f5360" stroke-width="1.5" />
+              <line x1="446" y1="110" x2="194" y2="330" stroke="#4f5360" stroke-width="1.5" />
+              <!-- 中心点ドット -->
+              <circle cx="320" cy="220" r="3.5" fill="#8e93a4" />
+
+              <!-- NORTH (上三角領域): PV4 (3 panels: 上2枚 + 下1枚) -->
+              <g class="roof-group" id="roof-group-pv4" data-pv="4">
+                <rect x="287" y="124" width="30" height="19" rx="3" class="roof-mod mod-pv4" />
+                <rect x="323" y="124" width="30" height="19" rx="3" class="roof-mod mod-pv4" />
+                <rect x="305" y="148" width="30" height="19" rx="3" class="roof-mod mod-pv4" />
+              </g>
+
+              <!-- WEST (左三角領域): PV3 (3 panels) + PV1 (5 panels) -->
+              <g class="roof-group" id="roof-group-pv3" data-pv="3">
+                <rect x="206" y="150" width="17" height="26" rx="3" class="roof-mod mod-pv3" />
+                <rect x="206" y="180" width="17" height="26" rx="3" class="roof-mod mod-pv3" />
+                <rect x="206" y="210" width="17" height="26" rx="3" class="roof-mod mod-pv3" />
+              </g>
+              <g class="roof-group" id="roof-group-pv1" data-pv="1">
+                <rect x="206" y="240" width="17" height="26" rx="3" class="roof-mod mod-pv1" />
+                <rect x="228" y="166" width="17" height="26" rx="3" class="roof-mod mod-pv1" />
+                <rect x="228" y="196" width="17" height="26" rx="3" class="roof-mod mod-pv1" />
+                <rect x="228" y="226" width="17" height="26" rx="3" class="roof-mod mod-pv1" />
+                <rect x="250" y="192" width="17" height="26" rx="3" class="roof-mod mod-pv1" />
+              </g>
+
+              <!-- EAST (右三角領域): PV2 (4 panels: 2×2) -->
+              <g class="roof-group" id="roof-group-pv2" data-pv="2">
+                <rect x="382" y="186" width="21" height="30" rx="3" class="roof-mod mod-pv2" />
+                <rect x="408" y="186" width="21" height="30" rx="3" class="roof-mod mod-pv2" />
+                <rect x="382" y="222" width="21" height="30" rx="3" class="roof-mod mod-pv2" />
+                <rect x="408" y="222" width="21" height="30" rx="3" class="roof-mod mod-pv2" />
               </g>
             </svg>
           </div>
 
-          <!-- INPUT / OUTPUT 見出し -->
-          <div class="ef-col-headers">
-            <div class="ef-col-label">INPUT</div>
-            <div class="ef-col-spacer"></div>
-            <div class="ef-col-label">OUTPUT</div>
+          <!-- 上側領域: NORTH (横長レイアウト) -->
+          <div class="pv-quad pv-quad-north" id="pv-quad-north">
+            <div class="pv-quad-dir">NORTH</div>
+            <div class="pv-quad-item pv-quad-item-wide" id="pv-box-4" data-pv="4">
+              <div class="pv-quad-head">
+                <span class="pv-swatch swatch-pv4"></span>
+                <span class="pv-quad-name">PV4</span>
+                <span class="pv-quad-count">3 panels</span>
+              </div>
+              <div class="pv-quad-kw" id="pv4-w">0.00<span class="ef-unit-sm">kW</span></div>
+              <div class="pv-quad-day" id="pv4-day">0.0 kWh/d</div>
+            </div>
           </div>
 
-          <!-- 1段目: BUY / SELL, 2段目: SOLAR / USE, 3段目: BATTERY -->
-          <div class="ef-flow-layout">
-            <!-- BUY (1段目・左) -->
-            <article class="ef-card ef-card-buy" id="card-buy">
-              <div class="ef-card-head">
-                <span class="ef-card-title">
-                  <svg class="ef-card-icon" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <path d="M5.5 2V5.5M10.5 2V5.5M3.5 5.5H12.5V8.5C12.5 10.7 10.7 12.5 8.5 12.5H7.5C5.3 12.5 3.5 10.7 3.5 8.5V5.5ZM8 12.5V14.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                  </svg>
-                  BUY
-                </span>
-                <span class="ef-outline-badge ef-buy-badge" id="buy-mode-badge" hidden>STANDBY</span>
+          <!-- 左側領域: WEST (PV1 5 panels / PV3 3 panels) -->
+          <div class="pv-quad pv-quad-west" id="pv-quad-west">
+            <div class="pv-quad-dir">WEST</div>
+            <div class="pv-quad-item" id="pv-box-1" data-pv="1">
+              <div class="pv-quad-head">
+                <span class="pv-swatch swatch-pv1"></span>
+                <span class="pv-quad-name">PV1</span>
+                <span class="pv-quad-count">5 panels</span>
               </div>
-              <div class="ef-card-value" id="val-buy-kw">0.00<span class="ef-unit">kW</span></div>
-              <div class="ef-card-sub" id="val-buy-today">0.0 kWh/d</div>
-              <div class="ef-card-highlight" id="val-buy-yen">COST ¥--</div>
-            </article>
-
-            <!-- SELL (1段目・右) -->
-            <article class="ef-card ef-card-sell" id="card-sell">
-              <div class="ef-card-head">
-                <span class="ef-card-title">
-                  <svg class="ef-card-icon" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <path d="M8 13.5V3.5M8 3.5L4.2 7.3M8 3.5L11.8 7.3M3 13.5H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                  </svg>
-                  SELL
-                </span>
+              <div class="pv-quad-kw" id="pv1-w">0.00<span class="ef-unit-sm">kW</span></div>
+              <div class="pv-quad-day" id="pv1-day">0.0 kWh/d</div>
+            </div>
+            <div class="pv-quad-item" id="pv-box-3" data-pv="3">
+              <div class="pv-quad-head">
+                <span class="pv-swatch swatch-pv3"></span>
+                <span class="pv-quad-name">PV3</span>
+                <span class="pv-quad-count">3 panels</span>
               </div>
-              <div class="ef-card-value" id="val-sell-kw">0.00<span class="ef-unit">kW</span></div>
-              <div class="ef-card-sub" id="val-sell-today">0.0 kWh/d</div>
-              <div class="ef-card-highlight" id="val-sell-yen">REV ¥--</div>
-            </article>
+              <div class="pv-quad-kw" id="pv3-w">0.00<span class="ef-unit-sm">kW</span></div>
+              <div class="pv-quad-day" id="pv3-day">0.0 kWh/d</div>
+            </div>
+          </div>
 
-            <!-- SOLAR (2段目・左) -->
-            <article class="ef-card ef-card-solar" id="card-solar">
-              <div class="ef-card-head">
-                <span class="ef-card-title">
-                  <svg class="ef-card-icon" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <rect x="1.5" y="2.5" width="13" height="11" rx="2" stroke="currentColor" stroke-width="1.5" />
-                    <line x1="1.5" y1="6.2" x2="14.5" y2="6.2" stroke="currentColor" stroke-width="1.2" />
-                    <line x1="1.5" y1="9.8" x2="14.5" y2="9.8" stroke="currentColor" stroke-width="1.2" />
-                    <line x1="5.8" y1="2.5" x2="5.8" y2="13.5" stroke="currentColor" stroke-width="1.2" />
-                    <line x1="10.2" y1="2.5" x2="10.2" y2="13.5" stroke="currentColor" stroke-width="1.2" />
-                  </svg>
-                  SOLAR
-                </span>
+          <!-- 右側領域: EAST (PV2 4 panels) -->
+          <div class="pv-quad pv-quad-east" id="pv-quad-east">
+            <div class="pv-quad-dir">EAST</div>
+            <div class="pv-quad-item" id="pv-box-2" data-pv="2">
+              <div class="pv-quad-head">
+                <span class="pv-swatch swatch-pv2"></span>
+                <span class="pv-quad-name">PV2</span>
+                <span class="pv-quad-count">4 panels</span>
               </div>
-              <div class="ef-card-value" id="val-solar-kw">0.00<span class="ef-unit">kW</span></div>
-              <div class="ef-card-sub" id="val-solar-today">0.0 kWh/d</div>
-              <div class="ef-card-highlight" id="val-solar-yen">VALUE ¥--</div>
-            </article>
+              <div class="pv-quad-kw" id="pv2-w">0.00<span class="ef-unit-sm">kW</span></div>
+              <div class="pv-quad-day" id="pv2-day">0.0 kWh/d</div>
+            </div>
+          </div>
 
-            <!-- USE (2段目・右) -->
-            <article class="ef-card ef-card-use" id="card-use">
-              <div class="ef-card-head">
-                <span class="ef-card-title">
-                  <svg class="ef-card-icon" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <path d="M2.2 7.5L8 2.5L13.8 7.5M4 6.3V13.2H12V6.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                  </svg>
-                  USE
-                </span>
-              </div>
-              <div class="ef-card-value" id="val-use-kw">0.00<span class="ef-unit">kW</span></div>
-              <div class="ef-card-sub" id="val-use-today">0.0 kWh/d</div>
-              <div class="ef-card-highlight" id="val-use-self">SELF --%</div>
-            </article>
+          <!-- 下側領域: SOUTH (Nothing) -->
+          <div class="pv-quad pv-quad-south">
+            <div class="pv-quad-dir">SOUTH</div>
+            <div class="pv-quad-nothing">Nothing</div>
+          </div>
+        </div>
+      </div>
+    </section>
 
-            <!-- 中央フロー接続線レイヤ (縦・横の太さを完全統一し、送電元の色で描画) -->
-            <svg
-              class="ef-connectors"
-              viewBox="0 0 64 316"
-              preserveAspectRatio="none"
-              aria-hidden="true"
-            >
-              <!-- ベースライン (非アクティブ時の暗い実線) -->
-              <line x1="0" y1="68" x2="64" y2="68" class="flow-line-base" vector-effect="non-scaling-stroke" />
-              <line x1="0" y1="226" x2="64" y2="226" class="flow-line-base" vector-effect="non-scaling-stroke" />
-              <line x1="32" y1="68" x2="32" y2="316" class="flow-line-base" vector-effect="non-scaling-stroke" />
-
-              <!-- アクティブ破線 -->
-              <line id="line-buy" x1="0" y1="68" x2="32" y2="68" class="flow-line" vector-effect="non-scaling-stroke" />
-              <line id="line-sell" x1="32" y1="68" x2="64" y2="68" class="flow-line" vector-effect="non-scaling-stroke" />
-              <line id="line-trunk-mid" x1="32" y1="68" x2="32" y2="226" class="flow-line" vector-effect="non-scaling-stroke" />
-              <line id="line-solar" x1="0" y1="226" x2="32" y2="226" class="flow-line" vector-effect="non-scaling-stroke" />
-              <line id="line-use" x1="32" y1="226" x2="64" y2="226" class="flow-line" vector-effect="non-scaling-stroke" />
-              <line id="line-batt" x1="32" y1="226" x2="32" y2="316" class="flow-line" vector-effect="non-scaling-stroke" />
+    <!-- 3. ECONOMICAL ウィジェット (推定発電量と実績発電量の比較・Recharts) -->
+    <section class="ef-shell ef-shell-solar" aria-label="Economical Solar Generation">
+      <header class="ef-header">
+        <div class="ef-header-left">
+          <span class="ef-bolt" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M2 13.5H14M4 13.5V8.5M8 13.5V4.5M12 13.5V6.5" stroke="#fbdd84" stroke-width="1.6"
+                stroke-linecap="round" />
             </svg>
-
-            <!-- BATTERY (3段目ワイド: 1段目右上に状態バッジ、2段目にkW、バー上に%・kWh、左下 MAX) -->
-            <article class="ef-card-battery" id="card-battery">
-              <div class="ef-batt-top">
-                <span class="ef-batt-label">
-                  <svg class="ef-card-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <rect x="1.5" y="4" width="11.5" height="8" rx="2" stroke="currentColor" stroke-width="1.5" />
-                    <path d="M14.2 6.2V9.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
-                    <rect x="3.5" y="6" width="3" height="4" rx="0.6" fill="currentColor" />
-                    <rect x="7.5" y="6" width="3" height="4" rx="0.6" fill="currentColor" />
-                  </svg>
-                  BATTERY
-                </span>
-                <span class="ef-outline-badge ef-batt-badge" id="val-batt-state">IDLE</span>
-              </div>
-              <div class="ef-batt-value" id="val-batt-kw">0.00<span class="ef-unit">kW</span></div>
-              <div class="ef-batt-bar-track">
-                <div class="ef-batt-bar-fill" id="val-batt-bar" style="width: 0%"></div>
-                <span class="ef-batt-bar-text" id="val-batt-soc">--% (-- kWh)</span>
-              </div>
-              <div class="ef-batt-bottom">
-                <span id="val-batt-cap">MAX 13.3 kWh</span>
-                <span id="val-batt-est">EST --h --m</span>
-              </div>
-            </article>
-          </div>
+          </span>
+          <h2 class="ef-title ef-title-solar">ECONOMICAL</h2>
         </div>
-      </section>
+      </header>
 
-      <!-- 2. PV STRINGS ウィジェット (中央ROOF見出し + コンパクト屋根枠 + 4方角) -->
-      <section class="ef-shell ef-shell-solar" aria-label="PV Strings Monitor">
-        <header class="ef-header">
-          <div class="ef-header-left">
-            <span class="ef-bolt" aria-hidden="true">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <rect
-                  x="1.5"
-                  y="2.5"
-                  width="13"
-                  height="11"
-                  rx="2"
-                  stroke="#fbdd84"
-                  stroke-width="1.5"
-                />
-                <line x1="1.5" y1="6.2" x2="14.5" y2="6.2" stroke="#fbdd84" stroke-width="1.2" />
-                <line x1="1.5" y1="9.8" x2="14.5" y2="9.8" stroke="#fbdd84" stroke-width="1.2" />
-                <line x1="5.8" y1="2.5" x2="5.8" y2="13.5" stroke="#fbdd84" stroke-width="1.2" />
-                <line x1="10.2" y1="2.5" x2="10.2" y2="13.5" stroke="#fbdd84" stroke-width="1.2" />
-              </svg>
-            </span>
-            <h2 class="ef-title ef-title-solar">PV STRINGS</h2>
-            <span class="ef-pill ef-pill-solar">15 PANELS · 6.065 kW</span>
-          </div>
-          <span class="ef-pill ef-pill-solar" id="pv-total-pill">TOTAL 0.00 kW</span>
-        </header>
+      <div class="ef-canvas ef-canvas-sim">
+        <div id="sim-chart-root"></div>
+      </div>
+    </section>
 
-        <div class="ef-canvas ef-canvas-pv">
-          <div class="pv-xmap">
-            <!-- 真ん中の屋根ブロック (ROOF見出し + 余白を詰めた屋根SVG) -->
-            <div class="pv-roof-center">
-              <div class="ef-col-label pv-roof-heading">ROOF</div>
-              <svg
-                class="pv-xmap-svg"
-                viewBox="186 102 268 236"
-                preserveAspectRatio="xMidYMid meet"
-                aria-label="Directional Roof Array Diagram"
-              >
-                <!-- 真ん中の屋根外枠 -->
-                <rect
-                  x="190"
-                  y="106"
-                  width="260"
-                  height="228"
-                  rx="18"
-                  fill="#1f2024"
-                  stroke="#646876"
-                  stroke-width="1.8"
-                />
-
-                <!-- 屋根枠内の × 稜線 (中心 320, 220) -->
-                <line
-                  x1="194"
-                  y1="110"
-                  x2="446"
-                  y2="330"
-                  stroke="#4f5360"
-                  stroke-width="1.5"
-                />
-                <line
-                  x1="446"
-                  y1="110"
-                  x2="194"
-                  y2="330"
-                  stroke="#4f5360"
-                  stroke-width="1.5"
-                />
-                <!-- 中心点ドット -->
-                <circle cx="320" cy="220" r="3.5" fill="#8e93a4" />
-
-                <!-- NORTH (上三角領域): PV4 (3 panels: 上2枚 + 下1枚) -->
-                <g class="roof-group" id="roof-group-pv4" data-pv="4">
-                  <rect x="287" y="124" width="30" height="19" rx="3" class="roof-mod mod-pv4" />
-                  <rect x="323" y="124" width="30" height="19" rx="3" class="roof-mod mod-pv4" />
-                  <rect x="305" y="148" width="30" height="19" rx="3" class="roof-mod mod-pv4" />
-                </g>
-
-                <!-- WEST (左三角領域): PV3 (3 panels) + PV1 (5 panels) -->
-                <g class="roof-group" id="roof-group-pv3" data-pv="3">
-                  <rect x="206" y="150" width="17" height="26" rx="3" class="roof-mod mod-pv3" />
-                  <rect x="206" y="180" width="17" height="26" rx="3" class="roof-mod mod-pv3" />
-                  <rect x="206" y="210" width="17" height="26" rx="3" class="roof-mod mod-pv3" />
-                </g>
-                <g class="roof-group" id="roof-group-pv1" data-pv="1">
-                  <rect x="206" y="240" width="17" height="26" rx="3" class="roof-mod mod-pv1" />
-                  <rect x="228" y="166" width="17" height="26" rx="3" class="roof-mod mod-pv1" />
-                  <rect x="228" y="196" width="17" height="26" rx="3" class="roof-mod mod-pv1" />
-                  <rect x="228" y="226" width="17" height="26" rx="3" class="roof-mod mod-pv1" />
-                  <rect x="250" y="192" width="17" height="26" rx="3" class="roof-mod mod-pv1" />
-                </g>
-
-                <!-- EAST (右三角領域): PV2 (4 panels: 2×2) -->
-                <g class="roof-group" id="roof-group-pv2" data-pv="2">
-                  <rect x="382" y="186" width="21" height="30" rx="3" class="roof-mod mod-pv2" />
-                  <rect x="408" y="186" width="21" height="30" rx="3" class="roof-mod mod-pv2" />
-                  <rect x="382" y="222" width="21" height="30" rx="3" class="roof-mod mod-pv2" />
-                  <rect x="408" y="222" width="21" height="30" rx="3" class="roof-mod mod-pv2" />
-                </g>
-              </svg>
-            </div>
-
-            <!-- 上側領域: NORTH (横長レイアウト) -->
-            <div class="pv-quad pv-quad-north" id="pv-quad-north">
-              <div class="pv-quad-dir">NORTH</div>
-              <div class="pv-quad-item pv-quad-item-wide" id="pv-box-4" data-pv="4">
-                <div class="pv-quad-head">
-                  <span class="pv-swatch swatch-pv4"></span>
-                  <span class="pv-quad-name">PV4</span>
-                  <span class="pv-quad-count">3 panels</span>
-                </div>
-                <div class="pv-quad-kw" id="pv4-w">0.00<span class="ef-unit-sm">kW</span></div>
-                <div class="pv-quad-day" id="pv4-day">0.0 kWh/d</div>
-              </div>
-            </div>
-
-            <!-- 左側領域: WEST (PV1 5 panels / PV3 3 panels) -->
-            <div class="pv-quad pv-quad-west" id="pv-quad-west">
-              <div class="pv-quad-dir">WEST</div>
-              <div class="pv-quad-item" id="pv-box-1" data-pv="1">
-                <div class="pv-quad-head">
-                  <span class="pv-swatch swatch-pv1"></span>
-                  <span class="pv-quad-name">PV1</span>
-                  <span class="pv-quad-count">5 panels</span>
-                </div>
-                <div class="pv-quad-kw" id="pv1-w">0.00<span class="ef-unit-sm">kW</span></div>
-                <div class="pv-quad-day" id="pv1-day">0.0 kWh/d</div>
-              </div>
-              <div class="pv-quad-item" id="pv-box-3" data-pv="3">
-                <div class="pv-quad-head">
-                  <span class="pv-swatch swatch-pv3"></span>
-                  <span class="pv-quad-name">PV3</span>
-                  <span class="pv-quad-count">3 panels</span>
-                </div>
-                <div class="pv-quad-kw" id="pv3-w">0.00<span class="ef-unit-sm">kW</span></div>
-                <div class="pv-quad-day" id="pv3-day">0.0 kWh/d</div>
-              </div>
-            </div>
-
-            <!-- 右側領域: EAST (PV2 4 panels) -->
-            <div class="pv-quad pv-quad-east" id="pv-quad-east">
-              <div class="pv-quad-dir">EAST</div>
-              <div class="pv-quad-item" id="pv-box-2" data-pv="2">
-                <div class="pv-quad-head">
-                  <span class="pv-swatch swatch-pv2"></span>
-                  <span class="pv-quad-name">PV2</span>
-                  <span class="pv-quad-count">4 panels</span>
-                </div>
-                <div class="pv-quad-kw" id="pv2-w">0.00<span class="ef-unit-sm">kW</span></div>
-                <div class="pv-quad-day" id="pv2-day">0.0 kWh/d</div>
-              </div>
-            </div>
-
-            <!-- 下側領域: SOUTH (Nothing) -->
-            <div class="pv-quad pv-quad-south">
-              <div class="pv-quad-dir">SOUTH</div>
-              <div class="pv-quad-nothing">Nothing</div>
-            </div>
-          </div>
+    <!-- 4. BMS STATUS ウィジェット (PACK → TEMP → CELL の順) -->
+    <section class="ef-shell ef-shell-battery" aria-label="BMS Status Monitor">
+      <header class="ef-header">
+        <div class="ef-header-left">
+          <span class="ef-bolt" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <rect x="1.5" y="4" width="11.5" height="8" rx="2" stroke="#d5cbf9" stroke-width="1.5" />
+              <path d="M14.2 6.2V9.8" stroke="#d5cbf9" stroke-width="1.6" stroke-linecap="round" />
+              <rect x="3.5" y="6" width="3" height="4" rx="0.6" fill="#d5cbf9" />
+              <rect x="7.5" y="6" width="3" height="4" rx="0.6" fill="#d5cbf9" />
+            </svg>
+          </span>
+          <h2 class="ef-title ef-title-battery">BMS STATUS</h2>
+          <span class="ef-pill ef-pill-battery">48 CELLS · 16 TEMPS</span>
         </div>
-      </section>
-
-      <!-- 3. ECONOMICAL ウィジェット (推定発電量と実績発電量の比較・Recharts) -->
-      <section class="ef-shell ef-shell-solar" aria-label="Economical Solar Generation">
-        <header class="ef-header">
-          <div class="ef-header-left">
-            <span class="ef-bolt" aria-hidden="true">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path
-                  d="M2 13.5H14M4 13.5V8.5M8 13.5V4.5M12 13.5V6.5"
-                  stroke="#fbdd84"
-                  stroke-width="1.6"
-                  stroke-linecap="round"
-                />
-              </svg>
-            </span>
-            <h2 class="ef-title ef-title-solar">ECONOMICAL</h2>
-          </div>
-        </header>
-
-        <div class="ef-canvas ef-canvas-sim">
-          <div id="sim-chart-root"></div>
-        </div>
-      </section>
+      </header>
 
       <!-- 4. PAYBACK PLAN ウィジェット (投資回収計画と実績進捗・Recharts) -->
-      <section class="ef-shell ef-shell-solar" aria-label="Investment Payback Plan">
+      <section class="ef-shell ef-shell-payback" aria-label="Investment Payback Plan">
         <header class="ef-header">
           <div class="ef-header-left">
             <span class="ef-bolt" aria-hidden="true">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <path
                   d="M2 11.5L6.2 7.3L9.2 10.3L14 4.5M14 4.5H10.2M14 4.5V8.3"
-                  stroke="#fbdd84"
+                  stroke="#57f293"
                   stroke-width="1.6"
                   stroke-linecap="round"
                   stroke-linejoin="round"
                 />
               </svg>
             </span>
-            <h2 class="ef-title ef-title-solar">PAYBACK PLAN</h2>
-            <span class="ef-pill ef-pill-solar" id="payback-header-pill">TARGET ¥1,100,000</span>
+            <h2 class="ef-title ef-title-use">PAYBACK PLAN</h2>
+            <span class="ef-pill" id="payback-header-pill">TARGET ¥1,100,000</span>
           </div>
         </header>
 
@@ -483,49 +426,52 @@
                 </div>
                 <span class="ef-outline-badge bms-eval-badge" id="bms-pack-badge">48S LFP</span>
               </div>
-              <ul class="bms-check-list">
-                <li><strong>整合性:</strong> 「平均セル電圧 × 48」と一致するか確認（ズレは計測・レジスタ異常）</li>
-                <li><strong>劣化目安:</strong> 充電中は上昇・放電中は低下。同SOC・同電力での電圧が経年低下していれば内部抵抗の上昇</li>
-                <li><strong>上下限と注意:</strong> 満充電の到達電圧や放電末期の落ち込みを監視（一般LFP動作域: 約120〜175V）。中間域は電圧が平坦なためPACKからSOCは判断不可</li>
-              </ul>
-            </article>
+              <span class="ef-outline-badge bms-eval-badge" id="bms-pack-badge">48S LFP</span>
+            </div>
+            <ul class="bms-check-list">
+              <li><strong>整合性:</strong> 「平均セル電圧 × 48」と一致するか確認（ズレは計測・レジスタ異常）</li>
+              <li><strong>劣化目安:</strong> 充電中は上昇・放電中は低下。同SOC・同電力での電圧が経年低下していれば内部抵抗の上昇</li>
+              <li><strong>上下限と注意:</strong> 満充電の到達電圧や放電末期の落ち込みを監視（一般LFP動作域: 約120〜175V）。中間域は電圧が平坦なためPACKからSOCは判断不可</li>
+            </ul>
+          </article>
 
-            <!-- 要素2: TEMP (2行×8列の16温度センサー表示を内包) -->
-            <article class="bms-box" id="bms-box-temp">
-              <div class="bms-box-head">
-                <div class="bms-box-title-group">
-                  <span class="bms-box-key">TEMP</span>
-                  <span class="bms-box-val" id="bms-temp-val">--〜-- °C</span>
-                  <span class="bms-box-sub" id="bms-temp-sub">AVG -- °C / 差 Δ -- °C</span>
-                </div>
-                <span class="ef-outline-badge bms-eval-badge" id="bms-temp-badge">--</span>
+          <!-- 要素2: TEMP (2行×8列の16温度センサー表示を内包) -->
+          <article class="bms-box" id="bms-box-temp">
+            <div class="bms-box-head">
+              <div class="bms-box-title-group">
+                <span class="bms-box-key">TEMP</span>
+                <span class="bms-box-val" id="bms-temp-val">--〜-- °C</span>
+                <span class="bms-box-sub" id="bms-temp-sub">AVG -- °C / 差 Δ -- °C</span>
               </div>
-              <p class="bms-box-reason">
-                16か所のセンサー値。ほぼ均一なら局所的な発熱はありません。低温時(充電制限)や高温時の挙動確認に使います
-              </p>
-              <div class="temps-grid" id="temps-grid"></div>
-            </article>
+              <span class="ef-outline-badge bms-eval-badge" id="bms-temp-badge">--</span>
+            </div>
+            <p class="bms-box-reason">
+              16か所のセンサー値。ほぼ均一なら局所的な発熱はありません。低温時(充電制限)や高温時の挙動確認に使います
+            </p>
+            <div class="temps-grid" id="temps-grid"></div>
+          </article>
 
-            <!-- 要素3: CELL (4行×12列の48セル表示を内包) -->
-            <article class="bms-box" id="bms-box-cell">
-              <div class="bms-box-head">
-                <div class="bms-box-title-group">
-                  <span class="bms-box-key">CELL</span>
-                  <span class="bms-box-val" id="bms-cell-val">--〜-- mV</span>
-                  <span class="bms-box-sub" id="bms-cell-sub">AVG -- mV / 差 Δ -- mV</span>
-                </div>
-                <span class="ef-outline-badge bms-eval-badge" id="bms-cell-badge">--</span>
+          <!-- 要素3: CELL (4行×12列の48セル表示を内包) -->
+          <article class="bms-box" id="bms-box-cell">
+            <div class="bms-box-head">
+              <div class="bms-box-title-group">
+                <span class="bms-box-key">CELL</span>
+                <span class="bms-box-val" id="bms-cell-val">--〜-- mV</span>
+                <span class="bms-box-sub" id="bms-cell-sub">AVG -- mV / 差 Δ -- mV</span>
               </div>
-              <p class="bms-box-reason">
-                最大と最小の差(Δ)が小さいほど均等（中間域で数mV〜15mV以下は良好）。満充電や放電末期にΔが広がらないか・特定の最低セルが固定化しないかを監視します
-              </p>
-              <div class="cells-grid" id="cells-grid"></div>
-            </article>
-          </div>
+              <span class="ef-outline-badge bms-eval-badge" id="bms-cell-badge">--</span>
+            </div>
+            <p class="bms-box-reason">
+              最大と最小の差(Δ)が小さいほど均等（中間域で数mV〜15mV以下は良好）。満充電や放電末期にΔが広がらないか・特定の最低セルが固定化しないかを監視します
+            </p>
+            <div class="cells-grid" id="cells-grid"></div>
+          </article>
         </div>
-      </section>
-    </main>
+      </div>
+    </section>
+  </main>
 
-    <script type="module" src="/web/main.ts"></script>
-  </body>
+  <script type="module" src="/web/main.ts"></script>
+</body>
+
 </html>

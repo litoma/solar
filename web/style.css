@@ -51,20 +51,23 @@ body {
 
 /* 外枠コンテナ (SUMMARY = ダークグレー / PV STRINGS & ECONOMICAL = 黄色 / BMS STATUS = 紫) */
 .ef-shell {
-  background-color: #2c2c2c;
+  background-color: #161618;
   border: 1.5px solid #383838;
   border-radius: 20px;
   padding: 14px 16px 16px;
   box-shadow: 0 18px 42px rgba(0, 0, 0, 0.45);
 }
 
+/* 背景色は共通 (#161618)。外枠線の色のみで SOLAR(黄) / USE(緑) / BATTERY(紫) を表現 */
 .ef-shell-solar {
-  background-color: #443f30;
   border-color: #d7bd72;
 }
 
+.ef-shell-payback {
+  border-color: #4bc77c;
+}
+
 .ef-shell-battery {
-  background-color: #3f3d45;
   border-color: #bfb6e0;
 }
 
@@ -102,6 +105,10 @@ body {
 
 .ef-title-solar {
   color: #fbdd84;
+}
+
+.ef-title-use {
+  color: #57f293;
 }
 
 .ef-title-battery {
@@ -175,29 +182,15 @@ body {
   box-shadow: 0 0 6px rgba(255, 123, 156, 0.7);
 }
 
-/* 内側ダークキャンバス (より深い暗色 #161618 に変更) */
-.ef-canvas {
-  background-color: #161618;
-  border-radius: 16px;
-  padding: 18px 32px 26px;
-}
-
-.ef-canvas-pv {
-  background-color: #161618;
-  border: 1px solid rgba(215, 189, 114, 0.28);
-  padding: 14px 18px;
-}
-
-.ef-canvas-bms {
-  background-color: #161618;
-  border: 1px solid rgba(191, 182, 224, 0.28);
-  padding: 16px 18px 18px;
-}
-
+/* 内側キャンバス: 角丸・padding・背景色なし (ef-shell の背景 #161618 をそのまま使用) */
+.ef-canvas,
+.ef-canvas-pv,
+.ef-canvas-bms,
 .ef-canvas-sim {
-  background-color: #161618;
-  border: 1px solid rgba(215, 189, 114, 0.28);
-  padding: 16px 18px 18px;
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 0;
 }
 
 /* 太陽軌道セクション (BUY〜SELLの左右幅と揃えるため余白0で100%展開) */
@@ -1208,10 +1201,6 @@ body {
     padding: 0 12px;
   }
 
-  .ef-canvas {
-    padding: 14px 12px 18px;
-  }
-
   .ef-flow-layout {
     grid-template-columns: minmax(0, 1fr) 26px minmax(0, 1fr);
     grid-template-rows: 132px 18px 132px 18px 154px;
@@ -1316,4 +1305,50 @@ body {
   .cells-grid {
     grid-template-columns: repeat(6, minmax(0, 1fr));
   }
+}
+/* ==========================================================================
+   PAYBACK PLAN ページ送り (スクロールスナップ + ドットインジケータ)
+   ========================================================================== */
+.payback-pager {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.payback-pager::-webkit-scrollbar {
+  display: none;
+}
+
+.payback-page {
+  flex: 0 0 100%;
+  min-width: 0;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.payback-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.payback-dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background-color: #4a4c55;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.payback-dot.is-active {
+  background-color: #57f293;
+  transform: scale(1.25);
 }
