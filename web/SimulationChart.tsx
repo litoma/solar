@@ -22,18 +22,18 @@ export interface MonthlySimItem {
 
 // カナディアンソーラー太陽光発電シミュレーション (東京都練馬区 / 15枚 6.065kW / PCS-JP2-6G)
 const BASE_SIMULATION: Array<{ month: number; label: string; estimatedKwh: number }> = [
-  { month: 1, label: "1月", estimatedKwh: 400 },
-  { month: 2, label: "2月", estimatedKwh: 410 },
-  { month: 3, label: "3月", estimatedKwh: 569 },
-  { month: 4, label: "4月", estimatedKwh: 640 },
-  { month: 5, label: "5月", estimatedKwh: 785 },
-  { month: 6, label: "6月", estimatedKwh: 630 },
-  { month: 7, label: "7月", estimatedKwh: 702 },
-  { month: 8, label: "8月", estimatedKwh: 655 },
-  { month: 9, label: "9月", estimatedKwh: 489 },
-  { month: 10, label: "10月", estimatedKwh: 407 },
-  { month: 11, label: "11月", estimatedKwh: 328 },
-  { month: 12, label: "12月", estimatedKwh: 333 },
+  { month: 1, label: "JAN", estimatedKwh: 400 },
+  { month: 2, label: "FEB", estimatedKwh: 410 },
+  { month: 3, label: "MAR", estimatedKwh: 569 },
+  { month: 4, label: "APR", estimatedKwh: 640 },
+  { month: 5, label: "MAY", estimatedKwh: 785 },
+  { month: 6, label: "JUN", estimatedKwh: 630 },
+  { month: 7, label: "JUL", estimatedKwh: 702 },
+  { month: 8, label: "AUG", estimatedKwh: 655 },
+  { month: 9, label: "SEP", estimatedKwh: 489 },
+  { month: 10, label: "OCT", estimatedKwh: 407 },
+  { month: 11, label: "NOV", estimatedKwh: 328 },
+  { month: 12, label: "DEC", estimatedKwh: 333 },
 ];
 
 export const ANNUAL_TOTAL_KWH = 6348;
@@ -64,7 +64,7 @@ function CustomTooltip({
       </div>
       <div className="sim-tooltip-row">
         <span className="sim-tooltip-label">実績発電量:</span>
-        <span className="sim-tooltip-actual">{item.actualKwh.toFixed(1)} kWh</span>
+        <span className="sim-tooltip-actual">{Math.round(item.actualKwh)} kWh</span>
       </div>
       <div className="sim-tooltip-row">
         <span className="sim-tooltip-label">推定発電量:</span>
@@ -86,21 +86,25 @@ function SimulationChartView({
   monthlyActualKwh: Record<number, number>;
 }) {
   const data: MonthlySimItem[] = BASE_SIMULATION.map((b) => {
-    const actual = Math.max(0, monthlyActualKwh[b.month] ?? 0);
-    const pct = b.estimatedKwh > 0 ? (actual / b.estimatedKwh) * 100 : 0;
+    const actualRaw = Math.max(0, monthlyActualKwh[b.month] ?? 0);
+    const actualRounded = Math.round(actualRaw);
+    const pct = b.estimatedKwh > 0 ? (actualRaw / b.estimatedKwh) * 100 : 0;
     return {
       month: b.month,
       label: b.label,
       shortLabel: b.label,
       estimatedKwh: b.estimatedKwh,
-      actualKwh: Math.round(actual * 10) / 10,
+      actualKwh: actualRounded,
       pct,
     };
   });
 
-  const totalActualKwh =
-    Math.round(data.reduce((acc, d) => acc + d.actualKwh, 0) * 10) / 10;
-  const totalPct = (totalActualKwh / ANNUAL_TOTAL_KWH) * 100;
+  const totalActualRaw = Object.values(monthlyActualKwh).reduce(
+    (acc, v) => acc + Math.max(0, v ?? 0),
+    0,
+  );
+  const totalActualKwh = Math.round(totalActualRaw);
+  const totalPct = (totalActualRaw / ANNUAL_TOTAL_KWH) * 100;
 
   const currentItem =
     data.find((d) => d.month === currentMonth) || data[10];
@@ -119,7 +123,7 @@ function SimulationChartView({
             </span>
           </div>
           <div className="sim-summary-val">
-            {currentItem.actualKwh.toFixed(1)}
+            {currentItem.actualKwh.toLocaleString("ja-JP")}
             <span className="sim-summary-sep">/</span>
             <span className="sim-summary-target">
               {currentItem.estimatedKwh} kWh
@@ -137,7 +141,7 @@ function SimulationChartView({
             </span>
           </div>
           <div className="sim-summary-val">
-            {totalActualKwh.toFixed(1)}
+            {totalActualKwh.toLocaleString("ja-JP")}
             <span className="sim-summary-sep">/</span>
             <span className="sim-summary-target">
               {ANNUAL_TOTAL_KWH.toLocaleString("ja-JP")} kWh
@@ -228,7 +232,7 @@ function SimulationChartView({
             >
               <span className="sim-month-name">{m.label}</span>
               <span className="sim-month-val">
-                {m.actualKwh > 0 ? m.actualKwh.toFixed(1) : "0"}
+                {m.actualKwh > 0 ? m.actualKwh : "0"}
                 <small>/{m.estimatedKwh}</small>
               </span>
               <span className="sim-month-pct">{m.pct.toFixed(1)}%</span>

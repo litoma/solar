@@ -49,10 +49,9 @@ body {
   color: #e8e8e8;
 }
 
-/* 外枠コンテナ (SUMMARY = ダークグレー / PV STRINGS & ECONOMICAL = 黄色 / BMS STATUS = 紫) */
-/* 外枠コンテナ (枠線なし、背景色は #161618) */
+/* 外枠コンテナ (枠線なし、背景色はもう1段暗い #0f1012) */
 .ef-shell {
-  background-color: #161618;
+  background-color: #0f1012;
   border: none;
   border-radius: 20px;
   padding: 14px 16px 16px;
@@ -573,21 +572,141 @@ body {
   min-height: 386px;
 }
 
-/* 中央の ROOF 見出し + 屋根枠SVG */
+/* 中央の ROOF 見出し + 15 PANELS · 6.065 kW + 屋根枠SVG */
 .pv-roof-center {
   position: absolute;
   left: 50%;
-  top: 54%;
+  top: 55%;
   transform: translate(-50%, -50%);
   width: 244px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 3px;
 }
 
 .pv-roof-heading {
   margin: 0;
+}
+
+.pv-roof-spec {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: #c2b99f;
+  letter-spacing: 0.05em;
+  margin-bottom: 3px;
+}
+
+/* PV STRINGS ページ送り + 2ページ目詳細 */
+.pv-pager {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.pv-pager::-webkit-scrollbar {
+  display: none;
+}
+
+.pv-page {
+  flex: 0 0 100%;
+  min-width: 0;
+  scroll-snap-align: start;
+}
+
+.pv-specs-page {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+  padding: 8px 4px;
+}
+
+.pv-specs-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pv-spec-card {
+  background-color: #26282e;
+  border: 1px solid #454852;
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pv-spec-model {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 600;
+  color: #fbdd84;
+  letter-spacing: 0.02em;
+}
+
+.pv-spec-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.pv-spec-qty {
+  font-family: var(--font-sans);
+  font-size: 20px;
+  font-weight: 600;
+  color: #f0f0f5;
+}
+
+.pv-spec-dir {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: #c2c5d0;
+}
+
+.pv-spec-cap {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: #9da1ae;
+}
+
+.pv-specs-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: #b4b7c2;
+  padding: 0 4px;
+}
+
+.pv-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.pv-dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background-color: #4a4c55;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.pv-dot.is-active {
+  background-color: #fbdd84;
+  transform: scale(1.25);
 }
 
 .pv-xmap-svg {
@@ -1251,8 +1370,12 @@ body {
   .pv-roof-center {
     position: static;
     transform: none;
-    width: 196px;
+    width: min(286px, 82vw);
     margin: 0 auto 4px;
+  }
+
+  .pv-specs-grid {
+    grid-template-columns: 1fr;
   }
 
   .pv-quad {

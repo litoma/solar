@@ -64,7 +64,7 @@ function kwHtml(kw: number, unitClass = "ef-unit"): string {
 }
 
 function kwhDayHtml(kwh: number): string {
-  return `${kwh.toFixed(1)} kWh/d`;
+  return `${kwh.toFixed(2)} kWh/d`;
 }
 
 function formatTimeJst(
@@ -360,11 +360,6 @@ function renderDashboard(data: DashboardResponse): void {
     firstDate: null,
     byYearMonth: {},
   };
-  const headerTargetPill = document.getElementById("payback-header-pill");
-  if (headerTargetPill) {
-    headerTargetPill.textContent = `TARGET ¥${fallbackPayback.targetYen.toLocaleString("ja-JP")}`;
-  }
-
   const latest = data.latest;
   if (!latest) {
     const nowSec = Math.floor(Date.now() / 1000);
@@ -372,7 +367,7 @@ function renderDashboard(data: DashboardResponse): void {
       nowSec,
       tzMin,
     );
-    el("ef-time").textContent = timeText;
+    el("ef-time").textContent = `${timeText} UPDATE`;
     mountOrUpdateSimulationChart(month, data.monthlyActualKwh || {});
     mountOrUpdatePaybackChart(
       fallbackPayback,
@@ -397,7 +392,7 @@ function renderDashboard(data: DashboardResponse): void {
     ts,
     tzMin,
   );
-  el("ef-time").textContent = timeText;
+  el("ef-time").textContent = `${timeText} UPDATE`;
   mountOrUpdateSimulationChart(month, data.monthlyActualKwh || {});
   mountOrUpdatePaybackChart(
     fallbackPayback,
@@ -741,6 +736,37 @@ function setupControls(): void {
     box.addEventListener("mouseleave", leave);
     roof.addEventListener("mouseenter", enter);
     roof.addEventListener("mouseleave", leave);
+  }
+
+  // PV STRINGS ページ送り (横スクロールスナップ + ドットクリック連動)
+  const pvPager = document.getElementById("pv-pager");
+  const pvDots = Array.from(
+    document.querySelectorAll<HTMLButtonElement>("#pv-dots .pv-dot"),
+  );
+  if (pvPager && pvDots.length > 0) {
+    const updateDots = (activeIdx: number) => {
+      pvDots.forEach((btn, idx) => {
+        const isAct = idx === activeIdx;
+        btn.classList.toggle("is-active", isAct);
+        btn.setAttribute("aria-selected", isAct ? "true" : "false");
+      });
+    };
+    pvPager.addEventListener("scroll", () => {
+      const idx = Math.round(
+        pvPager.scrollLeft / Math.max(1, pvPager.clientWidth),
+      );
+      updateDots(idx);
+    });
+    pvDots.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const idx = Number(btn.dataset.page || 0);
+        pvPager.scrollTo({
+          left: idx * pvPager.clientWidth,
+          behavior: "smooth",
+        });
+        updateDots(idx);
+      });
+    });
   }
 
   document.addEventListener("visibilitychange", () => {

@@ -36,7 +36,7 @@
           </span>
           <h2 class="ef-title">SUMMARY</h2>
         </div>
-        <span class="ef-pill" id="ef-time">--:--</span>
+        <span class="ef-pill" id="ef-time">--:-- UPDATE</span>
       </header>
 
       <div class="ef-canvas">
@@ -46,6 +46,11 @@
             aria-label="Solar Elevation & Weather Curve">
             <!-- 地平線 (実線・左右端0〜600までフル幅) -->
             <line x1="0" y1="98" x2="600" y2="98" stroke="#44454a" stroke-width="1.6" />
+            <!-- 太陽軌道の真ん中 (12:00の上) の簡易的な家のアイコン -->
+            <g transform="translate(300, 86)" aria-hidden="true">
+              <path d="M-11 2 L0 -8 L11 2 M-8 0 V11 H8 V0" fill="none" stroke="#44454a" stroke-width="1.8"
+                stroke-linecap="round" stroke-linejoin="round" />
+            </g>
             <!-- 日の出前・日の入り後の破線カーブ -->
             <path d="M 12 98 Q 76 138 140 98" fill="none" stroke="#4d4e54" stroke-width="1.5" stroke-dasharray="4 4" />
             <path d="M 460 98 Q 524 138 588 98" fill="none" stroke="#4d4e54" stroke-width="1.5"
@@ -69,7 +74,7 @@
                 <text x="0" y="0" class="sun-badge-text" id="sun-badge-temp">--°C</text>
               </g>
               <circle cx="0" cy="0" r="16" fill="rgba(251, 221, 132, 0.16)" id="sun-marker-glow" />
-              <circle cx="0" cy="0" r="12" fill="#161618" stroke="#d7bd72" stroke-width="1.6" id="sun-marker-ring" />
+              <circle cx="0" cy="0" r="12" fill="#0f1012" stroke="#d7bd72" stroke-width="1.6" id="sun-marker-ring" />
               <g id="sun-weather-icon"></g>
             </g>
           </svg>
@@ -201,7 +206,7 @@
       </div>
     </section>
 
-    <!-- 2. PV STRINGS ウィジェット (中央ROOF見出し + コンパクト屋根枠 + 4方角) -->
+    <!-- 2. PV STRINGS ウィジェット (1ページ目: 屋根配置図 + 4方角 / 2ページ目: パネル詳細) -->
     <section class="ef-shell ef-shell-solar" aria-label="PV Strings Monitor">
       <header class="ef-header">
         <div class="ef-header-left">
@@ -215,115 +220,176 @@
             </svg>
           </span>
           <h2 class="ef-title ef-title-solar">PV STRINGS</h2>
-          <span class="ef-pill ef-pill-solar">15 PANELS · 6.065 kW</span>
         </div>
         <span class="ef-pill ef-pill-solar" id="pv-total-pill">TOTAL 0.00 kW</span>
       </header>
 
       <div class="ef-canvas ef-canvas-pv">
-        <div class="pv-xmap">
-          <!-- 真ん中の屋根ブロック (ROOF見出し + 余白を詰めた屋根SVG) -->
-          <div class="pv-roof-center">
-            <div class="ef-col-label pv-roof-heading">ROOF</div>
-            <svg class="pv-xmap-svg" viewBox="186 102 268 236" preserveAspectRatio="xMidYMid meet"
-              aria-label="Directional Roof Array Diagram">
-              <!-- 真ん中の屋根外枠 -->
-              <rect x="190" y="106" width="260" height="228" rx="18" fill="#1f2024" stroke="#646876"
-                stroke-width="1.8" />
+        <div class="pv-pager" id="pv-pager">
+          <!-- 1ページ目: 屋根配置図 + 4方角 -->
+          <div class="pv-page">
+            <div class="pv-xmap">
+              <!-- 真ん中の屋根ブロック (ROOF見出し + 15 PANELS · 6.065 kW + 実縮尺パネル屋根SVG) -->
+              <div class="pv-roof-center">
+                <div class="ef-col-label pv-roof-heading">ROOF</div>
+                <div class="pv-roof-spec">15 PANELS · 6.065 kW</div>
+                <svg class="pv-xmap-svg" viewBox="186 102 268 236" preserveAspectRatio="xMidYMid meet"
+                  aria-label="Directional Roof Array Diagram">
+                  <!-- 真ん中の屋根外枠 -->
+                  <rect x="190" y="106" width="260" height="228" rx="18" fill="#1f2024" stroke="#646876"
+                    stroke-width="1.8" />
 
-              <!-- 屋根枠内の × 稜線 (中心 320, 220) -->
-              <line x1="194" y1="110" x2="446" y2="330" stroke="#4f5360" stroke-width="1.5" />
-              <line x1="446" y1="110" x2="194" y2="330" stroke="#4f5360" stroke-width="1.5" />
-              <!-- 中心点ドット -->
-              <circle cx="320" cy="220" r="3.5" fill="#8e93a4" />
+                  <!-- 屋根枠内の × 稜線 (中心 320, 220) -->
+                  <line x1="194" y1="110" x2="446" y2="330" stroke="#4f5360" stroke-width="1.5" />
+                  <line x1="446" y1="110" x2="194" y2="330" stroke="#4f5360" stroke-width="1.5" />
+                  <!-- 中心点ドット -->
+                  <circle cx="320" cy="220" r="3.5" fill="#8e93a4" />
 
-              <!-- NORTH (上三角領域): PV4 (3 panels: 上2枚 + 下1枚) -->
-              <g class="roof-group" id="roof-group-pv4" data-pv="4">
-                <rect x="287" y="124" width="30" height="19" rx="3" class="roof-mod mod-pv4" />
-                <rect x="323" y="124" width="30" height="19" rx="3" class="roof-mod mod-pv4" />
-                <rect x="305" y="148" width="30" height="19" rx="3" class="roof-mod mod-pv4" />
-              </g>
+                  <!-- NORTH (上三角領域): PV4 (CS6.2-48TM-445 × 3 panels) -->
+                  <g class="roof-group" id="roof-group-pv4" data-pv="4">
+                    <rect x="284" y="122" width="33" height="22" rx="3" class="roof-mod mod-pv4" />
+                    <rect x="323" y="122" width="33" height="22" rx="3" class="roof-mod mod-pv4" />
+                    <rect x="303.5" y="148" width="33" height="22" rx="3" class="roof-mod mod-pv4" />
+                  </g>
 
-              <!-- WEST (左三角領域): PV3 (3 panels) + PV1 (5 panels) -->
-              <g class="roof-group" id="roof-group-pv3" data-pv="3">
-                <rect x="206" y="150" width="17" height="26" rx="3" class="roof-mod mod-pv3" />
-                <rect x="206" y="180" width="17" height="26" rx="3" class="roof-mod mod-pv3" />
-                <rect x="206" y="210" width="17" height="26" rx="3" class="roof-mod mod-pv3" />
-              </g>
-              <g class="roof-group" id="roof-group-pv1" data-pv="1">
-                <rect x="206" y="240" width="17" height="26" rx="3" class="roof-mod mod-pv1" />
-                <rect x="228" y="166" width="17" height="26" rx="3" class="roof-mod mod-pv1" />
-                <rect x="228" y="196" width="17" height="26" rx="3" class="roof-mod mod-pv1" />
-                <rect x="228" y="226" width="17" height="26" rx="3" class="roof-mod mod-pv1" />
-                <rect x="250" y="192" width="17" height="26" rx="3" class="roof-mod mod-pv1" />
-              </g>
+                  <!-- WEST (左三角領域): PV3 (48TM-465 × 3) + PV1 (48TM-465 × 1 + 32TM-310 × 4) -->
+                  <g class="roof-group" id="roof-group-pv3" data-pv="3">
+                    <rect x="204" y="140" width="19" height="29" rx="3" class="roof-mod mod-pv3" />
+                    <rect x="204" y="172" width="19" height="29" rx="3" class="roof-mod mod-pv3" />
+                    <rect x="204" y="204" width="19" height="29" rx="3" class="roof-mod mod-pv3" />
+                  </g>
+                  <g class="roof-group" id="roof-group-pv1" data-pv="1">
+                    <!-- 左列最下段 48TM-465 (1枚) -->
+                    <rect x="204" y="236" width="19" height="29" rx="3" class="roof-mod mod-pv1" />
+                    <!-- 中列 32TM-310 (3枚) -->
+                    <rect x="227" y="174" width="19" height="20" rx="2.5" class="roof-mod mod-pv1" />
+                    <rect x="227" y="198" width="19" height="20" rx="2.5" class="roof-mod mod-pv1" />
+                    <rect x="227" y="222" width="19" height="20" rx="2.5" class="roof-mod mod-pv1" />
+                    <!-- 右列 32TM-310 (1枚) -->
+                    <rect x="250" y="198" width="19" height="20" rx="2.5" class="roof-mod mod-pv1" />
+                  </g>
 
-              <!-- EAST (右三角領域): PV2 (4 panels: 2×2) -->
-              <g class="roof-group" id="roof-group-pv2" data-pv="2">
-                <rect x="382" y="186" width="21" height="30" rx="3" class="roof-mod mod-pv2" />
-                <rect x="408" y="186" width="21" height="30" rx="3" class="roof-mod mod-pv2" />
-                <rect x="382" y="222" width="21" height="30" rx="3" class="roof-mod mod-pv2" />
-                <rect x="408" y="222" width="21" height="30" rx="3" class="roof-mod mod-pv2" />
-              </g>
-            </svg>
-          </div>
-
-          <!-- 上側領域: NORTH (横長レイアウト) -->
-          <div class="pv-quad pv-quad-north" id="pv-quad-north">
-            <div class="pv-quad-dir">NORTH</div>
-            <div class="pv-quad-item pv-quad-item-wide" id="pv-box-4" data-pv="4">
-              <div class="pv-quad-head">
-                <span class="pv-swatch swatch-pv4"></span>
-                <span class="pv-quad-name">PV4</span>
-                <span class="pv-quad-count">3 panels</span>
+                  <!-- EAST (右三角領域): PV2 (48TM-465 × 2 + 36TM-350 × 2) -->
+                  <g class="roof-group" id="roof-group-pv2" data-pv="2">
+                    <!-- 上段 48TM-465 (2枚) -->
+                    <rect x="380" y="178" width="21" height="32" rx="3" class="roof-mod mod-pv2" />
+                    <rect x="405" y="178" width="21" height="32" rx="3" class="roof-mod mod-pv2" />
+                    <!-- 下段 36TM-350 (2枚) -->
+                    <rect x="380" y="214" width="21" height="24" rx="3" class="roof-mod mod-pv2" />
+                    <rect x="405" y="214" width="21" height="24" rx="3" class="roof-mod mod-pv2" />
+                  </g>
+                </svg>
               </div>
-              <div class="pv-quad-kw" id="pv4-w">0.00<span class="ef-unit-sm">kW</span></div>
-              <div class="pv-quad-day" id="pv4-day">0.0 kWh/d</div>
+
+              <!-- 上側領域: NORTH (横長レイアウト) -->
+              <div class="pv-quad pv-quad-north" id="pv-quad-north">
+                <div class="pv-quad-dir">NORTH</div>
+                <div class="pv-quad-item pv-quad-item-wide" id="pv-box-4" data-pv="4">
+                  <div class="pv-quad-head">
+                    <span class="pv-swatch swatch-pv4"></span>
+                    <span class="pv-quad-name">PV4</span>
+                    <span class="pv-quad-count">3 panels</span>
+                  </div>
+                  <div class="pv-quad-kw" id="pv4-w">0.00<span class="ef-unit-sm">kW</span></div>
+                  <div class="pv-quad-day" id="pv4-day">0.00 kWh/d</div>
+                </div>
+              </div>
+
+              <!-- 左側領域: WEST (PV1 5 panels / PV3 3 panels) -->
+              <div class="pv-quad pv-quad-west" id="pv-quad-west">
+                <div class="pv-quad-dir">WEST</div>
+                <div class="pv-quad-item" id="pv-box-1" data-pv="1">
+                  <div class="pv-quad-head">
+                    <span class="pv-swatch swatch-pv1"></span>
+                    <span class="pv-quad-name">PV1</span>
+                    <span class="pv-quad-count">5 panels</span>
+                  </div>
+                  <div class="pv-quad-kw" id="pv1-w">0.00<span class="ef-unit-sm">kW</span></div>
+                  <div class="pv-quad-day" id="pv1-day">0.00 kWh/d</div>
+                </div>
+                <div class="pv-quad-item" id="pv-box-3" data-pv="3">
+                  <div class="pv-quad-head">
+                    <span class="pv-swatch swatch-pv3"></span>
+                    <span class="pv-quad-name">PV3</span>
+                    <span class="pv-quad-count">3 panels</span>
+                  </div>
+                  <div class="pv-quad-kw" id="pv3-w">0.00<span class="ef-unit-sm">kW</span></div>
+                  <div class="pv-quad-day" id="pv3-day">0.00 kWh/d</div>
+                </div>
+              </div>
+
+              <!-- 右側領域: EAST (PV2 4 panels) -->
+              <div class="pv-quad pv-quad-east" id="pv-quad-east">
+                <div class="pv-quad-dir">EAST</div>
+                <div class="pv-quad-item" id="pv-box-2" data-pv="2">
+                  <div class="pv-quad-head">
+                    <span class="pv-swatch swatch-pv2"></span>
+                    <span class="pv-quad-name">PV2</span>
+                    <span class="pv-quad-count">4 panels</span>
+                  </div>
+                  <div class="pv-quad-kw" id="pv2-w">0.00<span class="ef-unit-sm">kW</span></div>
+                  <div class="pv-quad-day" id="pv2-day">0.00 kWh/d</div>
+                </div>
+              </div>
+
+              <!-- 下側領域: SOUTH (Nothing) -->
+              <div class="pv-quad pv-quad-south">
+                <div class="pv-quad-dir">SOUTH</div>
+                <div class="pv-quad-nothing">Nothing</div>
+              </div>
             </div>
           </div>
 
-          <!-- 左側領域: WEST (PV1 5 panels / PV3 3 panels) -->
-          <div class="pv-quad pv-quad-west" id="pv-quad-west">
-            <div class="pv-quad-dir">WEST</div>
-            <div class="pv-quad-item" id="pv-box-1" data-pv="1">
-              <div class="pv-quad-head">
-                <span class="pv-swatch swatch-pv1"></span>
-                <span class="pv-quad-name">PV1</span>
-                <span class="pv-quad-count">5 panels</span>
+          <!-- 2ページ目: 太陽光パネル詳細情報 -->
+          <div class="pv-page pv-specs-page">
+            <div class="pv-specs-grid">
+              <div class="pv-spec-card">
+                <div class="pv-spec-model">CS6.2-48TM-465</div>
+                <div class="pv-spec-meta">
+                  <span class="pv-spec-qty">6枚</span>
+                  <span class="pv-spec-dir">西と東</span>
+                </div>
+                <div class="pv-spec-cap">465 W × 6 = 2.790 kW</div>
               </div>
-              <div class="pv-quad-kw" id="pv1-w">0.00<span class="ef-unit-sm">kW</span></div>
-              <div class="pv-quad-day" id="pv1-day">0.0 kWh/d</div>
-            </div>
-            <div class="pv-quad-item" id="pv-box-3" data-pv="3">
-              <div class="pv-quad-head">
-                <span class="pv-swatch swatch-pv3"></span>
-                <span class="pv-quad-name">PV3</span>
-                <span class="pv-quad-count">3 panels</span>
-              </div>
-              <div class="pv-quad-kw" id="pv3-w">0.00<span class="ef-unit-sm">kW</span></div>
-              <div class="pv-quad-day" id="pv3-day">0.0 kWh/d</div>
-            </div>
-          </div>
 
-          <!-- 右側領域: EAST (PV2 4 panels) -->
-          <div class="pv-quad pv-quad-east" id="pv-quad-east">
-            <div class="pv-quad-dir">EAST</div>
-            <div class="pv-quad-item" id="pv-box-2" data-pv="2">
-              <div class="pv-quad-head">
-                <span class="pv-swatch swatch-pv2"></span>
-                <span class="pv-quad-name">PV2</span>
-                <span class="pv-quad-count">4 panels</span>
+              <div class="pv-spec-card">
+                <div class="pv-spec-model">CS6.2-36TM-350</div>
+                <div class="pv-spec-meta">
+                  <span class="pv-spec-qty">2枚</span>
+                  <span class="pv-spec-dir">東</span>
+                </div>
+                <div class="pv-spec-cap">350 W × 2 = 0.700 kW</div>
               </div>
-              <div class="pv-quad-kw" id="pv2-w">0.00<span class="ef-unit-sm">kW</span></div>
-              <div class="pv-quad-day" id="pv2-day">0.0 kWh/d</div>
+
+              <div class="pv-spec-card">
+                <div class="pv-spec-model">CS6.2-32TM-310</div>
+                <div class="pv-spec-meta">
+                  <span class="pv-spec-qty">4枚</span>
+                  <span class="pv-spec-dir">西</span>
+                </div>
+                <div class="pv-spec-cap">310 W × 4 = 1.240 kW</div>
+              </div>
+
+              <div class="pv-spec-card">
+                <div class="pv-spec-model">CS6.2-48TM-445</div>
+                <div class="pv-spec-meta">
+                  <span class="pv-spec-qty">3枚</span>
+                  <span class="pv-spec-dir">北</span>
+                </div>
+                <div class="pv-spec-cap">445 W × 3 = 1.335 kW</div>
+              </div>
+            </div>
+
+            <div class="pv-specs-footer">
+              <span>合計 15枚 · 6.065 kW</span>
+              <span>PCS: EP Cube PCS-JP2-6G (5.90 kW)</span>
             </div>
           </div>
+        </div>
 
-          <!-- 下側領域: SOUTH (Nothing) -->
-          <div class="pv-quad pv-quad-south">
-            <div class="pv-quad-dir">SOUTH</div>
-            <div class="pv-quad-nothing">Nothing</div>
-          </div>
+        <div class="pv-dots" id="pv-dots" role="tablist" aria-label="PV Strings pages">
+          <button type="button" role="tab" aria-selected="true" aria-label="ページ 1" class="pv-dot is-active" data-page="0"></button>
+          <button type="button" role="tab" aria-selected="false" aria-label="ページ 2" class="pv-dot" data-page="1"></button>
         </div>
       </div>
     </section>
@@ -363,7 +429,6 @@
             </svg>
           </span>
           <h2 class="ef-title ef-title-use">PAYBACK PLAN</h2>
-          <span class="ef-pill" id="payback-header-pill">TARGET ¥1,100,000</span>
         </div>
       </header>
 
