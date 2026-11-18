@@ -161,13 +161,23 @@
             </div>
           </article>
 
+          <!-- 自宅側 (SOLAR/USE/BATTERY) と 系統側 (BUY/SELL) の境界線 -->
+          <div class="ef-grid-divider" aria-hidden="true">
+            <span class="ef-divider-label">HOME</span>
+            <div class="ef-divider-rule">
+              <span class="ef-divider-seg"></span>
+              <span class="ef-divider-seg"></span>
+            </div>
+            <span class="ef-divider-label">GRID</span>
+          </div>
+
           <!-- 下段コネクタ: BATTERY 下端 ⇄ BUY / SELL -->
-          <svg class="ef-connectors ef-connectors-bottom" viewBox="0 0 64 166" preserveAspectRatio="none" aria-hidden="true">
-            <line x1="32" y1="0" x2="32" y2="95" class="flow-line-base" vector-effect="non-scaling-stroke" />
-            <line x1="0" y1="95" x2="64" y2="95" class="flow-line-base" vector-effect="non-scaling-stroke" />
-            <line id="line-trunk-low" x1="32" y1="0" x2="32" y2="95" class="flow-line" vector-effect="non-scaling-stroke" />
-            <line id="line-buy" x1="0" y1="95" x2="32" y2="95" class="flow-line" vector-effect="non-scaling-stroke" />
-            <line id="line-sell" x1="32" y1="95" x2="64" y2="95" class="flow-line" vector-effect="non-scaling-stroke" />
+          <svg class="ef-connectors ef-connectors-bottom" viewBox="0 0 64 190" preserveAspectRatio="none" aria-hidden="true">
+            <line x1="32" y1="0" x2="32" y2="119" class="flow-line-base" vector-effect="non-scaling-stroke" />
+            <line x1="0" y1="119" x2="64" y2="119" class="flow-line-base" vector-effect="non-scaling-stroke" />
+            <line id="line-trunk-low" x1="32" y1="0" x2="32" y2="119" class="flow-line" vector-effect="non-scaling-stroke" />
+            <line id="line-buy" x1="0" y1="119" x2="32" y2="119" class="flow-line" vector-effect="non-scaling-stroke" />
+            <line id="line-sell" x1="32" y1="119" x2="64" y2="119" class="flow-line" vector-effect="non-scaling-stroke" />
           </svg>
 
           <!-- BUY (3段目・左) -->
@@ -524,6 +534,16 @@
         </div>
       </div>
     </section>
+
+    <footer class="site-footer" aria-label="Site Footer">
+      <svg class="cf-logo" viewBox="0 0 460 271.2" width="32" height="19" aria-hidden="true">
+        <path fill="#FF9911"
+          d="M328.6,125.6c-0.8,0-1.5,0.6-1.8,1.4l-4.8,16.7c-2.1,7.2-1.3,13.8,2.2,18.7c3.2,4.5,8.6,7.1,15.1,7.4l26.2,1.6c0.8,0,1.5,0.4,1.9,1c0.4,0.6,0.5,1.5,0.3,2.2c-0.4,1.2-1.6,2.1-2.9,2.2l-27.3,1.6c-14.8,0.7-30.7,12.6-36.3,27.2l-2,5.1c-0.4,1,0.3,2,1.4,2h93.8c1.1,0,2.1-0.7,2.4-1.8c1.6-5.8,2.5-11.9,2.5-18.2c0-37-30.2-67.2-67.3-67.2C330.9,125.5,329.7,125.5,328.6,125.6z" />
+        <path fill="#FF5E1F"
+          d="M292.8,204.4c2.1-7.2,1.3-13.8-2.2-18.7c-3.2-4.5-8.6-7.1-15.1-7.4l-123.1-1.6c-0.8,0-1.5-0.4-1.9-1s-0.5-1.4-0.3-2.2c0.4-1.2,1.6-2.1,2.9-2.2l124.2-1.6c14.7-0.7,30.7-12.6,36.3-27.2l7.1-18.5c0.3-0.8,0.4-1.6,0.2-2.4c-8-36.2-40.3-63.2-78.9-63.2c-35.6,0-65.8,23-76.6,54.9c-7-5.2-15.9-8-25.5-7.1c-17.1,1.7-30.8,15.4-32.5,32.5c-0.4,4.4-0.1,8.7,0.9,12.7c-27.9,0.8-50.2,23.6-50.2,51.7c0,2.5,0.2,5,0.5,7.5c0.2,1.2,1.2,2.1,2.4,2.1h227.2c1.3,0,2.5-0.9,2.9-2.2L292.8,204.4z" />
+      </svg>
+      <span class="site-footer-text">Powered by Cloudflare</span>
+    </footer>
   </main>
 
   <script type="module" src="/web/main.ts"></script>

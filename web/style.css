@@ -19,7 +19,7 @@ body {
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 20px 0 48px;
+  padding: 14px 0 32px;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -28,16 +28,17 @@ body {
   max-width: 720px;
   display: flex;
   flex-direction: column;
-  gap: 36px;
+  gap: 0;
 }
 
-/* 最上部ヘッダー: EP VIEW & ONLINE/OFFLINE (ef-shellと同じ横幅) */
+/* 最上部ヘッダー: EP VIEW & ONLINE/OFFLINE (上下余白を均等かつコンパクトに) */
 .top-bar {
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 2px 6px 0;
+  padding: 0 6px;
+  margin-bottom: 14px;
   gap: 12px;
 }
 
@@ -45,6 +46,7 @@ body {
   font-family: var(--font-mono);
   font-size: 22px;
   font-weight: 600;
+  line-height: 1.2;
   letter-spacing: 0.06em;
   color: #e8e8e8;
 }
@@ -56,6 +58,10 @@ body {
   border-radius: 20px;
   padding: 14px 16px 16px;
   box-shadow: 0 18px 42px rgba(0, 0, 0, 0.45);
+}
+
+.ef-shell + .ef-shell {
+  margin-top: 36px;
 }
 
 .ef-shell-solar,
@@ -234,12 +240,12 @@ body {
   color: #9c9ea6;
 }
 
-/* 1段目: SOLAR / USE, 2段目: BATTERY, 3段目: BUY / SELL */
+/* 1段目: SOLAR / USE, 2段目: BATTERY, 境界線(HOME/GRID), 3段目: BUY / SELL */
 .ef-flow-layout {
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr);
-  grid-template-rows: 142px 24px 166px 24px 142px;
+  grid-template-rows: 142px 24px 166px 48px 142px;
 }
 
 #card-solar {
@@ -255,6 +261,49 @@ body {
 #card-battery {
   grid-column: 1 / 4;
   grid-row: 3;
+}
+
+/* 自宅(HOME)と系統(GRID)の境界線 + ラベル */
+.ef-grid-divider {
+  grid-column: 1 / 4;
+  grid-row: 4;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 0 4px;
+  gap: 3px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.ef-divider-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.14em;
+  color: #8f929f;
+}
+
+.ef-divider-rule {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22px minmax(0, 1fr);
+  align-items: center;
+}
+
+.ef-divider-seg {
+  height: 0;
+  border-top: 1px dashed #444754;
+}
+
+.ef-divider-seg:first-child {
+  grid-column: 1;
+}
+
+.ef-divider-seg:last-child {
+  grid-column: 3;
 }
 
 #card-buy {
@@ -274,6 +323,8 @@ body {
   height: 100%;
   pointer-events: none;
   display: block;
+  position: relative;
+  z-index: 1;
 }
 
 .ef-connectors-top {
@@ -1346,7 +1397,7 @@ body {
 
   .ef-flow-layout {
     grid-template-columns: minmax(0, 1fr) 26px minmax(0, 1fr);
-    grid-template-rows: 136px 20px 158px 20px 136px;
+    grid-template-rows: 136px 20px 158px 44px 136px;
   }
 
   .ef-col-headers {
@@ -1499,4 +1550,24 @@ body {
 .payback-dot.is-active {
   background-color: #57f293;
   transform: scale(1.25);
+}
+
+/* ==========================================================================
+   フッター (Powered by Cloudflare)
+   ========================================================================== */
+.site-footer {
+  margin-top: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #b4b7c4;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.cf-logo {
+  display: block;
+  flex-shrink: 0;
 }
