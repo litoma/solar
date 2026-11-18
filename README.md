@@ -1,45 +1,65 @@
-# epcube-collector & ENERGY FLOW Web Dashboard
+# EP VIEW
 
-EP CUBE の PV1〜4・システム値・BMS(セル電圧/温度)を、BLEゲートウェイ(ATOMS3 Lite, `epcube_gateway.ino` v1.0.0)の
-HTTP API から取得してローカル SQLite に保存し、Cloudflare Workers + D1 (`cf` CLI) で公開ダッシュボード (`https://solar.yusukesakai.com`) を配信するリポジトリです。
+EP CUBE の PV1〜4・システム値・BMS（セル電圧/温度）を、BLE ゲートウェイ（M5Stack ATOMS3 Lite）の HTTP API から **Cloudflare Tunnel (`cloudflared`) + Workers VPC + Cloudflare Workers (Cron Trigger)** 経由で直接取得して **Cloudflare D1** に蓄積し、公開ダッシュボード（`https://solar.yusukesakai.com`）を配信するリポジトリです。
+
+## システム構成
+
+```text
+EP CUBE ⇄ ATOMS3 Lite (192.168.0.36:80)
+              ▲
+              │ (LAN内 HTTP)
+         cloudflared (自宅サーバ上の Tunnel 中継のみ)
+              ▲
+              │ Workers VPC (EP_GATEWAY)
+    Cloudflare Worker (Cron * * * * * / 毎分)
+              │
+              ▼
+        Cloudflare D1 (minute_samples / bms_snapshots / daily_summary)
+              │
+              ▼
+    Cloudflare Worker (/api/dashboard + Cache API) → ブラウザ (EP VIEW)
+```
+
+※ ローカル SQLite や Python 常駐スクリプトは不要です。自宅サーバでは Tunnel 中継用の `cloudflared.service` のみを稼働させます。
 
 ## ディレクトリ構成
 
-```
+```text
 ~/solar/
 ├── README.md
-├── pyproject.toml                 # epcube-collector (Python取り込み・同期CLI)
-├── package.json                   # Cloudflare (cf CLI + @cloudflare/vite-plugin)
-├── cloudflare.config.ts           # cf CLI 設定ファイル (Worker + D1 + Assets + 環境変数)
-├── vite.config.ts                 # Vite + Cloudflare プラグイン設定
-├── index.html                     # ENERGY FLOW ダッシュボード HTML
+├── package.json                       # Cloudflare (cf CLI + Vite + React + Recharts)
+├── package-lock.json
+├── cloudflare.config.ts               # cf CLI 設定 (Worker / Cron / D1 / Workers VPC / 環境変数)
+├── tsconfig.json
+├── vite.config.ts                     # Vite + @cloudflare/vite-plugin 設定
+├── index.html                         # EP VIEW ダッシュボード HTML
 ├── web/
-│   ├── worker.ts                  # Cloudflare Worker (/api/dashboard, /api/ingest)
-│   ├── main.ts                    # フロントエンド描画ロジック (実データ・1分自動更新)
-│   └── style.css                  # ENERGY FLOW ダッシュボード CSS
-├── migrations/
-│   └── 0001_init.sql              # Cloudflare D1 スキーマ
-├── config/
-│   ├── epcube.env.example         # 環境変数ファイルの雛形
-│   └── epcube.env                 # 実ファイル(権限600、Git管理外)
-├── src/epcube_collector/
-│   ├── cli.py                     # サブコマンド (once / sync / show / latest / status)
-│   ├── config.py                  # 環境変数の読み込み
-│   ├── gateway.py                 # HTTP層(urllib、タイムアウト10秒、X-Api-Token)
-│   ├── parse.py                   # 応答のパース・検証、列定義(MINUTE_COLUMNS)
-│   ├── db.py                      # SQLite層(WAL、busy_timeout、user_version、UPSERT)
-│   ├── ingest.py                  # 取り込み手順・品質チェック・死活監視
-│   └── sync.py                    # Cloudflare D1 (/api/ingest) への差分同期
-├── systemd/
-│   ├── epcube-collector.service
-│   └── epcube-collector.timer
-├── tests/                         # pytest
-└── var/epcube.db                  # ローカルSQLite(Git管理外)
+│   ├── worker.ts                      # Cloudflare Worker (Cron直接取り込み + /api/dashboard)
+│   ├── main.ts                        # フロントエンド描画ロジック (非表示タブ時は自動更新停止)
+│   ├── SimulationChart.tsx            # PV GENERATION 月別推定/実績グラフ
+│   ├── PaybackChart.tsx               # PAYBACK PLAN 投資回収計画・実績グラフ
+│   └── style.css                      # EP VIEW ダッシュボード CSS
+└── migrations/
+    ├── 0001_init.sql                  # minute_samples / bms_snapshots 初期スキーマ
+    ├── 0002_daily_summary.sql         # daily_summary (日次サマリー) テーブル
+    └── 0003_past_daily_summary.sql    # 記録開始前 (2026-10-28〜11-14) の日次実績データ
 ```
 
-## 1. 公開サイト (Cloudflare Workers) の環境変数
+## 1. バインディング・環境変数 (Cloudflare Workers)
 
-[cloudflare.config.ts](file:///home/litoma/solar/cloudflare.config.ts) または Cloudflare ダッシュボードの **Settings → Variables and Secrets** で以下の環境変数を設定できます。
+[cloudflare.config.ts](file:///home/litoma/solar/cloudflare.config.ts) または Cloudflare ダッシュボードの **Settings → Variables and Secrets** で設定します。
+
+### 主なバインディング・動作設定
+
+| 項目名 | 種別 | 内容 |
+|---|---|---|
+| `DB` | D1 Binding | `epcube-solar`（1分値・BMS・日次サマリー保存先） |
+| `ASSETS` | Assets Binding | Vite でビルドした静的アセット配信 |
+| `EP_GATEWAY` | Workers VPC Service | Tunnel 経由で自宅 LAN 内 `192.168.0.36:80` へプライベート接続 |
+| `SOLAR_SITE_ORIGIN` | Text | Cron 取り込み後のエッジキャッシュ破棄対象オリジン（既定 `https://solar.yusukesakai.com`） |
+| `GW_TOKEN` | Secret（任意） | ゲートウェイ側で `API_TOKEN` を有効化した場合に `X-Api-Token` として送信 |
+
+### サイト設定用 環境変数
 
 | 環境変数名 | コード初期値 | 今回のサイト設定値 | 説明 |
 |---|---|---|---|
@@ -56,34 +76,55 @@ HTTP API から取得してローカル SQLite に保存し、Cloudflare Workers
 | `SOLAR_INITIAL_COST_YEN` / `SOLAR_SUBSIDY_YEN` | `3500000` / `2400000` | **`3500000` / `2400000`** | 導入総額（350万円）および自治体補助金（240万円） |
 | `SOLAR_LATITUDE` / `SOLAR_LONGITUDE` | 自動解決 | 自動解決 (`35.7356`, `139.6517`) | 緯度・経度を直接数値で上書きしたい場合のみ指定 |
 
-## 2. ローカル収集・D1同期 (`epcube-collector`)
+## 2. データ取り込み・D1 読み取り削減の仕組み
 
-### 動作確認
+- **毎分 Cron 取り込み (`* * * * *`)**:
+  - Worker の `scheduled` ハンドラが `minute_samples` / `bms_snapshots` の最新 `ts`（計2行）だけを取得し、VPC 経由で `/api/minutes?since=<max_ts>&limit=30` を取得して D1 へ UPSERT します（無料枠の 50クエリ / CPU 10ms 上限対策で1回30件までに制限）。
+  - 新規分があれば `daily_summary` の当日行（1〜2行）のみを参照して増分・日積算値を更新します（Open-Meteo の天気・外気温も 300秒キャッシュ付きで同時記録）。
+  - 10分おき（585秒以上経過時）に `/api/latest?cells=1` を取得して 48セル・16温度センサー値を `bms_snapshots` へ保存します。
+- **ダッシュボード応答 (`GET /api/dashboard`)**:
+  - `minute_samples` の全件スキャンは行わず、最新1行 + BMS最新1行 + `daily_summary`（1日1行）のみを読み取ります。
+  - Cache API（10〜60秒の動的 TTL、クライアント返却は `cache-control: no-store`）を併用し、複数端末・複数タブからの閲覧でも D1 読み取りを最小限に抑えています。
+  - フロントエンド（[main.ts](file:///home/litoma/solar/web/main.ts)）は非表示タブ時は自動更新タイマーを停止し、再表示時（`visibilitychange`）に即座に再取得します。
+
+## 3. ビルド・デプロイ・運用コマンド
+
+通常は `main` ブランチへのプッシュで Cloudflare Workers Builds が自動ビルド・デプロイを行います（`npm run build` → `npx cf deploy --prebuilt`）。
 
 ```bash
-cd ~/solar && set -a; . config/epcube.env; set +a
-.venv/bin/epcube-collector latest            # ゲートウェイの生値・統計(JSON)
-.venv/bin/epcube-collector once --dry-run    # 取得して表示するだけ(保存しない)
-.venv/bin/epcube-collector once              # SQLiteへ取り込み + Cloudflare D1へ差分同期
-.venv/bin/epcube-collector sync --dry-run    # D1への未同期件数を確認
-.venv/bin/epcube-collector sync              # D1へ手動で差分同期を実行
-.venv/bin/epcube-collector show --last 10
-.venv/bin/epcube-collector status
-.venv/bin/python -m pytest -q
+# 型チェック・本番ビルド
+npx tsc --noEmit && npm run build
+
+# 手動デプロイ / トリガー反映
+npm run deploy
+npx cf workers triggers deploy --prebuilt
+
+# D1 データ確認・アナリティクス確認
+npx cf d1 query d85e2057-3eda-4fc8-bf60-f1e9195a5f60 --sql "SELECT jst_date, solar_kwh, sell_kwh, buy_kwh, load_kwh, samples FROM daily_summary ORDER BY jst_date DESC LIMIT 10"
 ```
 
-## 3. ENERGY FLOW ダッシュボードのデータ対応表
+自宅サーバでは `cloudflared.service` が稼働している必要があります。
+
+## 4. EP VIEW ダッシュボードの構成とデータ対応表
+
+### SUMMARY
 
 | 表示項目 | 取得元 | 内容・計算式 |
 |---|---|---|
-| `SOLAR` `kW` / `TODAY kWh` | ゲートウェイ | `solar_w / 1000`、`solar_day_kwh` |
-| `USE` `kW` / `TODAY kWh` | ゲートウェイ | `load_w / 1000`、`load_day_kwh` |
-| `BUY` `kW` / `TODAY kWh` | ゲートウェイ | `grid_w`（正の部分 `/ 1000`）、`buy_day_kwh` |
-| `SELL` `kW` / `TODAY kWh` | ゲートウェイ + 計算 | `grid_w`（負の部分の絶対値 `/ 1000`）、当日の `grid_w < 0` の1分積算値（kWh） |
-| `BATTERY` `%` / `kWh` / `CAPACITY` | ゲートウェイ + 設定値 | `soc`、`SOLAR_BATTERY_CAPACITY_KWH × soc / 100` |
-| 充放電 `kW`・状態ラベル | ゲートウェイ | `batt_w` の符号を反転（正=充電 `CHARGING`、負=放電 `DISCHARGING`、0付近=`IDLE`） |
+| `SOLAR` `kW` / `kWh/d` | ゲートウェイ | `solar_w / 1000`、`solar_day_kwh` |
+| `USE` `kW` / `kWh/d` | ゲートウェイ | `load_w / 1000`、`load_day_kwh` |
+| `BATTERY` `%` / `kWh` / `MAX` | ゲートウェイ + 設定値 | `soc`、`SOLAR_BATTERY_CAPACITY_KWH × soc / 100` |
+| 充放電 `kW`・状態ラベル | ゲートウェイ | `batt_w` の符号反転（正=充電 `CHARGING`、負=放電 `DISCHARGING`、0付近=`IDLE`） |
+| `BUY` `kW` / `kWh/d` | ゲートウェイ | `grid_w`（正の部分 `/ 1000`）、`buy_day_kwh` |
+| `SELL` `kW` / `kWh/d` | ゲートウェイ + 計算 | `grid_w`（負の部分の絶対値 `/ 1000`）、当日の `grid_w < 0` 積算値（`daily_summary.sell_kwh`） |
 | `SELF %` | 計算 | 自給率 `(load_day_kwh - buy_day_kwh) ÷ load_day_kwh × 100` |
-| `EST`（残り時間） | 計算 | `蓄電池残量kWh ÷ 現在の使用電力kW` |
+| `EST`（残り時間） | 計算 | `蓄電池残量kWh ÷ 現在の使用電力kW`（無負荷時は充放電電力） |
 | 日の出・南中・日の入り・太陽位置 | 計算 | `SOLAR_LOCATION`（東京都練馬区）の緯度経度から天文計算（NOAA式） |
-| 天気アイコン・気温 (`weather_code` / `outdoor_temp_c`) | Open-Meteo → SQLite / D1 | 1分ごとの `epcube-collector once` 実行時に Open-Meteo から取得し、`minute_samples` テーブルに毎分記録・D1同期 |
-| `VALUE` / `COST` / `REV` (`¥`) | 設定値 + 計算 | `VALUE = 発電量 × 買電単価(35円)`、`COST = 買電量 × 買電単価(35円)`、`REV = 売電量 × 売電単価(24円)` |
+| 天気アイコン・気温 | Open-Meteo → D1 | Cron 取り込み時に `minute_samples` へ記録（欠損時はダッシュボード側でフォールバック取得） |
+| `VALUE` / `COST` / `REV` (`¥`) | 設定値 + 計算 | `VALUE = 発電量 × 買電単価`、`COST = 買電量 × 買電単価`、`REV = 売電量 × 当該年売電単価` |
+
+### その他セクション
+- **PV STRINGS**: 1ページ目に方角別の発電電力・当日発電量（`daily_summary.pv1〜4_kwh`）と屋根レイアウト図、2ページ目に搭載パネル仕様詳細を表示します。
+- **PV GENERATION**: `daily_summary` から当年月別の実績発電量を集計し、年間シミュレーション値（6,348 kWh/年）と比較表示します。
+- **PAYBACK PLAN**: 全期間の `daily_summary` から自家消費節約額＋売電収益を算出し、投資回収目標（110万円）に対する進捗・年次予測・単価設定を表示します。
+- **BMS STATUS**: `PACK`（総電圧とセル平均×48の整合性）・`TEMP`（16温度センサー 2×8）・`CELL`（48セル電圧 4×12）を表示します。

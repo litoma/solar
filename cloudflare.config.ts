@@ -65,11 +65,6 @@ export default defineConfig({
       SOLAR_SUBSIDY_YEN: bindings.text(
         process.env.SOLAR_SUBSIDY_YEN || "2400000",
       ),
-      // 取り込みトークンのSHA-256ハッシュ (平文トークンはサーバの config/epcube.env にのみ保持)
-      INGEST_TOKEN_SHA256: bindings.text(
-        process.env.INGEST_TOKEN_SHA256 ||
-          "27d0a917b8307f76d757ff85691656112b2227bd33a132c334faae28c8bf9b86",
-      ),
     },
   },
 });

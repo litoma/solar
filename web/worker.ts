@@ -29,7 +29,7 @@ export interface Env {
   EP_GATEWAY?: Fetcher;
   SOLAR_SITE_ORIGIN?: string;
   GW_TOKEN?: string;
-  // 環境変数 (未設定時は下記の初期値を使用)
+  // 太陽光発電・投資回収・システム設定用 環境変数 (未設定時は下記の初期値を使用)
   SOLAR_LOCATION?: string;
   SOLAR_LATITUDE?: string;
   SOLAR_LONGITUDE?: string;
@@ -45,9 +45,6 @@ export interface Env {
   SOLAR_PAYBACK_TARGET_YEN?: string;
   SOLAR_INITIAL_COST_YEN?: string;
   SOLAR_SUBSIDY_YEN?: string;
-  // 取り込み認証 (平文シークレットまたはSHA-256ハッシュ)
-  INGEST_TOKEN?: string;
-  INGEST_TOKEN_SHA256?: string;
 }
 
 // 初期値
@@ -164,11 +161,6 @@ const CREATE_TABLES_SQL = [
   )`,
 ];
 
-const ALTER_COLUMNS_SQL = [
-  "ALTER TABLE minute_samples ADD COLUMN weather_code INTEGER",
-  "ALTER TABLE minute_samples ADD COLUMN outdoor_temp_c REAL",
-];
-
 const UPSERT_MINUTE_SQL =
   `INSERT INTO minute_samples (${MINUTE_COLS.join(", ")}) ` +
   `VALUES (${MINUTE_COLS.map(() => "?").join(", ")}) ` +
@@ -177,7 +169,7 @@ const UPSERT_MINUTE_SQL =
     .map((c) => `${c} = excluded.${c}`)
     .join(", ");
 
-// 日別サマリー (収集プログラムがローカルSQLiteで集計した絶対値をUPSERTする)
+// 日別サマリー (Cron 取り込み時に当日分を増分・日積算更新する)
 const DAILY_COLS = [
   "jst_date",
   "solar_kwh",
@@ -217,7 +209,7 @@ interface DailySummaryRow {
 // /api/dashboard のエッジキャッシュ (Cache API)。D1 へのアクセスを最大で約1分に1回に抑える
 const DASHBOARD_CACHE_MIN_SEC = 10;
 const DASHBOARD_CACHE_MAX_SEC = 60;
-// 1分値 ts の分は ts+60 で確定し、収集プログラムが毎分20秒に送るため、次のデータは概ね ts+140秒頃に届く
+// 1分値 ts の分が確定し、毎分 Cron 取り込みで反映されるまでの目安秒数
 const NEXT_DATA_ARRIVAL_SEC = 150;
 
 const UPSERT_SNAPSHOT_SQL =
@@ -229,13 +221,6 @@ let schemaInitialized = false;
 async function ensureSchema(db: D1Database): Promise<void> {
   if (schemaInitialized) return;
   await db.batch(CREATE_TABLES_SQL.map((sql) => db.prepare(sql)));
-  for (const sql of ALTER_COLUMNS_SQL) {
-    try {
-      await db.prepare(sql).run();
-    } catch {
-      // 既に列が存在する場合は無視
-    }
-  }
   schemaInitialized = true;
 }
 
@@ -249,9 +234,6 @@ export default {
 
     if (url.pathname === "/api/dashboard" && request.method === "GET") {
       return handleDashboardCached(request, env, ctx);
-    }
-    if (url.pathname === "/api/ingest" && request.method === "POST") {
-      return handleIngest(request, env, ctx);
     }
     if (url.pathname.startsWith("/api/")) {
       return jsonResponse({ error: "Not Found" }, 404);
@@ -477,113 +459,6 @@ async function geocodeOpenMeteo(
   } catch {
     return null;
   }
-}
-
-async function sha256Hex(input: string): Promise<string> {
-  const bytes = new TextEncoder().encode(input);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-async function verifyIngestAuth(request: Request, env: Env): Promise<boolean> {
-  const auth = request.headers.get("authorization") || "";
-  const token = auth.startsWith("Bearer ")
-    ? auth.slice(7).trim()
-    : (request.headers.get("x-ingest-token") || "").trim();
-  if (!token) return false;
-
-  const expectedPlain = (env.INGEST_TOKEN || "").trim();
-  if (expectedPlain) {
-    return token === expectedPlain;
-  }
-  const expectedHash = (env.INGEST_TOKEN_SHA256 || "").trim().toLowerCase();
-  if (expectedHash) {
-    const actualHash = await sha256Hex(token);
-    return actualHash === expectedHash;
-  }
-  return false;
-}
-
-async function handleIngest(
-  request: Request,
-  env: Env,
-  ctx: ExecutionContext,
-): Promise<Response> {
-  if (!(await verifyIngestAuth(request, env))) {
-    return jsonResponse({ error: "Unauthorized" }, 401);
-  }
-
-  let body: {
-    minutes?: Record<string, unknown>[];
-    snapshots?: Record<string, unknown>[];
-    daily?: Record<string, unknown>[];
-  };
-  try {
-    body = (await request.json()) as typeof body;
-  } catch {
-    return jsonResponse({ error: "Invalid JSON" }, 400);
-  }
-
-  await ensureSchema(env.DB);
-
-  const stmts: D1PreparedStatement[] = [];
-  const minutes = Array.isArray(body.minutes) ? body.minutes : [];
-  for (const row of minutes) {
-    if (!row || typeof row.ts !== "number") continue;
-    const values = MINUTE_COLS.map((col) => {
-      const v = row[col];
-      return typeof v === "number" && Number.isFinite(v) ? v : null;
-    });
-    stmts.push(env.DB.prepare(UPSERT_MINUTE_SQL).bind(...values));
-  }
-
-  const snapshots = Array.isArray(body.snapshots) ? body.snapshots : [];
-  for (const snap of snapshots) {
-    if (!snap || typeof snap.ts !== "number") continue;
-    const cellsJson =
-      typeof snap.cells_json === "string" ? snap.cells_json : null;
-    const tempsJson =
-      typeof snap.temps_json === "string" ? snap.temps_json : null;
-    stmts.push(
-      env.DB.prepare(UPSERT_SNAPSHOT_SQL).bind(snap.ts, cellsJson, tempsJson),
-    );
-  }
-
-  const daily = Array.isArray(body.daily) ? body.daily : [];
-  let dailyUpserted = 0;
-  for (const row of daily) {
-    if (
-      !row ||
-      typeof row.jst_date !== "string" ||
-      !/^\d{4}-\d{2}-\d{2}$/.test(row.jst_date)
-    ) {
-      continue;
-    }
-    const values = DAILY_COLS.map((col) => {
-      const v = row[col];
-      if (col === "jst_date") return v as string;
-      return typeof v === "number" && Number.isFinite(v) ? v : null;
-    });
-    stmts.push(env.DB.prepare(UPSERT_DAILY_SQL).bind(...values));
-    dailyUpserted += 1;
-  }
-
-  // D1 batch limit を考慮して100件ずつ実行
-  await execBatched(env.DB, stmts);
-
-  // 新規データが取り込まれた同一エッジのダッシュボードキャッシュを破棄して即時反映する
-  if (minutes.length > 0 || dailyUpserted > 0) {
-    purgeDashboardCache(new URL(request.url).origin, ctx);
-  }
-
-  return jsonResponse({
-    ok: true,
-    minutes_upserted: minutes.length,
-    snapshots_upserted: snapshots.length,
-    daily_upserted: dailyUpserted,
-  });
 }
 
 const GATEWAY_MINUTES_LIMIT = 30;
