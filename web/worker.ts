@@ -26,6 +26,9 @@ export interface SiteConfig {
 export interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
+  EP_GATEWAY?: Fetcher;
+  SOLAR_SITE_ORIGIN?: string;
+  GW_TOKEN?: string;
   // 環境変数 (未設定時は下記の初期値を使用)
   SOLAR_LOCATION?: string;
   SOLAR_LATITUDE?: string;
@@ -255,6 +258,14 @@ export default {
     }
 
     return env.ASSETS.fetch(request);
+  },
+
+  async scheduled(
+    _controller: ScheduledController,
+    env: Env,
+    ctx: ExecutionContext,
+  ): Promise<void> {
+    await handleScheduledIngest(env, ctx);
   },
 };
 
@@ -560,21 +571,11 @@ async function handleIngest(
   }
 
   // D1 batch limit を考慮して100件ずつ実行
-  const CHUNK_SIZE = 100;
-  for (let i = 0; i < stmts.length; i += CHUNK_SIZE) {
-    await env.DB.batch(stmts.slice(i, i + CHUNK_SIZE));
-  }
+  await execBatched(env.DB, stmts);
 
   // 新規データが取り込まれた同一エッジのダッシュボードキャッシュを破棄して即時反映する
   if (minutes.length > 0 || dailyUpserted > 0) {
-    const cache = (globalThis as unknown as { caches?: { default?: Cache } })
-      .caches?.default;
-    if (cache) {
-      const origin = new URL(request.url).origin;
-      ctx.waitUntil(
-        cache.delete(new Request(`${origin}/api/dashboard`, { method: "GET" })),
-      );
-    }
+    purgeDashboardCache(new URL(request.url).origin, ctx);
   }
 
   return jsonResponse({
@@ -583,6 +584,414 @@ async function handleIngest(
     snapshots_upserted: snapshots.length,
     daily_upserted: dailyUpserted,
   });
+}
+
+const GATEWAY_MINUTES_LIMIT = 30;
+const GATEWAY_FETCH_TIMEOUT_MS = 8000;
+const SNAPSHOT_INTERVAL_SEC = 600;
+const SNAPSHOT_MAX_AGE_SEC = 120;
+const GATEWAY_INTERNAL_ORIGIN = "http://192.168.0.36";
+
+type ParsedMinuteRow = Partial<Record<(typeof MINUTE_COLS)[number], number | null>> & {
+  ts: number;
+};
+
+function toReal(value: unknown): number | null {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === "string" && value.trim() !== "") {
+    const n = Number(value.trim());
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function toInt(value: unknown): number | null {
+  const n = toReal(value);
+  return n === null ? null : Math.round(n);
+}
+
+function round4(value: number): number {
+  return Math.round(value * 10000) / 10000;
+}
+
+function purgeDashboardCache(origin: string, ctx: ExecutionContext): void {
+  const cache = (globalThis as unknown as { caches?: { default?: Cache } })
+    .caches?.default;
+  if (!cache) return;
+  ctx.waitUntil(
+    cache.delete(new Request(`${origin}/api/dashboard`, { method: "GET" })),
+  );
+}
+
+async function execBatched(
+  db: D1Database,
+  stmts: D1PreparedStatement[],
+): Promise<void> {
+  const CHUNK_SIZE = 100;
+  for (let i = 0; i < stmts.length; i += CHUNK_SIZE) {
+    await db.batch(stmts.slice(i, i + CHUNK_SIZE));
+  }
+}
+
+async function queryIngestWatermarks(
+  db: D1Database,
+): Promise<{ maxMinuteTs: number | null; maxSnapTs: number | null }> {
+  const stmts = [
+    db.prepare("SELECT MAX(ts) AS max_ts FROM minute_samples"),
+    db.prepare("SELECT MAX(ts) AS max_ts FROM bms_snapshots"),
+  ];
+  let results: D1Result<{ max_ts: number | null }>[];
+  try {
+    results = await db.batch<{ max_ts: number | null }>(stmts);
+  } catch (err) {
+    if (err instanceof Error && /no such table/i.test(err.message)) {
+      await ensureSchema(db);
+      results = await db.batch<{ max_ts: number | null }>(stmts);
+    } else {
+      throw err;
+    }
+  }
+  const m = results[0]?.results?.[0]?.max_ts;
+  const s = results[1]?.results?.[0]?.max_ts;
+  return {
+    maxMinuteTs: typeof m === "number" ? m : null,
+    maxSnapTs: typeof s === "number" ? s : null,
+  };
+}
+
+async function fetchGatewayJson(
+  gateway: Fetcher,
+  pathAndQuery: string,
+  gwToken?: string,
+): Promise<unknown> {
+  const headers: Record<string, string> = { Accept: "application/json" };
+  const token = gwToken?.trim();
+  if (token) {
+    headers["X-Api-Token"] = token;
+  }
+  const resp = await gateway.fetch(`${GATEWAY_INTERNAL_ORIGIN}${pathAndQuery}`, {
+    method: "GET",
+    headers,
+    signal: AbortSignal.timeout(GATEWAY_FETCH_TIMEOUT_MS),
+  });
+  if (!resp.ok) {
+    throw new Error(`Gateway HTTP ${resp.status} for ${pathAndQuery}`);
+  }
+  return await resp.json();
+}
+
+function parseGatewayMinutes(
+  raw: unknown,
+  sinceTs: number | null,
+  serverNowSec: number,
+): ParsedMinuteRow[] {
+  if (!raw || typeof raw !== "object") return [];
+  const obj = raw as Record<string, unknown>;
+  if (obj.time_valid !== true || !Array.isArray(obj.minutes)) {
+    return [];
+  }
+  const gwNow = toInt(obj.now);
+  const limitTs = Math.max(serverNowSec, gwNow ?? 0) + 60;
+  const byTs = new Map<number, ParsedMinuteRow>();
+
+  for (const item of obj.minutes) {
+    if (!item || typeof item !== "object") continue;
+    const rec = item as Record<string, unknown>;
+    const rawTs = rec.ts;
+    if (
+      typeof rawTs !== "number" ||
+      !Number.isInteger(rawTs) ||
+      rawTs <= 0 ||
+      rawTs % 60 !== 0
+    ) {
+      continue;
+    }
+    if ((sinceTs !== null && rawTs <= sinceTs) || rawTs > limitTs) {
+      continue;
+    }
+    const nVal = toInt(rec.n);
+    const row: ParsedMinuteRow = {
+      ts: rawTs,
+      n: nVal !== null && nVal >= 0 ? nVal : null,
+    };
+
+    const pvArr = Array.isArray(rec.pv) ? rec.pv : [];
+    const dyn = row as Record<string, number | null>;
+    for (let idx = 1; idx <= 4; idx++) {
+      const pv = pvArr[idx - 1];
+      const pObj =
+        pv && typeof pv === "object" ? (pv as Record<string, unknown>) : null;
+      dyn[`pv${idx}_p_avg_w`] = pObj ? toReal(pObj.p_avg) : null;
+      dyn[`pv${idx}_p_min_w`] = pObj ? toInt(pObj.p_min) : null;
+      dyn[`pv${idx}_p_max_w`] = pObj ? toInt(pObj.p_max) : null;
+      dyn[`pv${idx}_v`] = pObj ? toReal(pObj.v) : null;
+      dyn[`pv${idx}_i`] = pObj ? toReal(pObj.i) : null;
+    }
+
+    const sys =
+      rec.sys && typeof rec.sys === "object"
+        ? (rec.sys as Record<string, unknown>)
+        : {};
+    row.solar_w = toReal(sys.solar_w);
+    row.grid_w = toReal(sys.grid_w);
+    row.load_w = toReal(sys.load_w);
+    row.batt_w = toReal(sys.batt_w);
+    row.pcs_w = toReal(sys.pcs_w);
+    row.soc = toInt(sys.soc);
+    row.mode = toInt(sys.mode);
+    row.solar_day_kwh = toReal(sys.solar_day_kwh);
+    row.buy_day_kwh = toReal(sys.buy_day_kwh);
+    row.load_day_kwh = toReal(sys.load_day_kwh);
+
+    const bms =
+      rec.bms && typeof rec.bms === "object"
+        ? (rec.bms as Record<string, unknown>)
+        : {};
+    row.pack_v = toReal(bms.pack_v);
+    row.cell_max_mv = toInt(bms.cell_max_mv);
+    row.cell_min_mv = toInt(bms.cell_min_mv);
+    row.cell_avg_mv = toInt(bms.cell_avg_mv);
+    row.temp_max_c = toInt(bms.temp_max_c);
+    row.temp_min_c = toInt(bms.temp_min_c);
+    row.temp_avg_c = toReal(bms.temp_avg_c);
+
+    byTs.set(rawTs, row);
+  }
+
+  return Array.from(byTs.values()).sort((a, b) => a.ts - b.ts);
+}
+
+function parseGatewaySnapshot(
+  raw: unknown,
+  prevSnapTs: number | null,
+): { ts: number; cellsJson: string; tempsJson: string | null } | null {
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as Record<string, unknown>;
+  if (obj.time_valid !== true) return null;
+  const gwNow = toInt(obj.now);
+  const slow =
+    obj.slow && typeof obj.slow === "object"
+      ? (obj.slow as Record<string, unknown>)
+      : null;
+  if (!slow || gwNow === null) return null;
+  const ageS = toInt(slow.age_s);
+  if (ageS === null || ageS < 0 || ageS > SNAPSHOT_MAX_AGE_SEC) return null;
+  if (!Array.isArray(slow.cells_mv) || slow.cells_mv.length === 0) return null;
+
+  const cellsMv = slow.cells_mv
+    .map((v) => toInt(v))
+    .filter((v): v is number => v !== null);
+  if (cellsMv.length === 0) return null;
+
+  const snapTs = Math.floor((gwNow - ageS) / 60) * 60;
+  if (prevSnapTs !== null && snapTs <= prevSnapTs) return null;
+
+  let tempsJson: string | null = null;
+  if (Array.isArray(slow.temps_c) && slow.temps_c.length > 0) {
+    const tempsC = slow.temps_c
+      .map((v) => toInt(v))
+      .filter((v): v is number => v !== null);
+    if (tempsC.length > 0) {
+      tempsJson = JSON.stringify(tempsC);
+    }
+  }
+  return {
+    ts: snapTs,
+    cellsJson: JSON.stringify(cellsMv),
+    tempsJson,
+  };
+}
+
+async function buildDailyUpsertStmts(
+  db: D1Database,
+  minutes: ParsedMinuteRow[],
+  tzOffsetMin: number,
+): Promise<D1PreparedStatement[]> {
+  if (minutes.length === 0) return [];
+  const tzSec = tzOffsetMin * 60;
+  const byDate = new Map<string, ParsedMinuteRow[]>();
+  for (const m of minutes) {
+    const jstDate = new Date((m.ts + tzSec) * 1000).toISOString().slice(0, 10);
+    const list = byDate.get(jstDate) ?? [];
+    list.push(m);
+    byDate.set(jstDate, list);
+  }
+
+  const dates = Array.from(byDate.keys()).sort();
+  const placeholders = dates.map(() => "?").join(", ");
+  const existingRes = await db
+    .prepare(
+      `SELECT ${DAILY_COLS.join(", ")} FROM daily_summary WHERE jst_date IN (${placeholders})`,
+    )
+    .bind(...dates)
+    .all<DailySummaryRow>();
+
+  const existingByDate = new Map<string, DailySummaryRow>();
+  for (const r of existingRes.results || []) {
+    existingByDate.set(r.jst_date, r);
+  }
+
+  const stmts: D1PreparedStatement[] = [];
+  for (const jstDate of dates) {
+    const dayMins = byDate.get(jstDate) ?? [];
+    const cur = existingByDate.get(jstDate);
+    let lastTs = cur?.last_ts ?? -1;
+    let samples = cur?.samples ?? 0;
+    let solarKwh = cur?.solar_kwh ?? 0;
+    let sellKwh = cur?.sell_kwh ?? 0;
+    let buyKwh = cur?.buy_kwh ?? 0;
+    let loadKwh = cur?.load_kwh ?? 0;
+    let pv1Kwh = cur?.pv1_kwh ?? 0;
+    let pv2Kwh = cur?.pv2_kwh ?? 0;
+    let pv3Kwh = cur?.pv3_kwh ?? 0;
+    let pv4Kwh = cur?.pv4_kwh ?? 0;
+    let updated = false;
+
+    for (const m of dayMins) {
+      if (m.ts <= lastTs) continue;
+      updated = true;
+      lastTs = m.ts;
+      samples += 1;
+
+      if (m.solar_day_kwh !== null && m.solar_day_kwh !== undefined) {
+        solarKwh = Math.max(solarKwh, m.solar_day_kwh);
+      } else if (m.solar_w && m.solar_w > 0) {
+        solarKwh += m.solar_w / 60000;
+      }
+
+      if (m.buy_day_kwh !== null && m.buy_day_kwh !== undefined) {
+        buyKwh = Math.max(buyKwh, m.buy_day_kwh);
+      } else if (m.grid_w && m.grid_w > 0) {
+        buyKwh += m.grid_w / 60000;
+      }
+
+      if (m.load_day_kwh !== null && m.load_day_kwh !== undefined) {
+        loadKwh = Math.max(loadKwh, m.load_day_kwh);
+      } else if (m.load_w && m.load_w > 0) {
+        loadKwh += m.load_w / 60000;
+      }
+
+      if (m.grid_w && m.grid_w < 0) sellKwh += -m.grid_w / 60000;
+      if (m.pv1_p_avg_w && m.pv1_p_avg_w > 0) pv1Kwh += m.pv1_p_avg_w / 60000;
+      if (m.pv2_p_avg_w && m.pv2_p_avg_w > 0) pv2Kwh += m.pv2_p_avg_w / 60000;
+      if (m.pv3_p_avg_w && m.pv3_p_avg_w > 0) pv3Kwh += m.pv3_p_avg_w / 60000;
+      if (m.pv4_p_avg_w && m.pv4_p_avg_w > 0) pv4Kwh += m.pv4_p_avg_w / 60000;
+    }
+
+    if (!updated) continue;
+    stmts.push(
+      db
+        .prepare(UPSERT_DAILY_SQL)
+        .bind(
+          jstDate,
+          round4(solarKwh),
+          round4(sellKwh),
+          round4(buyKwh),
+          round4(loadKwh),
+          round4(pv1Kwh),
+          round4(pv2Kwh),
+          round4(pv3Kwh),
+          round4(pv4Kwh),
+          samples,
+          lastTs,
+        ),
+    );
+  }
+  return stmts;
+}
+
+/**
+ * Cron Trigger (毎分) により Workers VPC 経由でゲートウェイから直接データを取得して D1 へ保存する。
+ * 無料プラン上限 (50クエリ/実行・CPU 10ms) に収まるよう、1回の取得は最大30件に制限する。
+ */
+async function handleScheduledIngest(
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<void> {
+  if (!env.EP_GATEWAY) {
+    console.error("EP_GATEWAY VPC binding is not configured");
+    return;
+  }
+
+  const cfg = await resolveSiteConfig(env);
+  const nowSec = Math.floor(Date.now() / 1000);
+  const { maxMinuteTs, maxSnapTs } = await queryIngestWatermarks(env.DB);
+
+  let parsedMinutes: ParsedMinuteRow[] = [];
+  try {
+    const minutesQuery =
+      `/api/minutes?limit=${GATEWAY_MINUTES_LIMIT}` +
+      (maxMinuteTs !== null ? `&since=${maxMinuteTs}` : "");
+    const rawMinutes = await fetchGatewayJson(
+      env.EP_GATEWAY,
+      minutesQuery,
+      env.GW_TOKEN,
+    );
+    parsedMinutes = parseGatewayMinutes(rawMinutes, maxMinuteTs, nowSec);
+  } catch (err) {
+    console.error("Scheduled /api/minutes fetch failed:", err);
+  }
+
+  if (parsedMinutes.length > 0) {
+    const weather = await fetchWeather(cfg.latitude, cfg.longitude, 300);
+    if (weather) {
+      for (const m of parsedMinutes) {
+        m.weather_code = weather.code;
+        m.outdoor_temp_c = weather.tempC;
+      }
+    }
+  }
+
+  let snapshot: { ts: number; cellsJson: string; tempsJson: string | null } | null =
+    null;
+  if (maxSnapTs === null || nowSec - maxSnapTs >= SNAPSHOT_INTERVAL_SEC - 15) {
+    try {
+      const rawLatest = await fetchGatewayJson(
+        env.EP_GATEWAY,
+        "/api/latest?cells=1",
+        env.GW_TOKEN,
+      );
+      snapshot = parseGatewaySnapshot(rawLatest, maxSnapTs);
+    } catch (err) {
+      console.error("Scheduled /api/latest fetch failed:", err);
+    }
+  }
+
+  if (parsedMinutes.length === 0 && !snapshot) {
+    return;
+  }
+
+  const stmts: D1PreparedStatement[] = [];
+  for (const row of parsedMinutes) {
+    const values = MINUTE_COLS.map((col) => row[col] ?? null);
+    stmts.push(env.DB.prepare(UPSERT_MINUTE_SQL).bind(...values));
+  }
+  if (snapshot) {
+    stmts.push(
+      env.DB.prepare(UPSERT_SNAPSHOT_SQL).bind(
+        snapshot.ts,
+        snapshot.cellsJson,
+        snapshot.tempsJson,
+      ),
+    );
+  }
+  const dailyStmts = await buildDailyUpsertStmts(
+    env.DB,
+    parsedMinutes,
+    cfg.timezoneOffsetMinutes,
+  );
+  stmts.push(...dailyStmts);
+
+  await execBatched(env.DB, stmts);
+
+  if (parsedMinutes.length > 0 || dailyStmts.length > 0) {
+    const siteOrigin = (env.SOLAR_SITE_ORIGIN || "").trim();
+    if (siteOrigin) {
+      purgeDashboardCache(siteOrigin, ctx);
+    }
+  }
 }
 
 /**
@@ -934,6 +1343,7 @@ const WMO_LABELS: Record<number, string> = {
 async function fetchWeather(
   lat: number,
   lon: number,
+  cacheTtl = 60,
 ): Promise<{
   code: number;
   condition: string;
@@ -943,7 +1353,7 @@ async function fetchWeather(
   const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&current=temperature_2m,weather_code&timezone=Asia%2FTokyo`;
   try {
     const resp = await fetch(apiUrl, {
-      cf: { cacheTtl: 60, cacheEverything: true },
+      cf: { cacheTtl, cacheEverything: true },
       signal: AbortSignal.timeout(2500),
     });
     if (!resp.ok) return null;

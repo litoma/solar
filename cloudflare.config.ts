@@ -1,10 +1,11 @@
-import { bindings, defineConfig } from "cf/config";
+import { bindings, defineConfig, triggers } from "cf/config";
 
 export default defineConfig({
   worker: {
     name: "solar",
     compatibilityDate: "2026-11-15",
     entrypoint: "./web/worker.ts",
+    triggers: [triggers.scheduled({ schedule: "* * * * *" })],
     assets: {
       notFoundHandling: "single-page-application",
       runWorkerFirst: ["/api/*"],
@@ -15,6 +16,16 @@ export default defineConfig({
         id: process.env.CLOUDFLARE_D1_ID,
       }),
       ASSETS: bindings.assets(),
+      // Workers VPC Service (epcube-gw -> zmshabin Tunnel -> 192.168.0.36:80)
+      EP_GATEWAY: bindings.vpcService({
+        id:
+          process.env.CLOUDFLARE_VPC_SERVICE_ID ||
+          "01a1ef69-d41b-7c00-a0cb-7f79c1c08be5",
+      }),
+      // Cron実行時のエッジキャッシュ無効化対象オリジン
+      SOLAR_SITE_ORIGIN: bindings.text(
+        process.env.SOLAR_SITE_ORIGIN || "https://solar.yusukesakai.com",
+      ),
 
       // 太陽光パネルの設置場所 (初期値: 東京都中央区 / 今回のサイト用: 東京都練馬区)
       SOLAR_LOCATION: bindings.text(process.env.SOLAR_LOCATION || "東京都練馬区"),
