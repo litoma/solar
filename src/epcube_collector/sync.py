@@ -29,7 +29,7 @@ META_SYNCED_SNAPSHOT_TS = "last_synced_snapshot_ts"
 # 全期間の日別サマリーをD1へ一括送信済みかどうか(Workerが daily を受け付けたときだけ立てる)
 META_DAILY_BACKFILLED = "daily_summary_backfilled"
 
-MINUTE_BATCH_SIZE = 200
+MINUTE_BATCH_SIZE = 100
 SNAPSHOT_BATCH_SIZE = 50
 DAILY_BATCH_SIZE = 90
 MAX_BATCHES_PER_RUN = 10
