@@ -1,0 +1,25 @@
+-- 本システムで1分値の記録を開始する前 (2026-10-28 〜 2026-11-14) の日次実績データ (EP CUBE 公式アプリ実績値)
+-- pv1〜pv4・samples・last_ts は分単位ログが存在しないため NULL
+-- 既存行 (2026-11-15 以降) を上書きしないよう INSERT OR IGNORE を使用する
+INSERT OR IGNORE INTO daily_summary (
+  jst_date, solar_kwh, sell_kwh, buy_kwh, load_kwh,
+  pv1_kwh, pv2_kwh, pv3_kwh, pv4_kwh, samples, last_ts
+) VALUES
+  ('2026-10-28', 4.92, 0.00, 0.72, 5.20, NULL, NULL, NULL, NULL, NULL, NULL),
+  ('2026-10-29', 9.77, 0.17, 0.93, 9.29, NULL, NULL, NULL, NULL, NULL, NULL),
+  ('2026-10-30', 8.34, 0.00, 0.93, 11.14, NULL, NULL, NULL, NULL, NULL, NULL),
+  ('2026-10-31', 16.81, 1.48, 1.84, 6.05, NULL, NULL, NULL, NULL, NULL, NULL),
+  ('2026-11-01', 14.85, 4.52, 0.84, 5.74, NULL, NULL, NULL, NULL, NULL, NULL),
+  ('2026-11-02', 3.69, 0.00, 1.18, 7.21, NULL, NULL, NULL, NULL, NULL, NULL),
+  ('2026-11-03', 11.42, 2.09, 0.98, 4.90, NULL, NULL, NULL, NULL, NULL, NULL),
+  ('2026-11-04', 3.69, 0.00, 1.14, 7.97, NULL, NULL, NULL, NULL, NULL, NULL),
+  ('2026-11-05', 5.57, 0.01, 1.17, 9.31, NULL, NULL, NULL, NULL, NULL, NULL),
+  ('2026-11-06', 14.82, 0.11, 1.04, 5.98, NULL, NULL, NULL, NULL, NULL, NULL),
+  ('2026-11-07', 15.57, 6.53, 0.93, 6.88, NULL, NULL, NULL, NULL, NULL, NULL),
+  ('2026-11-08', 14.51, 9.66, 0.87, 4.96, NULL, NULL, NULL, NULL, NULL, NULL),
+  ('2026-11-09', 2.36, 0.00, 1.16, 10.27, NULL, NULL, NULL, NULL, NULL, NULL),
+  ('2026-11-10', 3.11, 0.00, 5.64, 9.65, NULL, NULL, NULL, NULL, NULL, NULL),
+  ('2026-11-11', 15.04, 0.01, 4.15, 8.56, NULL, NULL, NULL, NULL, NULL, NULL),
+  ('2026-11-12', 14.47, 3.63, 0.97, 6.35, NULL, NULL, NULL, NULL, NULL, NULL),
+  ('2026-11-13', 14.65, 6.21, 0.96, 7.91, NULL, NULL, NULL, NULL, NULL, NULL),
+  ('2026-11-14', 9.41, 2.37, 1.00, 6.33, NULL, NULL, NULL, NULL, NULL, NULL);
