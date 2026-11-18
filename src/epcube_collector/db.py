@@ -115,6 +115,79 @@ def minutes_since(conn: sqlite3.Connection, since_ts: int, limit: int = 300) -> 
     return [dict(r) for r in rows]
 
 
+# ---------------------------------------------------------------- daily summary (D1送信用)
+
+JST_OFFSET_SEC = 9 * 3600
+
+# 日別サマリー (Cloudflare D1 の daily_summary テーブルへ送る。ローカルには保存せず毎回計算する)
+# 1分値は1分間の平均W なので、W / 60000 で kWh になる。
+_DAILY_SUMMARY_SQL = """
+SELECT
+  strftime('%Y-%m-%d', ts + :tz, 'unixepoch') AS jst_date,
+  COALESCE(MAX(solar_day_kwh),
+           SUM(CASE WHEN solar_w > 0 THEN solar_w ELSE 0 END) / 60000.0) AS solar_kwh,
+  SUM(CASE WHEN grid_w < 0 THEN -grid_w ELSE 0 END) / 60000.0 AS sell_kwh,
+  COALESCE(MAX(buy_day_kwh),
+           SUM(CASE WHEN grid_w > 0 THEN grid_w ELSE 0 END) / 60000.0) AS buy_kwh,
+  COALESCE(MAX(load_day_kwh),
+           SUM(CASE WHEN load_w > 0 THEN load_w ELSE 0 END) / 60000.0) AS load_kwh,
+  SUM(CASE WHEN pv1_p_avg_w > 0 THEN pv1_p_avg_w ELSE 0 END) / 60000.0 AS pv1_kwh,
+  SUM(CASE WHEN pv2_p_avg_w > 0 THEN pv2_p_avg_w ELSE 0 END) / 60000.0 AS pv2_kwh,
+  SUM(CASE WHEN pv3_p_avg_w > 0 THEN pv3_p_avg_w ELSE 0 END) / 60000.0 AS pv3_kwh,
+  SUM(CASE WHEN pv4_p_avg_w > 0 THEN pv4_p_avg_w ELSE 0 END) / 60000.0 AS pv4_kwh,
+  COUNT(*) AS samples,
+  MAX(ts) AS last_ts
+FROM minute_samples
+WHERE ts >= :start AND ts < :end
+GROUP BY jst_date
+ORDER BY jst_date ASC
+"""
+
+_DAILY_FLOAT_KEYS = (
+    "solar_kwh",
+    "sell_kwh",
+    "buy_kwh",
+    "load_kwh",
+    "pv1_kwh",
+    "pv2_kwh",
+    "pv3_kwh",
+    "pv4_kwh",
+)
+
+
+def jst_day_start(ts: int, tz_offset_sec: int = JST_OFFSET_SEC) -> int:
+    """ts を含む日(JST)の 0:00 を UTC epoch 秒で返す。"""
+    return (int(ts) + tz_offset_sec) // 86400 * 86400 - tz_offset_sec
+
+
+def daily_summaries(
+    conn: sqlite3.Connection,
+    start_ts: int | None = None,
+    end_ts: int | None = None,
+    tz_offset_sec: int = JST_OFFSET_SEC,
+) -> list[dict[str, Any]]:
+    """[start_ts, end_ts) の1分値から日(JST)ごとの発電量・売買電量・PV1〜4発電量を集計する。
+
+    値はその日の全1分値から計算した絶対値なので、何度送っても(UPSERTしても)二重計上されない。
+    """
+    rows = conn.execute(
+        _DAILY_SUMMARY_SQL,
+        {
+            "tz": tz_offset_sec,
+            "start": 0 if start_ts is None else int(start_ts),
+            "end": (1 << 62) if end_ts is None else int(end_ts),
+        },
+    ).fetchall()
+    result: list[dict[str, Any]] = []
+    for r in rows:
+        item = dict(r)
+        for key in _DAILY_FLOAT_KEYS:
+            v = item.get(key)
+            item[key] = None if v is None else round(float(v), 4)
+        result.append(item)
+    return result
+
+
 def count_rows(conn: sqlite3.Connection, table: str) -> int:
     if table not in ("minute_samples", "bms_snapshots"):
         raise ValueError(table)

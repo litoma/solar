@@ -134,7 +134,8 @@ def cmd_sync(cfg: Config, args: argparse.Namespace) -> int:
     try:
         res = sync_to_cloud(cfg, conn, dry_run=args.dry_run)
         print(
-            f"minutes={res.minutes_sent} 件, snapshots={res.snapshots_sent} 件 "
+            f"minutes={res.minutes_sent} 件, snapshots={res.snapshots_sent} 件, "
+            f"daily={res.daily_sent} 件 "
             f"(latest_ts={_local(res.last_minute_ts)})"
         )
     finally:

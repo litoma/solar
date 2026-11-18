@@ -153,6 +153,12 @@ const CREATE_TABLES_SQL = [
   `CREATE TABLE IF NOT EXISTS bms_snapshots (
     ts INTEGER PRIMARY KEY, cells_json TEXT, temps_json TEXT
   )`,
+  `CREATE TABLE IF NOT EXISTS daily_summary (
+    jst_date TEXT PRIMARY KEY,
+    solar_kwh REAL, sell_kwh REAL, buy_kwh REAL, load_kwh REAL,
+    pv1_kwh REAL, pv2_kwh REAL, pv3_kwh REAL, pv4_kwh REAL,
+    samples INTEGER, last_ts INTEGER
+  )`,
 ];
 
 const ALTER_COLUMNS_SQL = [
@@ -167,6 +173,49 @@ const UPSERT_MINUTE_SQL =
   MINUTE_COLS.filter((c) => c !== "ts")
     .map((c) => `${c} = excluded.${c}`)
     .join(", ");
+
+// 日別サマリー (収集プログラムがローカルSQLiteで集計した絶対値をUPSERTする)
+const DAILY_COLS = [
+  "jst_date",
+  "solar_kwh",
+  "sell_kwh",
+  "buy_kwh",
+  "load_kwh",
+  "pv1_kwh",
+  "pv2_kwh",
+  "pv3_kwh",
+  "pv4_kwh",
+  "samples",
+  "last_ts",
+] as const;
+
+const UPSERT_DAILY_SQL =
+  `INSERT INTO daily_summary (${DAILY_COLS.join(", ")}) ` +
+  `VALUES (${DAILY_COLS.map(() => "?").join(", ")}) ` +
+  `ON CONFLICT(jst_date) DO UPDATE SET ` +
+  DAILY_COLS.filter((c) => c !== "jst_date")
+    .map((c) => `${c} = excluded.${c}`)
+    .join(", ");
+
+interface DailySummaryRow {
+  jst_date: string;
+  solar_kwh: number | null;
+  sell_kwh: number | null;
+  buy_kwh: number | null;
+  load_kwh: number | null;
+  pv1_kwh: number | null;
+  pv2_kwh: number | null;
+  pv3_kwh: number | null;
+  pv4_kwh: number | null;
+  samples: number | null;
+  last_ts: number | null;
+}
+
+// /api/dashboard のエッジキャッシュ (Cache API)。D1 へのアクセスを最大で約1分に1回に抑える
+const DASHBOARD_CACHE_MIN_SEC = 10;
+const DASHBOARD_CACHE_MAX_SEC = 60;
+// 1分値 ts の分は ts+60 で確定し、収集プログラムが毎分20秒に送るため、次のデータは概ね ts+140秒頃に届く
+const NEXT_DATA_ARRIVAL_SEC = 150;
 
 const UPSERT_SNAPSHOT_SQL =
   `INSERT INTO bms_snapshots (ts, cells_json, temps_json) VALUES (?, ?, ?) ` +
@@ -188,14 +237,18 @@ async function ensureSchema(db: D1Database): Promise<void> {
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(
+    request: Request,
+    env: Env,
+    ctx: ExecutionContext,
+  ): Promise<Response> {
     const url = new URL(request.url);
 
     if (url.pathname === "/api/dashboard" && request.method === "GET") {
-      return handleDashboard(env);
+      return handleDashboardCached(request, env, ctx);
     }
     if (url.pathname === "/api/ingest" && request.method === "POST") {
-      return handleIngest(request, env);
+      return handleIngest(request, env, ctx);
     }
     if (url.pathname.startsWith("/api/")) {
       return jsonResponse({ error: "Not Found" }, 404);
@@ -442,7 +495,11 @@ async function verifyIngestAuth(request: Request, env: Env): Promise<boolean> {
   return false;
 }
 
-async function handleIngest(request: Request, env: Env): Promise<Response> {
+async function handleIngest(
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<Response> {
   if (!(await verifyIngestAuth(request, env))) {
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
@@ -450,6 +507,7 @@ async function handleIngest(request: Request, env: Env): Promise<Response> {
   let body: {
     minutes?: Record<string, unknown>[];
     snapshots?: Record<string, unknown>[];
+    daily?: Record<string, unknown>[];
   };
   try {
     body = (await request.json()) as typeof body;
@@ -482,142 +540,158 @@ async function handleIngest(request: Request, env: Env): Promise<Response> {
     );
   }
 
+  const daily = Array.isArray(body.daily) ? body.daily : [];
+  let dailyUpserted = 0;
+  for (const row of daily) {
+    if (
+      !row ||
+      typeof row.jst_date !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(row.jst_date)
+    ) {
+      continue;
+    }
+    const values = DAILY_COLS.map((col) => {
+      const v = row[col];
+      if (col === "jst_date") return v as string;
+      return typeof v === "number" && Number.isFinite(v) ? v : null;
+    });
+    stmts.push(env.DB.prepare(UPSERT_DAILY_SQL).bind(...values));
+    dailyUpserted += 1;
+  }
+
   // D1 batch limit を考慮して100件ずつ実行
   const CHUNK_SIZE = 100;
   for (let i = 0; i < stmts.length; i += CHUNK_SIZE) {
     await env.DB.batch(stmts.slice(i, i + CHUNK_SIZE));
   }
 
+  // 新規データが取り込まれた同一エッジのダッシュボードキャッシュを破棄して即時反映する
+  if (minutes.length > 0 || dailyUpserted > 0) {
+    const cache = (globalThis as unknown as { caches?: { default?: Cache } })
+      .caches?.default;
+    if (cache) {
+      const origin = new URL(request.url).origin;
+      ctx.waitUntil(
+        cache.delete(new Request(`${origin}/api/dashboard`, { method: "GET" })),
+      );
+    }
+  }
+
   return jsonResponse({
     ok: true,
     minutes_upserted: minutes.length,
     snapshots_upserted: snapshots.length,
+    daily_upserted: dailyUpserted,
   });
 }
 
-async function handleDashboard(env: Env): Promise<Response> {
-  await ensureSchema(env.DB);
+/**
+ * /api/dashboard を Cache API で短時間キャッシュする。
+ * データ更新は毎分1回なので、閲覧者やタブの数に関係なく D1 へのアクセスは最大で約1分に1回になる。
+ */
+async function handleDashboardCached(
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<Response> {
+  const url = new URL(request.url);
+  const cacheKey = new Request(`${url.origin}/api/dashboard`, { method: "GET" });
+  // Cache API は独自ドメインでのみ有効 (workers.dev やローカル開発では素通りする)
+  const cache = (globalThis as unknown as { caches?: { default?: Cache } }).caches
+    ?.default;
+
+  if (cache) {
+    const hit = await cache.match(cacheKey);
+    if (hit) {
+      const resp = new Response(hit.body, hit);
+      resp.headers.set("cache-control", "no-store");
+      resp.headers.set("x-dashboard-cache", "HIT");
+      return resp;
+    }
+  }
+
+  const { body, ttlSec } = await buildDashboard(env);
+  const json = JSON.stringify(body);
+  if (cache) {
+    // Cache API に保存するコピーには max-age を設定し、確実にエッジで ttlSec 秒保持させる
+    const cacheResp = new Response(json, {
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+        "cache-control": `public, max-age=${ttlSec}`,
+      },
+    });
+    ctx.waitUntil(cache.put(cacheKey, cacheResp));
+  }
+  return new Response(json, {
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "x-dashboard-cache": "MISS",
+    },
+  });
+}
+
+async function queryDashboardRows(env: Env) {
+  const stmts = [
+    env.DB.prepare("SELECT * FROM minute_samples ORDER BY ts DESC LIMIT 1"),
+    env.DB.prepare("SELECT * FROM bms_snapshots ORDER BY ts DESC LIMIT 1"),
+    env.DB.prepare(
+      "SELECT jst_date, solar_kwh, sell_kwh, pv1_kwh, pv2_kwh, pv3_kwh, pv4_kwh FROM daily_summary",
+    ),
+  ];
+  try {
+    return await env.DB.batch<Record<string, unknown>>(stmts);
+  } catch (err) {
+    // 初回デプロイ直後など daily_summary 未作成時のみスキーマ初期化して再試行する
+    if (err instanceof Error && /no such table/i.test(err.message)) {
+      await ensureSchema(env.DB);
+      return await env.DB.batch<Record<string, unknown>>(stmts);
+    }
+    throw err;
+  }
+}
+
+async function buildDashboard(
+  env: Env,
+): Promise<{ body: Record<string, unknown>; ttlSec: number }> {
   const cfg = await resolveSiteConfig(env);
 
-  const latest = await env.DB.prepare(
-    "SELECT * FROM minute_samples ORDER BY ts DESC LIMIT 1",
-  ).first<Record<string, number | null>>();
-
-  const latestSnap = await env.DB.prepare(
-    "SELECT * FROM bms_snapshots ORDER BY ts DESC LIMIT 1",
-  ).first<{ ts: number; cells_json: string | null; temps_json: string | null }>();
+  // D1 の読み取りは「最新の1分値1行」「最新のBMS 1行」「日別サマリー(1日1行)」だけ
+  const [latestResult, snapResult, dailyResult] = await queryDashboardRows(env);
+  const latest =
+    (latestResult.results?.[0] as Record<string, number | null> | undefined) ??
+    null;
+  const latestSnap =
+    (snapResult.results?.[0] as
+      | { ts: number; cells_json: string | null; temps_json: string | null }
+      | undefined) ?? null;
+  const dailyRows = (dailyResult.results || []) as unknown as DailySummaryRow[];
 
   const refTs =
     typeof latest?.ts === "number" ? latest.ts : Math.floor(Date.now() / 1000);
   const tzSec = (cfg.timezoneOffsetMinutes ?? 540) * 60;
-  const dayStartUtc = Math.floor((refTs + tzSec) / 86400) * 86400 - tzSec;
-  const dayEndUtc = dayStartUtc + 86400;
-
-  const dayRowsResult = await env.DB.prepare(
-    `SELECT ts, solar_w, grid_w, load_w, batt_w, soc,
-            pv1_p_avg_w, pv2_p_avg_w, pv3_p_avg_w, pv4_p_avg_w,
-            weather_code, outdoor_temp_c
-     FROM minute_samples
-     WHERE ts >= ? AND ts < ?
-     ORDER BY ts ASC`,
-  )
-    .bind(dayStartUtc, dayEndUtc)
-    .all<Record<string, number | null>>();
-
-  const dayRows = dayRowsResult.results || [];
-
-  // 売電電力量 (kWh) と PV1〜4別の1日発電量 (kWh/d) を1分値から積算
-  let sellWh = 0;
-  let pv1Wh = 0;
-  let pv2Wh = 0;
-  let pv3Wh = 0;
-  let pv4Wh = 0;
-  for (const r of dayRows) {
-    const g = r.grid_w;
-    if (typeof g === "number" && g < 0) {
-      sellWh += -g / 60;
-    }
-    if (typeof r.pv1_p_avg_w === "number" && r.pv1_p_avg_w > 0) {
-      pv1Wh += r.pv1_p_avg_w / 60;
-    }
-    if (typeof r.pv2_p_avg_w === "number" && r.pv2_p_avg_w > 0) {
-      pv2Wh += r.pv2_p_avg_w / 60;
-    }
-    if (typeof r.pv3_p_avg_w === "number" && r.pv3_p_avg_w > 0) {
-      pv3Wh += r.pv3_p_avg_w / 60;
-    }
-    if (typeof r.pv4_p_avg_w === "number" && r.pv4_p_avg_w > 0) {
-      pv4Wh += r.pv4_p_avg_w / 60;
-    }
-  }
-  const sellDayKwhFromSeries = Math.round((sellWh / 1000) * 100) / 100;
-  const pvDayKwh = {
-    pv1: Math.round((pv1Wh / 1000) * 100) / 100,
-    pv2: Math.round((pv2Wh / 1000) * 100) / 100,
-    pv3: Math.round((pv3Wh / 1000) * 100) / 100,
-    pv4: Math.round((pv4Wh / 1000) * 100) / 100,
-  };
   const nowSec = Math.floor(Date.now() / 1000);
   const gatewayOnline = Boolean(
     latest && typeof latest.ts === "number" && nowSec - latest.ts <= 240,
   );
 
-  // 当年(JST)の月別実績発電量 (kWh) を日ごとの MAX(solar_day_kwh) の合計から算出
   const jstDate = new Date((refTs + tzSec) * 1000);
   const jstYear = jstDate.getUTCFullYear();
-  const yearStartUtc = Math.floor(Date.UTC(jstYear, 0, 1) / 1000) - tzSec;
-  const yearEndUtc = Math.floor(Date.UTC(jstYear + 1, 0, 1) / 1000) - tzSec;
+  const todayJst = jstDate.toISOString().slice(0, 10);
+  const round2 = (v: number) => Math.round(v * 100) / 100;
 
-  const monthlyRowsResult = await env.DB.prepare(
-    `SELECT
-       month,
-       ROUND(SUM(day_kwh), 2) AS actual_kwh
-     FROM (
-       SELECT
-         strftime('%Y-%m-%d', ts + ?, 'unixepoch') AS jst_date,
-         CAST(strftime('%m', ts + ?, 'unixepoch') AS INTEGER) AS month,
-         COALESCE(
-           MAX(solar_day_kwh),
-           SUM(CASE WHEN solar_w > 0 THEN solar_w ELSE 0 END) / 60000.0
-         ) AS day_kwh
-       FROM minute_samples
-       WHERE ts >= ? AND ts < ?
-       GROUP BY jst_date
-     )
-     GROUP BY month`,
-  )
-    .bind(tzSec, tzSec, yearStartUtc, yearEndUtc)
-    .all<{ month: number; actual_kwh: number | null }>();
+  // 当日の売電電力量 (kWh) と PV1〜4別の1日発電量 (kWh/d)
+  const today = dailyRows.find((d) => d.jst_date === todayJst);
+  const sellDayKwhFromSeries = round2(Math.max(0, today?.sell_kwh ?? 0));
+  const pvDayKwh = {
+    pv1: round2(Math.max(0, today?.pv1_kwh ?? 0)),
+    pv2: round2(Math.max(0, today?.pv2_kwh ?? 0)),
+    pv3: round2(Math.max(0, today?.pv3_kwh ?? 0)),
+    pv4: round2(Math.max(0, today?.pv4_kwh ?? 0)),
+  };
 
+  // 当年(JST)の月別実績発電量 (kWh) と、全期間の投資回収実績 (自家消費節約額 + 売電収益)
   const monthlyActualKwh: Record<number, number> = {};
-  for (const r of monthlyRowsResult.results || []) {
-    if (typeof r.month === "number" && typeof r.actual_kwh === "number") {
-      monthlyActualKwh[r.month] = Math.round(r.actual_kwh * 10) / 10;
-    }
-  }
-
-  // 全期間の投資回収実績 (日ごとの太陽光発電量・売電量から、自家消費節約額 + 売電収益を積算)
-  const allDaysResult = await env.DB.prepare(
-    `SELECT
-       strftime('%Y-%m-%d', ts + ?, 'unixepoch') AS jst_date,
-       strftime('%Y-%m', ts + ?, 'unixepoch') AS ym,
-       COALESCE(
-         MAX(solar_day_kwh),
-         SUM(CASE WHEN solar_w > 0 THEN solar_w ELSE 0 END) / 60000.0
-       ) AS solar_kwh,
-       SUM(CASE WHEN grid_w < 0 THEN -grid_w ELSE 0 END) / 60000.0 AS sell_kwh
-     FROM minute_samples
-     GROUP BY jst_date
-     ORDER BY jst_date ASC`,
-  )
-    .bind(tzSec, tzSec)
-    .all<{
-      jst_date: string;
-      ym: string;
-      solar_kwh: number | null;
-      sell_kwh: number | null;
-    }>();
-
   let totalSolarKwh = 0;
   let totalSellKwh = 0;
   let totalBenefitYen = 0;
@@ -629,39 +703,48 @@ async function handleDashboard(env: Env): Promise<Response> {
   > = {};
 
   const sellStartYm = cfg.sellStartDate.slice(0, 7);
-  for (const d of allDaysResult.results || []) {
+  for (const d of dailyRows) {
+    if (!d.jst_date) continue;
+    const ym = d.jst_date.slice(0, 7);
     const sKwh = Math.max(0, d.solar_kwh ?? 0);
     const eKwh = Math.max(0, d.sell_kwh ?? 0);
+
+    if (Number(d.jst_date.slice(0, 4)) === jstYear) {
+      const month = Number(d.jst_date.slice(5, 7));
+      monthlyActualKwh[month] = (monthlyActualKwh[month] ?? 0) + sKwh;
+    }
+
     const selfKwh = Math.max(0, sKwh - eKwh);
     let sellPriceForDay = 0;
-    if (d.jst_date && d.jst_date >= cfg.sellStartDate) {
-      const opYear = getOperationYearForYm(sellStartYm, d.ym);
+    if (d.jst_date >= cfg.sellStartDate) {
+      const opYear = getOperationYearForYm(sellStartYm, ym);
       sellPriceForDay = getSellPriceForYear(
         cfg.sellPriceSchedule,
         opYear,
         cfg.sellPriceYenPerKwh,
       );
     }
-    const benefit =
-      selfKwh * cfg.buyPriceYenPerKwh + eKwh * sellPriceForDay;
+    const benefit = selfKwh * cfg.buyPriceYenPerKwh + eKwh * sellPriceForDay;
     totalSolarKwh += sKwh;
     totalSellKwh += eKwh;
     totalBenefitYen += benefit;
     activeDays += 1;
-    if (!firstDate && d.jst_date) firstDate = d.jst_date;
-    if (d.ym) {
-      const cur = byYearMonth[d.ym] || {
-        solarKwh: 0,
-        sellKwh: 0,
-        benefitYen: 0,
-        days: 0,
-      };
-      cur.solarKwh = Math.round((cur.solarKwh + sKwh) * 100) / 100;
-      cur.sellKwh = Math.round((cur.sellKwh + eKwh) * 100) / 100;
-      cur.benefitYen = Math.round(cur.benefitYen + benefit);
-      cur.days += 1;
-      byYearMonth[d.ym] = cur;
-    }
+    if (!firstDate || d.jst_date < firstDate) firstDate = d.jst_date;
+    const cur = byYearMonth[ym] || {
+      solarKwh: 0,
+      sellKwh: 0,
+      benefitYen: 0,
+      days: 0,
+    };
+    cur.solarKwh = Math.round((cur.solarKwh + sKwh) * 100) / 100;
+    cur.sellKwh = Math.round((cur.sellKwh + eKwh) * 100) / 100;
+    cur.benefitYen = Math.round(cur.benefitYen + benefit);
+    cur.days += 1;
+    byYearMonth[ym] = cur;
+  }
+  for (const m of Object.keys(monthlyActualKwh)) {
+    const k = Number(m);
+    monthlyActualKwh[k] = Math.round(monthlyActualKwh[k] * 10) / 10;
   }
 
   const payback = {
@@ -679,6 +762,18 @@ async function handleDashboard(env: Env): Promise<Response> {
     firstDate,
     byYearMonth,
   };
+
+  // 次の1分値が届く頃までキャッシュする (10〜60秒)
+  const ttlSec =
+    latest && typeof latest.ts === "number"
+      ? Math.max(
+          DASHBOARD_CACHE_MIN_SEC,
+          Math.min(
+            DASHBOARD_CACHE_MAX_SEC,
+            latest.ts + NEXT_DATA_ARRIVAL_SEC - nowSec,
+          ),
+        )
+      : DASHBOARD_CACHE_MIN_SEC;
 
   const sun = computeSunTimes(
     refTs,
@@ -716,7 +811,7 @@ async function handleDashboard(env: Env): Promise<Response> {
     weather = await fetchWeather(cfg.latitude, cfg.longitude);
   }
 
-  return jsonResponse({
+  const body = {
     hasData: Boolean(latest),
     gatewayOnline,
     config: cfg,
@@ -734,8 +829,8 @@ async function handleDashboard(env: Env): Promise<Response> {
           temps_c: safeJsonArray(latestSnap.temps_json),
         }
       : null,
-    series: dayRows,
-  });
+  };
+  return { body, ttlSec };
 }
 
 function safeJsonArray(raw: string | null | undefined): number[] {

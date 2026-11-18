@@ -74,3 +74,28 @@ def test_snapshot_and_meta(conn: sqlite3.Connection) -> None:
     assert db.get_meta(conn, "k") == {"a": 1}
     assert db.get_meta(conn, "missing") is None
 
+
+
+def test_daily_summaries_aggregates_by_jst_day(conn) -> None:
+    from epcube_collector.parse import parse_minutes_response
+
+    # 1970-01-01 23:58, 23:59 JST と 1970-01-02 00:00 JST (JST 0:00 = UTC 15:00 = 54000)
+    minutes = [make_minute(54000 - 120), make_minute(54000 - 60), make_minute(54000)]
+    db.upsert_minutes(conn, parse_minutes_response({"time_valid": True, "minutes": minutes}).rows)
+
+    days = db.daily_summaries(conn)
+    assert [d["jst_date"] for d in days] == ["1970-01-01", "1970-01-02"]
+    d1 = days[0]
+    assert d1["samples"] == 2
+    assert d1["last_ts"] == 54000 - 60
+    assert d1["solar_kwh"] == 3.21  # MAX(solar_day_kwh)
+    assert d1["buy_kwh"] == 0.5
+    assert d1["load_kwh"] == 6.0
+    assert d1["sell_kwh"] == round(50 * 2 / 60000, 4)
+    assert d1["pv1_kwh"] == round(100 * 2 / 60000, 4)
+    assert d1["pv4_kwh"] == round(103 * 2 / 60000, 4)
+
+    # 範囲指定: 2日目だけ
+    only2 = db.daily_summaries(conn, db.jst_day_start(54000), db.jst_day_start(54000) + 86400)
+    assert [d["jst_date"] for d in only2] == ["1970-01-02"]
+    assert db.jst_day_start(54000 - 60) == 54000 - 86400

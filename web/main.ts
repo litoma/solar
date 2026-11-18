@@ -46,7 +46,6 @@ interface DashboardResponse {
     cells_mv: number[];
     temps_c: number[];
   } | null;
-  series: Record<string, number | null>[];
 }
 
 // 待機買電 (PCS制御維持のための微小買電) とみなす上限 (kW = 80W)
@@ -54,6 +53,7 @@ const STANDBY_BUY_MAX_KW = 0.08;
 
 let refreshTimerId: number | null = null;
 let currentRefreshSec = 60;
+let refreshInFlight = false;
 
 function el<T extends HTMLElement | SVGElement>(id: string): T {
   return document.getElementById(id) as unknown as T;
@@ -557,16 +557,6 @@ function renderDashboard(data: DashboardResponse): void {
     3: data.pvDayKwh?.pv3 ?? 0,
     4: data.pvDayKwh?.pv4 ?? 0,
   };
-  if (!data.pvDayKwh && Array.isArray(data.series)) {
-    for (let i = 1; i <= 4; i++) {
-      let wh = 0;
-      for (const r of data.series) {
-        const w = r[`pv${i}_p_avg_w`];
-        if (typeof w === "number" && w > 0) wh += w / 60;
-      }
-      pvDayMap[i] = wh / 1000;
-    }
-  }
 
   for (let i = 1; i <= 4; i++) {
     const p = latest[`pv${i}_p_avg_w`];
@@ -699,17 +689,30 @@ function renderDashboard(data: DashboardResponse): void {
   }
 }
 
-function scheduleRefresh(intervalSec: number): void {
-  const sec = Math.max(10, intervalSec);
-  if (refreshTimerId !== null && sec === currentRefreshSec) return;
+function stopRefresh(): void {
   if (refreshTimerId !== null) {
     window.clearInterval(refreshTimerId);
+    refreshTimerId = null;
   }
+}
+
+function scheduleRefresh(intervalSec: number, forceRestart = false): void {
+  const sec = Math.max(10, intervalSec);
+  const changed = sec !== currentRefreshSec;
   currentRefreshSec = sec;
+  // 非表示タブではバックグラウンド更新を行わない
+  if (document.hidden) {
+    stopRefresh();
+    return;
+  }
+  if (refreshTimerId !== null && !changed && !forceRestart) return;
+  stopRefresh();
   refreshTimerId = window.setInterval(refresh, sec * 1000);
 }
 
 async function refresh(): Promise<void> {
+  if (document.hidden || refreshInFlight) return;
+  refreshInFlight = true;
   try {
     const resp = await fetch("/api/dashboard", { cache: "no-store" });
     if (resp.ok) {
@@ -721,6 +724,8 @@ async function refresh(): Promise<void> {
     }
   } catch (err) {
     console.warn("Dashboard fetch failed:", err);
+  } finally {
+    refreshInFlight = false;
   }
 }
 
@@ -775,8 +780,11 @@ function setupControls(): void {
   }
 
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") {
+    if (document.hidden) {
+      stopRefresh();
+    } else if (document.visibilityState === "visible") {
       refresh();
+      scheduleRefresh(currentRefreshSec, true);
     }
   });
 }
