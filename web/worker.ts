@@ -27,8 +27,12 @@ export interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
   EP_GATEWAY?: Fetcher;
+  EMAIL?: SendEmail;
   SOLAR_SITE_ORIGIN?: string;
   GW_TOKEN?: string;
+  ALERT_EMAIL_TO?: string;
+  ALERT_EMAIL_FROM?: string;
+  ALERT_OFFLINE_MINUTES?: string;
   // 太陽光発電・投資回収・システム設定用 環境変数 (未設定時は下記の初期値を使用)
   SOLAR_LOCATION?: string;
   SOLAR_LATITUDE?: string;
@@ -158,6 +162,16 @@ const CREATE_TABLES_SQL = [
     solar_kwh REAL, sell_kwh REAL, buy_kwh REAL, load_kwh REAL,
     pv1_kwh REAL, pv2_kwh REAL, pv3_kwh REAL, pv4_kwh REAL,
     samples INTEGER, last_ts INTEGER
+  )`,
+  `CREATE TABLE IF NOT EXISTS alert_state (
+    id TEXT PRIMARY KEY,
+    status TEXT NOT NULL,
+    offline_since_ts INTEGER,
+    notified_at INTEGER,
+    recovered_at INTEGER,
+    last_sample_ts INTEGER,
+    last_error TEXT,
+    updated_at INTEGER NOT NULL
   )`,
 ];
 
@@ -469,6 +483,30 @@ const GATEWAY_ONLINE_MAX_AGE_SEC = 300;
 const SNAPSHOT_INTERVAL_SEC = 600;
 const SNAPSHOT_MAX_AGE_SEC = 120;
 const GATEWAY_INTERNAL_ORIGIN = "http://192.168.0.36";
+const DEFAULT_ALERT_OFFLINE_MINUTES = 60;
+const DEFAULT_ALERT_EMAIL_FROM = "alert@notify.yusukesakai.com";
+const ALERT_GATEWAY_ID = "epcube-gw";
+const ALERT_SEND_ERROR_RETRY_SEC = 600;
+
+interface AlertStateRow {
+  id: string;
+  status: string;
+  offline_since_ts: number | null;
+  notified_at: number | null;
+  recovered_at: number | null;
+  last_sample_ts: number | null;
+  last_error: string | null;
+  updated_at: number;
+}
+
+const UPSERT_ALERT_STATE_SQL =
+  `INSERT INTO alert_state (id, status, offline_since_ts, notified_at, recovered_at, last_sample_ts, last_error, updated_at) ` +
+  `VALUES (?, ?, ?, ?, ?, ?, ?, ?) ` +
+  `ON CONFLICT(id) DO UPDATE SET ` +
+  `status = excluded.status, offline_since_ts = excluded.offline_since_ts, ` +
+  `notified_at = excluded.notified_at, recovered_at = excluded.recovered_at, ` +
+  `last_sample_ts = excluded.last_sample_ts, last_error = excluded.last_error, ` +
+  `updated_at = excluded.updated_at`;
 
 type ParsedMinuteRow = Partial<Record<(typeof MINUTE_COLS)[number], number | null>> & {
   ts: number;
@@ -515,27 +553,67 @@ async function execBatched(
 
 async function queryIngestWatermarks(
   db: D1Database,
-): Promise<{ maxMinuteTs: number | null; maxSnapTs: number | null }> {
+): Promise<{
+  maxMinuteTs: number | null;
+  maxSnapTs: number | null;
+  alertState: AlertStateRow | null;
+}> {
   const stmts = [
     db.prepare("SELECT MAX(ts) AS max_ts FROM minute_samples"),
     db.prepare("SELECT MAX(ts) AS max_ts FROM bms_snapshots"),
+    db
+      .prepare(
+        "SELECT id, status, offline_since_ts, notified_at, recovered_at, last_sample_ts, last_error, updated_at FROM alert_state WHERE id = ?",
+      )
+      .bind(ALERT_GATEWAY_ID),
   ];
-  let results: D1Result<{ max_ts: number | null }>[];
+  let results: D1Result<Record<string, unknown>>[];
   try {
-    results = await db.batch<{ max_ts: number | null }>(stmts);
+    results = await db.batch<Record<string, unknown>>(stmts);
   } catch (err) {
     if (err instanceof Error && /no such table/i.test(err.message)) {
       await ensureSchema(db);
-      results = await db.batch<{ max_ts: number | null }>(stmts);
+      results = await db.batch<Record<string, unknown>>(stmts);
     } else {
       throw err;
     }
   }
   const m = results[0]?.results?.[0]?.max_ts;
   const s = results[1]?.results?.[0]?.max_ts;
+  const rawAlert = results[2]?.results?.[0];
+  const alertState: AlertStateRow | null =
+    rawAlert && typeof rawAlert.status === "string"
+      ? {
+          id: String(rawAlert.id ?? ALERT_GATEWAY_ID),
+          status: rawAlert.status,
+          offline_since_ts:
+            typeof rawAlert.offline_since_ts === "number"
+              ? rawAlert.offline_since_ts
+              : null,
+          notified_at:
+            typeof rawAlert.notified_at === "number"
+              ? rawAlert.notified_at
+              : null,
+          recovered_at:
+            typeof rawAlert.recovered_at === "number"
+              ? rawAlert.recovered_at
+              : null,
+          last_sample_ts:
+            typeof rawAlert.last_sample_ts === "number"
+              ? rawAlert.last_sample_ts
+              : null,
+          last_error:
+            typeof rawAlert.last_error === "string"
+              ? rawAlert.last_error
+              : null,
+          updated_at:
+            typeof rawAlert.updated_at === "number" ? rawAlert.updated_at : 0,
+        }
+      : null;
   return {
     maxMinuteTs: typeof m === "number" ? m : null,
     maxSnapTs: typeof s === "number" ? s : null,
+    alertState,
   };
 }
 
@@ -825,9 +903,12 @@ async function handleScheduledIngest(
 
   const cfg = await resolveSiteConfig(env);
   const nowSec = Math.floor(Date.now() / 1000);
-  const { maxMinuteTs, maxSnapTs } = await queryIngestWatermarks(env.DB);
+  const { maxMinuteTs, maxSnapTs, alertState } = await queryIngestWatermarks(
+    env.DB,
+  );
 
   let parsedMinutes: ParsedMinuteRow[] = [];
+  let gatewayFetchError: string | null = null;
   try {
     const minutesQuery =
       `/api/minutes?limit=${GATEWAY_MINUTES_LIMIT}` +
@@ -839,6 +920,7 @@ async function handleScheduledIngest(
     );
     parsedMinutes = parseGatewayMinutes(rawMinutes, maxMinuteTs, nowSec);
   } catch (err) {
+    gatewayFetchError = err instanceof Error ? err.message : String(err);
     console.error("Scheduled /api/minutes fetch failed:", err);
   }
 
@@ -867,39 +949,284 @@ async function handleScheduledIngest(
     }
   }
 
-  if (parsedMinutes.length === 0 && !snapshot) {
+  if (parsedMinutes.length > 0 || snapshot) {
+    const stmts: D1PreparedStatement[] = [];
+    for (const row of parsedMinutes) {
+      const values = MINUTE_COLS.map((col) => row[col] ?? null);
+      stmts.push(env.DB.prepare(UPSERT_MINUTE_SQL).bind(...values));
+    }
+    if (snapshot) {
+      stmts.push(
+        env.DB.prepare(UPSERT_SNAPSHOT_SQL).bind(
+          snapshot.ts,
+          snapshot.cellsJson,
+          snapshot.tempsJson,
+        ),
+      );
+    }
+    const dailyStmts = await buildDailyUpsertStmts(
+      env.DB,
+      parsedMinutes,
+      cfg.timezoneOffsetMinutes,
+    );
+    stmts.push(...dailyStmts);
+
+    await execBatched(env.DB, stmts);
+
+    if (parsedMinutes.length > 0 || dailyStmts.length > 0) {
+      const siteOrigin = (env.SOLAR_SITE_ORIGIN || "").trim();
+      if (siteOrigin) {
+        purgeDashboardCache(siteOrigin, ctx);
+      }
+    }
+  }
+
+  let latestMinuteTs = maxMinuteTs;
+  for (const row of parsedMinutes) {
+    if (latestMinuteTs === null || row.ts > latestMinuteTs) {
+      latestMinuteTs = row.ts;
+    }
+  }
+
+  await evaluateGatewayAlert(
+    env,
+    latestMinuteTs,
+    alertState,
+    nowSec,
+    cfg.timezoneOffsetMinutes,
+    gatewayFetchError,
+  );
+}
+
+function parseEmailList(raw: string | undefined): string[] {
+  if (!raw) return [];
+  return raw
+    .split(/[,\s;]+/)
+    .map((s) => s.trim())
+    .filter((s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s));
+}
+
+function formatLocalDateTime(epochSec: number, tzOffsetMinutes: number): string {
+  const d = new Date((epochSec + tzOffsetMinutes * 60) * 1000);
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mi = String(d.getUTCMinutes()).padStart(2, "0");
+  const ss = String(d.getUTCSeconds()).padStart(2, "0");
+  const label = tzOffsetMinutes === 540 ? "JST" : `UTC${tzOffsetMinutes >= 0 ? "+" : ""}${tzOffsetMinutes / 60}`;
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss} ${label}`;
+}
+
+function formatDurationJa(totalSec: number): string {
+  const sec = Math.max(0, Math.round(totalSec));
+  const days = Math.floor(sec / 86400);
+  const hours = Math.floor((sec % 86400) / 3600);
+  const mins = Math.floor((sec % 3600) / 60);
+  const parts: string[] = [];
+  if (days > 0) parts.push(`${days}日`);
+  if (hours > 0) parts.push(`${hours}時間`);
+  parts.push(`${mins}分`);
+  return parts.join("");
+}
+
+async function saveAlertState(
+  db: D1Database,
+  state: Omit<AlertStateRow, "id">,
+): Promise<void> {
+  await db
+    .prepare(UPSERT_ALERT_STATE_SQL)
+    .bind(
+      ALERT_GATEWAY_ID,
+      state.status,
+      state.offline_since_ts,
+      state.notified_at,
+      state.recovered_at,
+      state.last_sample_ts,
+      state.last_error,
+      state.updated_at,
+    )
+    .run();
+}
+
+async function sendAlertEmail(
+  binding: SendEmail,
+  fromAddr: string,
+  toList: string[],
+  subject: string,
+  text: string,
+): Promise<void> {
+  for (const toAddr of toList) {
+    await binding.send({
+      from: { email: fromAddr, name: "EP VIEW" },
+      to: toAddr,
+      subject,
+      text,
+    });
+  }
+}
+
+/**
+ * minute_samples の最終更新時刻を監視し、しきい値時間(既定60分)以上の停止検知・復旧時に
+ * 1回ずつ Email Routing (send_email バインディング) で通知メールを送る。
+ */
+async function evaluateGatewayAlert(
+  env: Env,
+  latestMinuteTs: number | null,
+  alertState: AlertStateRow | null,
+  nowSec: number,
+  tzOffsetMinutes: number,
+  gatewayFetchError: string | null,
+): Promise<void> {
+  if (latestMinuteTs === null) return;
+
+  const offlineMinutes = Math.max(
+    1,
+    Math.round(
+      parsePositiveNumber(
+        env.ALERT_OFFLINE_MINUTES,
+        DEFAULT_ALERT_OFFLINE_MINUTES,
+      ),
+    ),
+  );
+  const offlineThresholdSec = offlineMinutes * 60;
+  const staleSec = Math.max(0, nowSec - latestMinuteTs);
+  const siteOrigin =
+    (env.SOLAR_SITE_ORIGIN || "https://solar.yusukesakai.com").trim() ||
+    "https://solar.yusukesakai.com";
+  const fromAddr =
+    (env.ALERT_EMAIL_FROM || DEFAULT_ALERT_EMAIL_FROM).trim() ||
+    DEFAULT_ALERT_EMAIL_FROM;
+  const toList = parseEmailList(env.ALERT_EMAIL_TO);
+
+  if (staleSec >= offlineThresholdSec) {
+    if (alertState?.status === "offline" && alertState.notified_at !== null) {
+      return;
+    }
+    if (!env.EMAIL || toList.length === 0) {
+      return;
+    }
+    if (
+      alertState?.last_error &&
+      nowSec - alertState.updated_at < ALERT_SEND_ERROR_RETRY_SEC
+    ) {
+      return;
+    }
+
+    const subject = `[EP VIEW] ESP32-S3 ゲートウェイが${formatDurationJa(staleSec)}オフラインです`;
+    const text = [
+      "EP VIEW 監視アラート（オフライン検知）",
+      "",
+      `ESP32-S3 ゲートウェイ (epcube-gw) からのデータ更新が ${offlineMinutes}分 以上停止しています。`,
+      "",
+      `- 最終データ時刻: ${formatLocalDateTime(latestMinuteTs, tzOffsetMinutes)}`,
+      `- 現在の経過時間: ${formatDurationJa(staleSec)}`,
+      `- 検知時刻: ${formatLocalDateTime(nowSec, tzOffsetMinutes)}`,
+      `- 直近の通信状態: ${gatewayFetchError || "応答あり・新規1分データなし"}`,
+      "",
+      "確認ポイント:",
+      "1. 自宅サーバの cloudflared.service が稼働しているか",
+      "2. ATOMS3 Lite (192.168.0.36) の電源・Wi-Fi 接続",
+      "3. EP CUBE 本体との BLE 接続状態",
+      "",
+      `ダッシュボード: ${siteOrigin}`,
+    ].join("\n");
+
+    try {
+      await sendAlertEmail(env.EMAIL, fromAddr, toList, subject, text);
+      await saveAlertState(env.DB, {
+        status: "offline",
+        offline_since_ts: latestMinuteTs,
+        notified_at: nowSec,
+        recovered_at: alertState?.recovered_at ?? null,
+        last_sample_ts: latestMinuteTs,
+        last_error: null,
+        updated_at: nowSec,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("Failed to send offline alert email:", err);
+      await saveAlertState(env.DB, {
+        status: alertState?.status ?? "online",
+        offline_since_ts: alertState?.offline_since_ts ?? latestMinuteTs,
+        notified_at: alertState?.notified_at ?? null,
+        recovered_at: alertState?.recovered_at ?? null,
+        last_sample_ts: latestMinuteTs,
+        last_error: msg.slice(0, 500),
+        updated_at: nowSec,
+      });
+    }
     return;
   }
 
-  const stmts: D1PreparedStatement[] = [];
-  for (const row of parsedMinutes) {
-    const values = MINUTE_COLS.map((col) => row[col] ?? null);
-    stmts.push(env.DB.prepare(UPSERT_MINUTE_SQL).bind(...values));
+  // 正常範囲内に復帰した場合
+  if (!alertState) return;
+  if (alertState.status === "online") {
+    if (alertState.last_error) {
+      await saveAlertState(env.DB, {
+        status: "online",
+        offline_since_ts: null,
+        notified_at: null,
+        recovered_at: alertState.recovered_at,
+        last_sample_ts: latestMinuteTs,
+        last_error: null,
+        updated_at: nowSec,
+      });
+    }
+    return;
   }
-  if (snapshot) {
-    stmts.push(
-      env.DB.prepare(UPSERT_SNAPSHOT_SQL).bind(
-        snapshot.ts,
-        snapshot.cellsJson,
-        snapshot.tempsJson,
-      ),
-    );
-  }
-  const dailyStmts = await buildDailyUpsertStmts(
-    env.DB,
-    parsedMinutes,
-    cfg.timezoneOffsetMinutes,
-  );
-  stmts.push(...dailyStmts);
 
-  await execBatched(env.DB, stmts);
+  // status === "offline" -> 復旧
+  if (alertState.notified_at !== null && env.EMAIL && toList.length > 0) {
+    if (
+      alertState.last_error &&
+      nowSec - alertState.updated_at < ALERT_SEND_ERROR_RETRY_SEC
+    ) {
+      return;
+    }
 
-  if (parsedMinutes.length > 0 || dailyStmts.length > 0) {
-    const siteOrigin = (env.SOLAR_SITE_ORIGIN || "").trim();
-    if (siteOrigin) {
-      purgeDashboardCache(siteOrigin, ctx);
+    const offlineBaseTs = alertState.offline_since_ts ?? alertState.notified_at;
+    const outageSec = Math.max(0, nowSec - offlineBaseTs);
+    const subject = "[EP VIEW] ESP32-S3 ゲートウェイが復旧しました";
+    const text = [
+      "EP VIEW 監視アラート（復旧通知）",
+      "",
+      "ESP32-S3 ゲートウェイ (epcube-gw) からのデータ受信が再開されました。",
+      "",
+      `- 最新データ時刻: ${formatLocalDateTime(latestMinuteTs, tzOffsetMinutes)}`,
+      `- 復旧検知時刻: ${formatLocalDateTime(nowSec, tzOffsetMinutes)}`,
+      `- 停止の継続時間 (目安): ${formatDurationJa(outageSec)}`,
+      "",
+      `ダッシュボード: ${siteOrigin}`,
+    ].join("\n");
+
+    try {
+      await sendAlertEmail(env.EMAIL, fromAddr, toList, subject, text);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("Failed to send recovery alert email:", err);
+      await saveAlertState(env.DB, {
+        status: "offline",
+        offline_since_ts: alertState.offline_since_ts,
+        notified_at: alertState.notified_at,
+        recovered_at: alertState.recovered_at,
+        last_sample_ts: latestMinuteTs,
+        last_error: msg.slice(0, 500),
+        updated_at: nowSec,
+      });
+      return;
     }
   }
+
+  await saveAlertState(env.DB, {
+    status: "online",
+    offline_since_ts: null,
+    notified_at: null,
+    recovered_at: nowSec,
+    last_sample_ts: latestMinuteTs,
+    last_error: null,
+    updated_at: nowSec,
+  });
 }
 
 /**

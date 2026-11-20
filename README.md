@@ -38,7 +38,7 @@ EP CUBE ⇄ ATOMS3 Lite (192.168.0.36:80)
 │   ├── secrets.example.h              # Wi-Fi / API_TOKEN 設定テンプレート
 │   └── README.md                      # ゲートウェイ設計・レジスタ・運用仕様書
 ├── web/
-│   ├── worker.ts                      # Cloudflare Worker (Cron直接取り込み + /api/dashboard)
+│   ├── worker.ts                      # Cloudflare Worker (Cron取り込み + オフライン検知メール + /api/dashboard)
 │   ├── main.ts                        # フロントエンド描画ロジック (非表示タブ時は自動更新停止)
 │   ├── SimulationChart.tsx            # PV GENERATION 月別推定/実績グラフ
 │   ├── PaybackChart.tsx               # PAYBACK PLAN 投資回収計画・実績グラフ
@@ -46,7 +46,8 @@ EP CUBE ⇄ ATOMS3 Lite (192.168.0.36:80)
 └── migrations/
     ├── 0001_init.sql                  # minute_samples / bms_snapshots 初期スキーマ
     ├── 0002_daily_summary.sql         # daily_summary (日次サマリー) テーブル
-    └── 0003_past_daily_summary.sql    # 記録開始前 (2026-10-28〜11-14) の日次実績データ
+    ├── 0003_past_daily_summary.sql    # 記録開始前 (2026-10-28〜11-14) の日次実績データ
+    └── 0004_alert_state.sql           # alert_state (ゲートウェイ停止/復旧通知状態) テーブル
 ```
 
 ## 1. バインディング・環境変数 (Cloudflare Workers)
@@ -60,8 +61,12 @@ EP CUBE ⇄ ATOMS3 Lite (192.168.0.36:80)
 | `DB` | D1 Binding | `epcube-solar`（1分値・BMS・日次サマリー保存先） |
 | `ASSETS` | Assets Binding | Vite でビルドした静的アセット配信 |
 | `EP_GATEWAY` | Workers VPC Service | Tunnel 経由で自宅 LAN 内 `192.168.0.36:80` へプライベート接続 |
+| `EMAIL` | Send Email Binding | Cloudflare Email Routing 経由でオフライン・復旧通知メールを送信 |
 | `SOLAR_SITE_ORIGIN` | Text | Cron 取り込み後のエッジキャッシュ破棄対象オリジン（既定 `https://solar.yusukesakai.com`） |
 | `GW_TOKEN` | Secret（任意） | ゲートウェイ側で `API_TOKEN` を有効化した場合に `X-Api-Token` として送信 |
+| `ALERT_EMAIL_TO` | Secret / Text（通知先） | 通知先メールアドレス（Cloudflare Email Routing で検証済みのアドレスを指定。カンマ区切り可） |
+| `ALERT_EMAIL_FROM` | Text | 送信元メールアドレス（既定 `alert@notify.yusukesakai.com`） |
+| `ALERT_OFFLINE_MINUTES` | Text | オフライン検知しきい値・分（既定 `60` ＝ 1時間未更新で1回通知、復旧時に復旧メールを1回送信） |
 
 ### サイト設定用 環境変数
 
@@ -87,6 +92,7 @@ EP CUBE ⇄ ATOMS3 Lite (192.168.0.36:80)
   - 新規分があれば `daily_summary` の当日行（1〜2行）のみを参照して増分・日積算値を更新します（Open-Meteo の天気・外気温も 300秒キャッシュ付きで同時記録）。
   - 10分おき（585秒以上経過時）に `/api/latest?cells=1` を取得して 48セル・16温度センサー値を `bms_snapshots` へ保存します。
   - 直近データ `latest.ts` が現在時刻から **300秒（5分）以内** なら `ONLINE`、超過すると `OFFLINE` として配信します。
+  - `minute_samples` の最終更新時刻から **`ALERT_OFFLINE_MINUTES`（既定 60分）** 以上経過すると `alert_state` テーブルで重複を抑止しつつ `EMAIL` (`send_email`) バインディングでオフライン通知を1回送信し、データ再開時に復旧通知を1回送信します（`ALERT_EMAIL_TO` 未設定時は通知をスキップ）。
 - **ダッシュボード応答 (`GET /api/dashboard`)**:
   - `minute_samples` の全件スキャンは行わず、最新1行 + BMS最新1行 + `daily_summary`（1日1行）のみを読み取ります。
   - Cache API（10〜60秒の動的 TTL、クライアント返却は `cache-control: no-store`）を併用し、複数端末・複数タブからの閲覧でも D1 読み取りを最小限に抑えています。

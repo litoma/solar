@@ -26,6 +26,14 @@ export default defineConfig({
       SOLAR_SITE_ORIGIN: bindings.text(
         process.env.SOLAR_SITE_ORIGIN || "https://solar.yusukesakai.com",
       ),
+      // ESP32-S3 オフライン検知通知メール (Email Routing + send_email)
+      EMAIL: bindings.sendEmail(),
+      ALERT_EMAIL_FROM: bindings.text(
+        process.env.ALERT_EMAIL_FROM || "alert@notify.yusukesakai.com",
+      ),
+      ALERT_OFFLINE_MINUTES: bindings.text(
+        process.env.ALERT_OFFLINE_MINUTES || "60",
+      ),
 
       // 太陽光パネルの設置場所 (初期値: 東京都中央区 / 今回のサイト用: 東京都練馬区)
       SOLAR_LOCATION: bindings.text(process.env.SOLAR_LOCATION || "東京都練馬区"),
