@@ -73,6 +73,15 @@ function kwhDayHtml(kwh: number): string {
   return `${kwh.toFixed(2)} kWh/d`;
 }
 
+const AVG_ARROW_UP_RIGHT =
+  `<svg class="ef-avg-arrow" viewBox="0 0 12 12" fill="none" aria-hidden="true">` +
+  `<path d="M2.5 9.5L9.5 2.5M4.5 2.5H9.5V7.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>` +
+  `</svg>`;
+const AVG_ARROW_DOWN_LEFT =
+  `<svg class="ef-avg-arrow" viewBox="0 0 12 12" fill="none" aria-hidden="true">` +
+  `<path d="M9.5 2.5L2.5 9.5M7.5 9.5H2.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>` +
+  `</svg>`;
+
 function kwhDayWithAvgHtml(
   kwh: number,
   monthlyAvg: number | null | undefined,
@@ -86,9 +95,10 @@ function kwhDayWithAvgHtml(
     return base;
   }
   const pct = Math.round(((kwh - monthlyAvg) / monthlyAvg) * 100);
-  const sign = pct > 0 ? "+" : "";
+  const arrow =
+    pct > 0 ? AVG_ARROW_UP_RIGHT : pct < 0 ? AVG_ARROW_DOWN_LEFT : "";
   const cls = pct > 0 ? "is-pos" : pct < 0 ? "is-neg" : "is-flat";
-  return `${base}<span class="ef-avg-delta ${cls}">${sign}${pct}% Avg.</span>`;
+  return `${base}<span class="ef-avg-delta ${cls}">${arrow}${Math.abs(pct)}% Avg.</span>`;
 }
 
 function formatTimeJst(
@@ -372,6 +382,26 @@ function updateFlowLines(
   }
 }
 
+/**
+ * 太陽軌道下の家 (屋根SOLAR/窓USE/蓄電池BATTERY) と鉄塔電線 (BUY/SELL) の状態を連動更新する
+ */
+function updateSunSceneStatus(
+  solarActive: boolean,
+  useActive: boolean,
+  battCharging: boolean,
+  buyActive: boolean,
+  sellActive: boolean,
+): void {
+  el("house-solar-left").classList.toggle("is-active", solarActive);
+  el("house-solar-right").classList.toggle("is-active", solarActive);
+  el("house-use").classList.toggle("is-active", useActive);
+  el("house-battery").classList.toggle("is-charging", battCharging);
+
+  const gridWire = el("sun-grid-flow");
+  gridWire.classList.toggle("is-buy", buyActive);
+  gridWire.classList.toggle("is-sell", !buyActive && sellActive);
+}
+
 function renderDashboard(data: DashboardResponse): void {
   const cfg = data.config;
   const tzMin = cfg.timezoneOffsetMinutes ?? 540;
@@ -416,6 +446,7 @@ function renderDashboard(data: DashboardResponse): void {
       data.sun.sunsetMin,
       data.weather,
     );
+    updateSunSceneStatus(false, false, false, false, false);
     statusPill.dataset.state = "offline";
     statusText.textContent = "OFFLINE";
     return;
@@ -469,6 +500,7 @@ function renderDashboard(data: DashboardResponse): void {
   const solarActive = solarKw >= 0.02;
   const useActive = useKw >= 0.02;
   const buyActive = buyKw > STANDBY_BUY_MAX_KW;
+  const sellActive = sellKw >= 0.02;
   const soc = Math.max(0, Math.min(100, Math.round(latest.soc ?? 0)));
 
   // 夜間・非発電時で待機買電のみ(buyActive=false)かつ負荷(useActive)がある場合、
@@ -489,6 +521,13 @@ function renderDashboard(data: DashboardResponse): void {
     data.sun.sunriseMin,
     data.sun.sunsetMin,
     data.weather,
+  );
+  updateSunSceneStatus(
+    solarActive,
+    useActive,
+    battCharging,
+    buyActive,
+    sellActive,
   );
 
   // 日積算 (kWh/d) & 金額換算 (¥)

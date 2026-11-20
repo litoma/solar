@@ -209,6 +209,118 @@ body {
   overflow: visible;
 }
 
+/* 太陽軌道下の家・鉄塔ステータス連動アニメーション */
+.house-solar {
+  stroke: #4c4634;
+  opacity: 0.55;
+  transition: stroke 0.3s ease, opacity 0.3s ease;
+}
+
+.house-solar.is-active {
+  stroke: #fbdd84;
+  opacity: 1;
+  animation: house-solar-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes house-solar-pulse {
+  0%,
+  100% {
+    stroke: #fbdd84;
+    opacity: 1;
+  }
+
+  50% {
+    stroke: #4c4634;
+    opacity: 0.35;
+  }
+}
+
+.house-use {
+  fill: #24332a;
+  opacity: 0.6;
+  transition: fill 0.3s ease, opacity 0.3s ease;
+}
+
+.house-use.is-active {
+  fill: #57f293;
+  opacity: 1;
+  animation: house-use-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes house-use-pulse {
+  0%,
+  100% {
+    fill: #57f293;
+    opacity: 1;
+  }
+
+  50% {
+    fill: #24332a;
+    opacity: 0.35;
+  }
+}
+
+.house-battery {
+  fill: #3d3b47;
+  opacity: 0.65;
+  transition: fill 0.3s ease, opacity 0.3s ease;
+}
+
+.house-battery.is-charging {
+  fill: #d5cbf9;
+  opacity: 1;
+  animation: house-batt-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes house-batt-pulse {
+  0%,
+  100% {
+    fill: #d5cbf9;
+    opacity: 1;
+  }
+
+  50% {
+    fill: #3d3b47;
+    opacity: 0.35;
+  }
+}
+
+.sun-grid-flow {
+  stroke: transparent;
+  stroke-width: 2.5px;
+  stroke-dasharray: 0.1 17.9;
+}
+
+.sun-grid-flow.is-buy {
+  stroke: #e99bc6;
+  animation: wire-dot-buy 1.2s linear infinite;
+}
+
+.sun-grid-flow.is-sell {
+  stroke: #7ec2f4;
+  animation: wire-dot-sell 1.2s linear infinite;
+}
+
+@keyframes wire-dot-sell {
+  from {
+    stroke-dashoffset: 18;
+  }
+
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes wire-dot-buy {
+  from {
+    stroke-dashoffset: 0;
+  }
+
+  to {
+    stroke-dashoffset: 18;
+  }
+}
+
 .sun-time-label {
   fill: #9a9ea6;
   font-family: var(--font-mono);
@@ -493,22 +605,31 @@ body {
 }
 
 .ef-avg-delta {
-  font-size: 12px;
-  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: inherit;
+  font-weight: 400;
   letter-spacing: 0.01em;
   white-space: nowrap;
 }
 
+.ef-avg-arrow {
+  width: 0.85em;
+  height: 0.85em;
+  flex-shrink: 0;
+}
+
 .ef-avg-delta.is-pos {
-  color: #6ee79a;
+  color: #7ea88e;
 }
 
 .ef-avg-delta.is-neg {
-  color: #ff8585;
+  color: #b58386;
 }
 
 .ef-avg-delta.is-flat {
-  color: #a8adb8;
+  color: #8f94a0;
 }
 
 /* SOLAR カード配色 (#443f30 / #d7bd72 / #fbdd84) */
@@ -601,10 +722,9 @@ body {
 }
 
 .ef-batt-model {
-  font-size: 12.5px;
-  font-weight: 400;
+  font: inherit;
+  letter-spacing: inherit;
   color: #b6aed4;
-  letter-spacing: 0.02em;
 }
 
 .ef-batt-value {
@@ -1464,10 +1584,6 @@ body {
     gap: 5px;
   }
 
-  .ef-batt-model {
-    font-size: 11px;
-  }
-
   .ef-outline-badge {
     font-size: 10px;
     padding: 2px 7px;
@@ -1496,7 +1612,7 @@ body {
   }
 
   .ef-avg-delta {
-    font-size: clamp(9.5px, 2.65vw, 11px);
+    font-size: inherit;
     letter-spacing: 0;
   }
 

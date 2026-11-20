@@ -44,6 +44,7 @@ EP CUBE ⇄ BLE ⇄ ATOMS3 Lite (192.168.0.36:80)
 
 - ハードウェア: M5Stack ATOMS3 Lite (ESP32-S3)
 - ファームウェア環境: Arduino-ESP32 (4.0.0 BLE API 対応) 標準ライブラリ (`WiFi`, `WebServer`, `ESPmDNS`, `BLE`, FreeRTOS タスク・セマフォ)
+- 書き込み時の推奨ボード設定: ボード選択は `M5AtomS3`（FQBN: `esp32:esp32:m5stack_atoms3`、`USB CDC On Boot: Enabled` / `USB Mode: Hardware CDC and JTAG` / `Flash Size: 8MB (64Mb)` / `PSRAM: Disabled` が既定）、`Partition Scheme` は `8M with spiffs (3MB APP/1.5MB SPIFFS)`（`default_8MB`）等を推奨（既定の `Default 4MB with spiffs` ではプログラム領域の約 99% を消費するため）
 - 中継サーバ: Ubuntu 上の `cloudflared` (Cloudflare Tunnel / Workers VPC Service 経由)
 - バックエンド・フロントエンド: Cloudflare Workers, Cloudflare D1 (`epcube-solar`), Vite + React + Recharts (`EP VIEW`)
 
@@ -208,7 +209,7 @@ EP CUBE ⇄ BLE ⇄ ATOMS3 Lite (192.168.0.36:80)
 
 ## 13. 動作確認手順
 
-1. `esp32s3/secrets.example.h` を同じフォルダに `secrets.h` としてコピーし、`WIFI_SSID` / `WIFI_PASS`(必要なら `API_TOKEN`)を設定して書き込む。調査用スケッチやスマホアプリのBLEは止めておく。
+1. `esp32s3/secrets.example.h` を同じフォルダに `secrets.h` としてコピーし、`WIFI_SSID` / `WIFI_PASS`(必要なら `API_TOKEN`)を設定する。Arduino IDE（または `arduino-cli`）でボードに `M5AtomS3`（`Partition Scheme` は `8M with spiffs (3MB APP/1.5MB SPIFFS)` 等、`USB CDC On Boot: Enabled`、`USB Mode: Hardware CDC and JTAG`）を選択して書き込む。調査用スケッチやスマホアプリのBLEは止めておく。
 2. シリアルモニタ(115200bps)で、Wi-FiのIP、「EP CUBEに接続しました」、`[fast]` と `[slow]` の行が出ることを確認する。
 3. `http://192.168.0.36/api/latest?cells=1` を開き、`fw` が `1.3.0` であること、`fast` のPV電力がログと一致すること、セルが48個あること、`cell_avg_mv×48÷1000` が `pack_v` に近いことを確認する。
 4. 3分後に `/api/minutes` に確定分が約3件あり、`n` が約6であることを確認する。
