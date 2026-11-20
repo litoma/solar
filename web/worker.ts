@@ -1280,7 +1280,7 @@ async function queryDashboardRows(env: Env) {
     env.DB.prepare("SELECT * FROM minute_samples ORDER BY ts DESC LIMIT 1"),
     env.DB.prepare("SELECT * FROM bms_snapshots ORDER BY ts DESC LIMIT 1"),
     env.DB.prepare(
-      "SELECT jst_date, solar_kwh, sell_kwh, pv1_kwh, pv2_kwh, pv3_kwh, pv4_kwh FROM daily_summary",
+      "SELECT jst_date, solar_kwh, sell_kwh, buy_kwh, load_kwh, pv1_kwh, pv2_kwh, pv3_kwh, pv4_kwh FROM daily_summary",
     ),
   ];
   try {
@@ -1338,6 +1338,17 @@ async function buildDashboard(
 
   // 当年(JST)の月別実績発電量 (kWh) と、全期間の投資回収実績 (自家消費節約額 + 売電収益)
   const monthlyActualKwh: Record<number, number> = {};
+  const currentYm = todayJst.slice(0, 7);
+  const avgAcc = {
+    solarSum: 0,
+    solarCount: 0,
+    useSum: 0,
+    useCount: 0,
+    buySum: 0,
+    buyCount: 0,
+    sellSum: 0,
+    sellCount: 0,
+  };
   let totalSolarKwh = 0;
   let totalSellKwh = 0;
   let totalBenefitYen = 0;
@@ -1358,6 +1369,25 @@ async function buildDashboard(
     if (Number(d.jst_date.slice(0, 4)) === jstYear) {
       const month = Number(d.jst_date.slice(5, 7));
       monthlyActualKwh[month] = (monthlyActualKwh[month] ?? 0) + sKwh;
+    }
+
+    if (ym === currentYm && d.jst_date < todayJst) {
+      if (typeof d.solar_kwh === "number") {
+        avgAcc.solarSum += Math.max(0, d.solar_kwh);
+        avgAcc.solarCount += 1;
+      }
+      if (typeof d.load_kwh === "number") {
+        avgAcc.useSum += Math.max(0, d.load_kwh);
+        avgAcc.useCount += 1;
+      }
+      if (typeof d.buy_kwh === "number") {
+        avgAcc.buySum += Math.max(0, d.buy_kwh);
+        avgAcc.buyCount += 1;
+      }
+      if (typeof d.sell_kwh === "number") {
+        avgAcc.sellSum += Math.max(0, d.sell_kwh);
+        avgAcc.sellCount += 1;
+      }
     }
 
     const selfKwh = Math.max(0, sKwh - eKwh);
@@ -1457,6 +1487,14 @@ async function buildDashboard(
     weather = await fetchWeather(cfg.latitude, cfg.longitude);
   }
 
+  const round3 = (v: number) => Math.round(v * 1000) / 1000;
+  const monthlyAvgKwh = {
+    solar: avgAcc.solarCount > 0 ? round3(avgAcc.solarSum / avgAcc.solarCount) : null,
+    use: avgAcc.useCount > 0 ? round3(avgAcc.useSum / avgAcc.useCount) : null,
+    buy: avgAcc.buyCount > 0 ? round3(avgAcc.buySum / avgAcc.buyCount) : null,
+    sell: avgAcc.sellCount > 0 ? round3(avgAcc.sellSum / avgAcc.sellCount) : null,
+  };
+
   const body = {
     hasData: Boolean(latest),
     gatewayOnline,
@@ -1466,6 +1504,7 @@ async function buildDashboard(
     latest: latest || null,
     sellDayKwhComputed: sellDayKwhFromSeries,
     pvDayKwh,
+    monthlyAvgKwh,
     monthlyActualKwh,
     payback,
     snapshot: latestSnap

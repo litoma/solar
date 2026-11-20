@@ -39,6 +39,12 @@ interface DashboardResponse {
     pv3: number;
     pv4: number;
   };
+  monthlyAvgKwh?: {
+    solar: number | null;
+    use: number | null;
+    buy: number | null;
+    sell: number | null;
+  };
   monthlyActualKwh?: Record<number, number>;
   payback?: PaybackData;
   snapshot: {
@@ -65,6 +71,24 @@ function kwHtml(kw: number, unitClass = "ef-unit"): string {
 
 function kwhDayHtml(kwh: number): string {
   return `${kwh.toFixed(2)} kWh/d`;
+}
+
+function kwhDayWithAvgHtml(
+  kwh: number,
+  monthlyAvg: number | null | undefined,
+): string {
+  const base = `<span>${kwh.toFixed(2)} kWh/d</span>`;
+  if (
+    typeof monthlyAvg !== "number" ||
+    !Number.isFinite(monthlyAvg) ||
+    monthlyAvg <= 0.05
+  ) {
+    return base;
+  }
+  const pct = Math.round(((kwh - monthlyAvg) / monthlyAvg) * 100);
+  const sign = pct > 0 ? "+" : "";
+  const cls = pct > 0 ? "is-pos" : pct < 0 ? "is-neg" : "is-flat";
+  return `${base}<span class="ef-avg-delta ${cls}">${sign}${pct}% Avg.</span>`;
 }
 
 function formatTimeJst(
@@ -278,7 +302,7 @@ function updateFlowLines(
   battCharging: boolean,
 ): void {
   const setLine = (id: string, cls: string | null) => {
-    const node = el<SVGLineElement>(id);
+    const node = el<SVGPathElement>(id);
     node.setAttribute("class", cls ? `flow-line ${cls}` : "flow-line");
   };
 
@@ -289,56 +313,62 @@ function updateFlowLines(
   const sellActive = sellKw >= 0.02;
   const battAbsKw = Math.abs(battChargeKw);
 
-  // 1. BUY から出る線: 送電元は BUY (ピンク)
-  setLine("line-buy", buyActive ? "active-buy" : null);
+  // 送電元と送電先が揃っているフローのみ有効化 (途中切れ・孤立点滅を防止)
+  const solarFlow = solarActive && (useActive || battCharging || sellActive);
+  const buyFlow = buyActive && (useActive || battCharging);
+  const sellFlow = sellActive && (solarActive || battDischarging);
+  const useFlow = useActive && (solarActive || battDischarging || buyActive);
 
-  // 2. SOLAR から出る線: 送電元は SOLAR (黄色)
-  setLine("line-solar", solarActive ? "active-solar" : null);
+  // 1. SOLAR から中央合流点へ出る線: 送電元は SOLAR (黄色)
+  setLine("line-solar", solarFlow ? "active-solar" : null);
 
-  // 3. SELL へ入る線 & 下段縦ライン (BATTERY <-> BUY/SELL)
-  if (sellActive && (solarActive || battDischarging)) {
-    const exportColor = solarActive ? "active-solar" : "active-battery";
+  // 2. BUY から中央合流点へ出る線: 送電元は BUY (ピンク)
+  setLine("line-buy", buyFlow ? "active-buy" : null);
+
+  // 3. SELL へ入る線 & 下段縦ライン (BATTERY/PCS ⇄ 系統)
+  if (sellFlow) {
+    const exportColor =
+      solarActive && (!battDischarging || solarKw >= battAbsKw)
+        ? "active-solar"
+        : "active-battery";
     setLine("line-sell", exportColor);
     setLine("line-trunk-low", exportColor);
   } else {
     setLine("line-sell", null);
-    if (buyActive && (useActive || battCharging)) {
-      // 買電して BATTERY 経由で USE または BATTERY 充電へ送る (ピンク・下から上)
-      setLine("line-trunk-low", "active-buy flow-reverse");
-    } else {
-      setLine("line-trunk-low", null);
-    }
+    setLine("line-trunk-low", buyFlow ? "active-buy flow-reverse" : null);
   }
 
-  // 4. 上段縦ライン (SOLAR/USE <-> BATTERY)
-  if (battDischarging) {
-    // 放電時: 送電元は BATTERY (紫・下から上)
-    setLine("line-trunk-high", "active-battery flow-reverse");
-  } else if (battCharging && solarActive) {
-    // 太陽光から充電時: 送電元は SOLAR (黄色・上から下)
+  // 4. 中央合流点から USE へ入る線: 優勢な送電元の色で点灯
+  let useColor: string | null = null;
+  if (useFlow) {
+    if (
+      solarActive &&
+      (!battDischarging || solarKw >= battAbsKw) &&
+      (!buyActive || solarKw >= buyKw)
+    ) {
+      useColor = "active-solar";
+    } else if (battDischarging && (!buyActive || battAbsKw >= buyKw)) {
+      useColor = "active-battery";
+    } else if (buyActive) {
+      useColor = "active-buy";
+    }
+  }
+  setLine("line-use", useColor);
+
+  // 5. 上段縦ライン (上段合流点 ⇄ BATTERY/PCS)
+  //    SOLAR -> USE / SELL の送電時も PCS(BATTERY) 経由のため点灯させて途切れを防ぐ
+  if (battDischarging && useFlow) {
+    const trunkColor =
+      buyFlow && !solarActive && buyKw > battAbsKw
+        ? "active-buy"
+        : "active-battery";
+    setLine("line-trunk-high", `${trunkColor} flow-reverse`);
+  } else if (solarFlow && !(buyFlow && useFlow && buyKw > solarKw)) {
     setLine("line-trunk-high", "active-solar");
-  } else if (buyActive && useActive) {
-    // 買電して BATTERY 経由で USE へ供給時: 送電元は BUY (ピンク・下から上)
+  } else if (buyFlow && useFlow) {
     setLine("line-trunk-high", "active-buy flow-reverse");
   } else {
     setLine("line-trunk-high", null);
-  }
-
-  // 5. USE へ入る線: 実際に動いている送電元 (SOLAR / BATTERY / BUY) があるときのみ同じ色で点灯
-  if (useActive) {
-    let useSourceColor: string | null = null;
-    if (solarActive && (!battDischarging || solarKw >= battAbsKw)) {
-      useSourceColor = "active-solar";
-    } else if (battDischarging) {
-      useSourceColor = "active-battery";
-    } else if (buyActive) {
-      useSourceColor = "active-buy";
-    } else if (solarActive) {
-      useSourceColor = "active-solar";
-    }
-    setLine("line-use", useSourceColor);
-  } else {
-    setLine("line-use", null);
   }
 }
 
@@ -487,23 +517,35 @@ function renderDashboard(data: DashboardResponse): void {
   } else {
     buyBadge.setAttribute("hidden", "");
   }
-  el("val-buy-today").innerHTML = kwhDayHtml(buyToday);
+  el("val-buy-today").innerHTML = kwhDayWithAvgHtml(
+    buyToday,
+    data.monthlyAvgKwh?.buy,
+  );
   el("val-buy-yen").textContent = `COST ¥${buyCostYen.toLocaleString("ja-JP")}`;
 
   // SELL カード
   el("val-sell-kw").innerHTML = kwHtml(sellKw);
-  el("val-sell-today").innerHTML = kwhDayHtml(sellToday);
+  el("val-sell-today").innerHTML = kwhDayWithAvgHtml(
+    sellToday,
+    data.monthlyAvgKwh?.sell,
+  );
   el("val-sell-yen").textContent = `REV ¥${sellRevYen.toLocaleString("ja-JP")}`;
 
   // SOLAR カード
   el("val-solar-kw").innerHTML = kwHtml(solarKw);
-  el("val-solar-today").innerHTML = kwhDayHtml(solarToday);
+  el("val-solar-today").innerHTML = kwhDayWithAvgHtml(
+    solarToday,
+    data.monthlyAvgKwh?.solar,
+  );
   el("val-solar-yen").textContent =
     `VALUE ¥${solarValueYen.toLocaleString("ja-JP")}`;
 
   // USE カード
   el("val-use-kw").innerHTML = kwHtml(useKw);
-  el("val-use-today").innerHTML = kwhDayHtml(useToday);
+  el("val-use-today").innerHTML = kwhDayWithAvgHtml(
+    useToday,
+    data.monthlyAvgKwh?.use,
+  );
   el("val-use-self").textContent = `SELF ${selfPct}%`;
 
   // フロー接続線 (送電元の色で描画)

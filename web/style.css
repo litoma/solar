@@ -336,15 +336,20 @@ body {
 }
 
 .flow-line-base {
+  fill: none;
   stroke: #343640;
   stroke-width: 2.4px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .flow-line {
+  fill: none;
   stroke: transparent;
   stroke-width: 2.4px;
   stroke-dasharray: 6 5;
   stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* 送電元 = SOLAR (黄色) */
@@ -469,7 +474,7 @@ body {
   color: #d4d4d8;
 }
 
-/* 3段目 (0.5 kWh/d) と 4段目 (VALUE/SELF/COST/REV) は15px & 同色に */
+/* 3段目 (0.5 kWh/d + 月平均比較) と 4段目 (VALUE/SELF/COST/REV) は15px & 同色に */
 .ef-card-sub,
 .ef-card-highlight {
   font-family: var(--font-mono);
@@ -477,6 +482,33 @@ body {
   font-weight: 500;
   letter-spacing: 0.03em;
   line-height: 1.25;
+}
+
+.ef-card-sub {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: 7px;
+  row-gap: 2px;
+}
+
+.ef-avg-delta {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.ef-avg-delta.is-pos {
+  color: #6ee79a;
+}
+
+.ef-avg-delta.is-neg {
+  color: #ff8585;
+}
+
+.ef-avg-delta.is-flat {
+  color: #a8adb8;
 }
 
 /* SOLAR カード配色 (#443f30 / #d7bd72 / #fbdd84) */
@@ -566,6 +598,13 @@ body {
   font-weight: 500;
   color: #d5cbf9;
   letter-spacing: 0.04em;
+}
+
+.ef-batt-model {
+  font-size: 12.5px;
+  font-weight: 400;
+  color: #b6aed4;
+  letter-spacing: 0.02em;
 }
 
 .ef-batt-value {
@@ -1395,13 +1434,17 @@ body {
     padding: 0 12px;
   }
 
+  .ef-shell {
+    padding: 14px 12px 15px;
+  }
+
   .ef-flow-layout {
-    grid-template-columns: minmax(0, 1fr) 26px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr);
     grid-template-rows: 136px 20px 158px 44px 136px;
   }
 
   .ef-col-headers {
-    grid-template-columns: minmax(0, 1fr) 26px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr);
   }
 
   .ef-connectors {
@@ -1409,14 +1452,20 @@ body {
     height: 100%;
   }
 
-  .ef-card {
-    padding: 13px 13px 12px;
+  .ef-card,
+  .ef-card-battery {
+    padding: 13px 12px 12px;
     border-radius: 22px;
   }
 
-  .ef-card-title {
+  .ef-card-title,
+  .ef-batt-label {
     font-size: 13.5px;
     gap: 5px;
+  }
+
+  .ef-batt-model {
+    font-size: 11px;
   }
 
   .ef-outline-badge {
@@ -1438,6 +1487,17 @@ body {
   .ef-card-highlight,
   .ef-batt-bottom {
     font-size: 13.5px;
+  }
+
+  .ef-card-sub {
+    font-size: 12.5px;
+    letter-spacing: 0.01em;
+    column-gap: 5px;
+  }
+
+  .ef-avg-delta {
+    font-size: clamp(9.5px, 2.65vw, 11px);
+    letter-spacing: 0;
   }
 
   /* スマホ表示では屋根の余白を詰め、コンパクトに中央表示 */

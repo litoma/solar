@@ -46,13 +46,28 @@
             aria-label="Solar Elevation & Weather Curve">
             <!-- 地平線 (実線・左右端0〜600までフル幅) -->
             <line x1="0" y1="98" x2="600" y2="98" stroke="#44454a" stroke-width="1.6" />
-            <!-- 太陽軌道の真ん中 (12:00の上) の家のアイコン (一回り大きく、接地面を y=98 に合わせ、窓付き) -->
+            <!-- 太陽軌道の真ん中 (12:00の上) の家のアイコン (接地面 y=98, 屋根ソーラー, 緑窓, 左壁にEP CUBE) -->
             <g transform="translate(300, 82)" aria-hidden="true">
+              <rect x="-15.9" y="6" width="4" height="10" rx="0.8" fill="#bfb6e0" />
               <path d="M-15 2 L0 -10 L15 2 M-11 0 V16 H11 V0" fill="none" stroke="#44454a" stroke-width="1.8"
                 stroke-linecap="round" stroke-linejoin="round" />
-              <rect x="-4" y="3" width="8" height="6" rx="0.8" fill="none" stroke="#44454a" stroke-width="1.3" />
+              <path d="M-13.8 -1.26 L0 -12.3 L13.8 -1.26" fill="none" stroke="#d7bd72" stroke-width="1.8"
+                stroke-linecap="round" stroke-linejoin="round" />
+              <rect x="-4" y="3" width="8" height="6" rx="0.8" fill="#4bc77c" stroke="#44454a" stroke-width="1.3" />
               <line x1="0" y1="3" x2="0" y2="9" stroke="#44454a" stroke-width="1.0" />
               <line x1="-4" y1="6" x2="4" y2="6" stroke="#44454a" stroke-width="1.0" />
+            </g>
+            <!-- 家と鉄塔をつなぐ電線 (1本) -->
+            <path d="M 311 84 Q 342.25 91.5 373.5 84" fill="none" stroke="#44454a" stroke-width="1.2"
+              stroke-linecap="round" aria-hidden="true" />
+            <!-- 家の右側・日没点(x=460)より左側・太陽軌道より低い鉄塔 -->
+            <g transform="translate(382, 98)" aria-hidden="true">
+              <path d="M-6.5 0 L-2.2 -24 L0 -29 L2.2 -24 L6.5 0" fill="none" stroke="#44454a" stroke-width="1.4"
+                stroke-linecap="round" stroke-linejoin="round" />
+              <line x1="-6.5" y1="-21" x2="6.5" y2="-21" stroke="#44454a" stroke-width="1.3" stroke-linecap="round" />
+              <line x1="-8.5" y1="-14" x2="8.5" y2="-14" stroke="#44454a" stroke-width="1.4" stroke-linecap="round" />
+              <path d="M-6.5 0 L5.4 -6 M6.5 0 L-5.4 -6 M-5.4 -6 L4.3 -14 M5.4 -6 L-4.3 -14 M-4.3 -14 L2.8 -21 M4.3 -14 L-2.8 -21"
+                fill="none" stroke="#44454a" stroke-width="1.0" stroke-linecap="round" />
             </g>
             <!-- 日の出前・日の入り後の破線カーブ -->
             <path d="M 12 98 Q 76 138 140 98" fill="none" stroke="#4d4e54" stroke-width="1.5" stroke-dasharray="4 4" />
@@ -127,13 +142,13 @@
             <div class="ef-card-highlight" id="val-use-self">SELF --%</div>
           </article>
 
-          <!-- 上段コネクタ: SOLAR / USE ⇄ BATTERY 上端 -->
+          <!-- 上段コネクタ: SOLAR / USE ⇄ BATTERY 上端 (中央角丸T) -->
           <svg class="ef-connectors ef-connectors-top" viewBox="0 0 64 166" preserveAspectRatio="none" aria-hidden="true">
-            <line x1="0" y1="71" x2="64" y2="71" class="flow-line-base" vector-effect="non-scaling-stroke" />
-            <line x1="32" y1="71" x2="32" y2="166" class="flow-line-base" vector-effect="non-scaling-stroke" />
-            <line id="line-solar" x1="0" y1="71" x2="32" y2="71" class="flow-line" vector-effect="non-scaling-stroke" />
-            <line id="line-use" x1="32" y1="71" x2="64" y2="71" class="flow-line" vector-effect="non-scaling-stroke" />
-            <line id="line-trunk-high" x1="32" y1="71" x2="32" y2="166" class="flow-line" vector-effect="non-scaling-stroke" />
+            <path d="M 0 71 H 14 Q 32 71 32 89 V 166" fill="none" class="flow-line-base" vector-effect="non-scaling-stroke" />
+            <path d="M 32 89 Q 32 71 50 71 H 64" fill="none" class="flow-line-base" vector-effect="non-scaling-stroke" />
+            <path id="line-solar" d="M 0 71 H 14 Q 32 71 32 89" fill="none" class="flow-line" vector-effect="non-scaling-stroke" />
+            <path id="line-use" d="M 32 89 Q 32 71 50 71 H 64" fill="none" class="flow-line" vector-effect="non-scaling-stroke" />
+            <path id="line-trunk-high" d="M 32 89 V 166" fill="none" class="flow-line" vector-effect="non-scaling-stroke" />
           </svg>
 
           <!-- BATTERY (2段目ワイド) -->
@@ -146,7 +161,7 @@
                   <rect x="3.5" y="6" width="3" height="4" rx="0.6" fill="currentColor" />
                   <rect x="7.5" y="6" width="3" height="4" rx="0.6" fill="currentColor" />
                 </svg>
-                BATTERY
+                BATTERY<span class="ef-batt-model">(EP CUBE)</span>
               </span>
               <span class="ef-outline-badge ef-batt-badge" id="val-batt-state">IDLE</span>
             </div>
@@ -171,13 +186,14 @@
             <span class="ef-divider-label">GRID</span>
           </div>
 
-          <!-- 下段コネクタ: BATTERY 下端 ⇄ BUY / SELL -->
+          <!-- 下段コネクタ: BATTERY 下端 ⇄ BUY / SELL (中央角丸逆T) -->
           <svg class="ef-connectors ef-connectors-bottom" viewBox="0 0 64 190" preserveAspectRatio="none" aria-hidden="true">
-            <line x1="32" y1="0" x2="32" y2="119" class="flow-line-base" vector-effect="non-scaling-stroke" />
-            <line x1="0" y1="119" x2="64" y2="119" class="flow-line-base" vector-effect="non-scaling-stroke" />
-            <line id="line-trunk-low" x1="32" y1="0" x2="32" y2="119" class="flow-line" vector-effect="non-scaling-stroke" />
-            <line id="line-buy" x1="0" y1="119" x2="32" y2="119" class="flow-line" vector-effect="non-scaling-stroke" />
-            <line id="line-sell" x1="32" y1="119" x2="64" y2="119" class="flow-line" vector-effect="non-scaling-stroke" />
+            <path d="M 32 0 V 101" fill="none" class="flow-line-base" vector-effect="non-scaling-stroke" />
+            <path d="M 0 119 H 14 Q 32 119 32 101" fill="none" class="flow-line-base" vector-effect="non-scaling-stroke" />
+            <path d="M 32 101 Q 32 119 50 119 H 64" fill="none" class="flow-line-base" vector-effect="non-scaling-stroke" />
+            <path id="line-trunk-low" d="M 32 0 V 101" fill="none" class="flow-line" vector-effect="non-scaling-stroke" />
+            <path id="line-buy" d="M 0 119 H 14 Q 32 119 32 101" fill="none" class="flow-line" vector-effect="non-scaling-stroke" />
+            <path id="line-sell" d="M 32 101 Q 32 119 50 119 H 64" fill="none" class="flow-line" vector-effect="non-scaling-stroke" />
           </svg>
 
           <!-- BUY (3段目・左) -->
