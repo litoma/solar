@@ -1,6 +1,6 @@
 # EP CUBE 発電・BMSモニタ 仕様書
 
-版数 1.3 ／ 2026-11-20 ／ 対象: ATOMS3 Liteゲートウェイ (`esp32s3/epcube-gw.ino` v1.2.1) と Cloudflare Workers 取り込み構成
+版数 1.4 ／ 2026-11-21 ／ 対象: ATOMS3 Liteゲートウェイ (`esp32s3/epcube-gw.ino` v1.3.0) と Cloudflare Workers 取り込み構成
 
 ## 1. 目的と範囲
 
@@ -43,13 +43,13 @@ EP CUBE ⇄ BLE ⇄ ATOMS3 Lite (192.168.0.36:80)
 ## 4. 環境
 
 - ハードウェア: M5Stack ATOMS3 Lite (ESP32-S3)
-- ファームウェア環境: Arduino-ESP32 (3.3.13 で動作確認済み) 標準ライブラリ (`WiFi`, `WebServer`, `ESPmDNS`, `BLEDevice` / `BLEScan` / `BLEClient`, FreeRTOS タスク・セマフォ)
+- ファームウェア環境: Arduino-ESP32 (4.0.0 BLE API 対応) 標準ライブラリ (`WiFi`, `WebServer`, `ESPmDNS`, `BLE`, FreeRTOS タスク・セマフォ)
 - 中継サーバ: Ubuntu 上の `cloudflared` (Cloudflare Tunnel / Workers VPC Service 経由)
 - バックエンド・フロントエンド: Cloudflare Workers, Cloudflare D1 (`epcube-solar`), Vite + React + Recharts (`EP VIEW`)
 
 ## 5. BLE通信とタスク分離仕様
 
-- 探索: 機器名に `EPCUBE` を含むBLE機器を探して接続する。未接続時は7秒間隔で5秒間スキャンする（Wi-Fi 通信枠を残すため `interval=200`, `window=40` を設定）。
+- 探索: 機器名に `EPCUBE` を含むBLE機器を探して接続する。未接続時は7秒間隔で5秒間スキャンする（Wi-Fi 通信枠を残すため `interval=125ms`, `window=25ms` を設定）。
 - サービスUUID: `ee6d7170-88c6-11e8-b444-060400ef5315`
 - 書き込み特性: `ee6d7171-88c6-11e8-b444-060400ef5315` (`Write / Write Without Response`)
 - 通知特性: `ee6d7172-88c6-11e8-b444-060400ef5315` (`Notify`)
@@ -210,7 +210,7 @@ EP CUBE ⇄ BLE ⇄ ATOMS3 Lite (192.168.0.36:80)
 
 1. `esp32s3/secrets.example.h` を同じフォルダに `secrets.h` としてコピーし、`WIFI_SSID` / `WIFI_PASS`(必要なら `API_TOKEN`)を設定して書き込む。調査用スケッチやスマホアプリのBLEは止めておく。
 2. シリアルモニタ(115200bps)で、Wi-FiのIP、「EP CUBEに接続しました」、`[fast]` と `[slow]` の行が出ることを確認する。
-3. `http://192.168.0.36/api/latest?cells=1` を開き、`fw` が `1.2.1` であること、`fast` のPV電力がログと一致すること、セルが48個あること、`cell_avg_mv×48÷1000` が `pack_v` に近いことを確認する。
+3. `http://192.168.0.36/api/latest?cells=1` を開き、`fw` が `1.3.0` であること、`fast` のPV電力がログと一致すること、セルが48個あること、`cell_avg_mv×48÷1000` が `pack_v` に近いことを確認する。
 4. 3分後に `/api/minutes` に確定分が約3件あり、`n` が約6であることを確認する。
 5. Cloudflare D1 (`minute_samples` / `bms_snapshots` / `daily_summary`) にデータが入ること、公開サイト (`/api/dashboard`) が `gatewayOnline: true` になることを確認する。
 6. 24時間運転し、`stats` の再接続数・タイムアウト数と、`free_heap`・`min_free_heap`・`max_alloc_heap` の推移を確認する。
@@ -234,6 +234,7 @@ EP CUBE ⇄ BLE ⇄ ATOMS3 Lite (192.168.0.36:80)
 
 ## 15. 変更履歴
 
+- 1.4(2026-11-21): `epcube-gw.ino` v1.3.0 (Arduino-ESP32 `4.0.0` BLE API (`<BLE.h>`) 対応、スキャン時間・間隔のms単位化、`std::atomic` / 値ハンドル化) へ更新。
 - 1.3(2026-11-20): `epcube-gw.ino` v1.2.0〜v1.2.1(FreeRTOSタスク分離、HTTP一括/まとめ送信、`TCP_NODELAY`、USB CDC非ブロッキングログ、`secrets.h`分離、Wi-Fi切断フェイルセーフ)および Cloudflare Worker 直接取り込み構成 (Workers VPC + D1 + 5秒リトライ + 300秒オンライン判定) へ全面改訂。夜間8時間超の稼働実績を追記。
 - 1.2(2026-11-19): v1.1.0を実機で動作確認。`load_w` の確認結果(待機消費約33W、日積算が機器の値と一致)を反映。D1の対応状況と現行の取り込み構成を追記。`load_w` の確認手順を更新(方法Dを追加)。
 - 1.1(2026-11-18): 保持を12時間(720件、1件76バイトに圧縮)に拡大。`/api/minutes` の `limit` 既定を60件に変更。`/api/latest` に診断項目、`/api/regs` を追加。D1(無料プラン)の制約と設計方針を追記。BMSレジスタを確認済みに更新。`load_w` の注意を追記。

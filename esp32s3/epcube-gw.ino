@@ -5,12 +5,10 @@
 #include <time.h>
 #include <math.h>
 #include <stdarg.h>
-#include <BLEDevice.h>
-#include <BLEUtils.h>
-#include <BLEScan.h>
-#include <BLEClient.h>
+#include <atomic>
+#include <BLE.h>
 
-#define FW_VERSION "1.2.1"
+#define FW_VERSION "1.3.0"
 
 // ---------- 設定 (Wi-Fi 認証情報は secrets.example.h を secrets.h にコピーして設定) ----------
 #if __has_include("secrets.h")
@@ -40,9 +38,9 @@ static const int      FAIL_RECONNECT        = 6;       // 高速サンプルが�
 static const uint32_t NO_DATA_RESTART_MS    = 600000;  // 10分間1件も取れなければ再起動
 
 // ---------- BLE (EP CUBE) ----------
-static BLEUUID serviceUUID("ee6d7170-88c6-11e8-b444-060400ef5315");
-static BLEUUID charTxUUID("ee6d7171-88c6-11e8-b444-060400ef5315");  // 書き込み用
-static BLEUUID charRxUUID("ee6d7172-88c6-11e8-b444-060400ef5315");  // 通知用
+static const BLEUUID serviceUUID("ee6d7170-88c6-11e8-b444-060400ef5315");
+static const BLEUUID charTxUUID("ee6d7171-88c6-11e8-b444-060400ef5315");  // 書き込み用
+static const BLEUUID charRxUUID("ee6d7172-88c6-11e8-b444-060400ef5315");  // 通知用
 static const uint8_t MB_SLAVE_ID = 0x64;
 static const uint8_t MB_FUNC     = 0x03;   // 読み取り専用。変更しないこと
 
@@ -112,12 +110,13 @@ struct MinuteAcc {            // 集計中の1分
 static WebServer server(80);
 static bool httpStarted = false;
 
-static BLEClient* pClient = nullptr;
-static BLEAdvertisedDevice* myDevice = nullptr;
-static BLERemoteCharacteristic* pTx = nullptr;
-static BLERemoteCharacteristic* pRx = nullptr;
-static volatile bool doConnect = false;
-static volatile bool connected = false;
+static BLEClient bleClient;
+static BLEAdvertisedDevice targetDevice;
+static BLERemoteCharacteristic txChar;
+static BLERemoteCharacteristic rxChar;
+static std::atomic<bool> doConnect{false};
+static std::atomic<bool> connecting{false};
+static std::atomic<bool> connected{false};
 
 // 同期プリミティブ
 static portMUX_TYPE rxMux = portMUX_INITIALIZER_UNLOCKED;
@@ -257,7 +256,7 @@ static void parseResponse() {
   rxState = 1;
 }
 
-static void notifyCallback(BLERemoteCharacteristic* pChar, uint8_t* pData, size_t length, bool isNotify) {
+static void notifyCallback(BLERemoteCharacteristic& /*chr*/, const uint8_t* pData, size_t length, BLESubscription /*kind*/) {
   bool notifyDone = false;
   taskENTER_CRITICAL(&rxMux);
   if (rxState == 0) {
@@ -306,7 +305,7 @@ static bool readRegs(uint16_t addr, uint8_t count, uint16_t* out, char* errOut, 
       }
     }
 
-    if (!connected || !pTx) {
+    if (!connected || !txChar) {
       if (errOut && errCap > 0) snprintf(errOut, errCap, "ble disconnected");
       break;
     }
@@ -332,10 +331,15 @@ static bool readRegs(uint16_t addr, uint8_t count, uint16_t* out, char* errOut, 
     // 以前のタイムアウト後に遅れて届いたセマフォ通知があれば破棄
     while (xSemaphoreTake(rxSem, 0) == pdTRUE) {}
 
-    pTx->writeValue((uint8_t*)cmd, (size_t)cmdLen, false);
-
-    // ビジーウェイト (delay(2)) をやめ、通知到達またはタイムアウトまでタスクをスリープ
-    xSemaphoreTake(rxSem, pdMS_TO_TICKS(RESP_TIMEOUT_MS));
+    BTStatus wSt = txChar.writeValue((const uint8_t*)cmd, (size_t)cmdLen, false);
+    if (!wSt) {
+      taskENTER_CRITICAL(&rxMux);
+      if (rxState == 0) rxState = 3;
+      taskEXIT_CRITICAL(&rxMux);
+    } else {
+      // ビジーウェイト (delay(2)) をやめ、通知到達またはタイムアウトまでタスクをスリープ
+      xSemaphoreTake(rxSem, pdMS_TO_TICKS(RESP_TIMEOUT_MS));
+    }
     lastBleDoneMs = millis();
 
     uint8_t st;
@@ -874,47 +878,46 @@ static void handleRegs() {
 }
 
 // ---------- BLE接続・専用タスク ----------
-class ClientCb : public BLEClientCallbacks {
-  void onConnect(BLEClient* c) {}
-  void onDisconnect(BLEClient* c) {
-    connected = false;
-    bool wake = false;
-    taskENTER_CRITICAL(&rxMux);
-    if (rxState == 0) {
-      rxState = 3;
-      wake = true;
-    }
-    taskEXIT_CRITICAL(&rxMux);
-    if (wake && rxSem) xSemaphoreGive(rxSem);
-    logPrintf(">>> BLE切断\n");
-  }
-};
-static ClientCb gClientCb;
-
 static bool connectToServer() {
-  if (!myDevice) return false;
+  if (!targetDevice) return false;
   if (xSemaphoreTake(bleMutex, pdMS_TO_TICKS(5000)) != pdTRUE) return false;
 
   bool ok = false;
-  if (!pClient) {
-    pClient = BLEDevice::createClient();
-    pClient->setClientCallbacks(&gClientCb);
+  if (!bleClient) {
+    bleClient = BLE.createClient();
+    if (bleClient) {
+      bleClient.onDisconnect([](BLEClient& /*c*/, const BLEConnInfo& /*info*/, uint8_t /*reason*/) {
+        connected = false;
+        bool wake = false;
+        taskENTER_CRITICAL(&rxMux);
+        if (rxState == 0) {
+          rxState = 3;
+          wake = true;
+        }
+        taskEXIT_CRITICAL(&rxMux);
+        if (wake && rxSem) xSemaphoreGive(rxSem);
+        logPrintf(">>> BLE切断\n");
+      });
+    }
   }
-  if (pClient->connect(myDevice)) {
-    pClient->setMTU(517);
-    BLERemoteService* svc = pClient->getService(serviceUUID);
-    if (svc) {
-      pTx = svc->getCharacteristic(charTxUUID);
-      pRx = svc->getCharacteristic(charRxUUID);
-      if (pTx && pRx) {
-        if (pRx->canNotify()) pRx->registerForNotify(notifyCallback);
-        ok = true;
+  if (bleClient) {
+    bleClient.setMTU(517);
+    if (bleClient.connect(targetDevice, 5000) && bleClient.discoverServices()) {
+      BLERemoteService svc = bleClient.getService(serviceUUID);
+      if (svc) {
+        txChar = svc.getCharacteristic(charTxUUID);
+        rxChar = svc.getCharacteristic(charRxUUID);
+        if (txChar && rxChar) {
+          if (!rxChar.canNotify() || rxChar.subscribe(BLESubscription::Notify, notifyCallback)) {
+            ok = true;
+          }
+        }
       }
     }
     if (!ok) {
-      pTx = nullptr;
-      pRx = nullptr;
-      pClient->disconnect();
+      txChar = BLERemoteCharacteristic();
+      rxChar = BLERemoteCharacteristic();
+      if (bleClient.isConnected()) bleClient.disconnect();
     }
   }
   xSemaphoreGive(bleMutex);
@@ -934,24 +937,17 @@ static bool connectToServer() {
   return true;
 }
 
-class AdvCb : public BLEAdvertisedDeviceCallbacks {
-  void onResult(BLEAdvertisedDevice advertisedDevice) {
-    if (doConnect) return;
-    if (advertisedDevice.haveName() && strstr(advertisedDevice.getName().c_str(), "EPCUBE") != nullptr) {
-      BLEDevice::getScan()->stop();
-      if (myDevice) delete myDevice;
-      myDevice = new BLEAdvertisedDevice(advertisedDevice);
-      doConnect = true;
-    }
-  }
-};
-
 static void blePollTask(void* /*pvParameters*/) {
   uint32_t lastScan = 0;
   for (;;) {
-    if (doConnect) {
-      doConnect = false;
-      if (!connectToServer()) {
+    if (doConnect.load(std::memory_order_acquire)) {
+      connecting.store(true, std::memory_order_release);
+      doConnect.store(false, std::memory_order_release);
+      BLEScan sc = BLE.getScan();
+      if (sc.isScanning()) sc.stop();
+      bool ok = connectToServer();
+      connecting.store(false, std::memory_order_release);
+      if (!ok) {
         if (xSemaphoreTake(dataMutex, portMAX_DELAY) == pdTRUE) {
           statConnectFail++;
           xSemaphoreGive(dataMutex);
@@ -960,13 +956,16 @@ static void blePollTask(void* /*pvParameters*/) {
       }
     }
 
-    if (!connected && !doConnect) {
+    BLEScan sc = BLE.getScan();
+    if (!connected && !doConnect && !sc.isScanning()) {
       if (millis() - lastScan > 7000) {
         lastScan = millis();
+        sc.clearResults();  // 長時間運用でメモリが増えないよう結果を破棄
         logPrintf("EP CUBEを探しています...\n");
-        BLEScan* sc = BLEDevice::getScan();
-        sc->start(5, false);
-        sc->clearResults();   // 長時間運用でメモリが増えないよう結果を破棄
+        BTStatus st = sc.start(5000, false);
+        if (!st) {
+          logPrintf("BLEスキャン開始失敗: %s\n", st.toString());
+        }
       }
     }
 
@@ -999,9 +998,9 @@ static void blePollTask(void* /*pvParameters*/) {
         logPrintf("高速サンプルが連続で失敗したためBLEを再接続します\n");
         if (xSemaphoreTake(bleMutex, pdMS_TO_TICKS(5000)) == pdTRUE) {
           connected = false;
-          pTx = nullptr;
-          pRx = nullptr;
-          if (pClient) pClient->disconnect();
+          txChar = BLERemoteCharacteristic();
+          rxChar = BLERemoteCharacteristic();
+          if (bleClient && bleClient.isConnected()) bleClient.disconnect();
           xSemaphoreGive(bleMutex);
         }
       }
@@ -1095,12 +1094,27 @@ void setup() {
     server.send(404, "text/plain", "not found");
   });
 
-  BLEDevice::init("ATOMS3-EPCUBE");
-  BLEScan* sc = BLEDevice::getScan();
-  sc->setAdvertisedDeviceCallbacks(new AdvCb());
-  sc->setActiveScan(true);
-  sc->setInterval(200);   // 再スキャン中も Wi-Fi 通信枠を残す
-  sc->setWindow(40);
+  BTStatus bleSt = BLE.begin("ATOMS3-EPCUBE");
+  if (!bleSt) {
+    logPrintf("BLE初期化失敗: %s\n", bleSt.toString());
+  }
+  BLE.setMTU(517);
+  BLEScan sc = BLE.getScan();
+  sc.onResult([](const BLEAdvertisedDevice& advertisedDevice) {
+    if (doConnect.load(std::memory_order_acquire) ||
+        connecting.load(std::memory_order_acquire) ||
+        connected.load(std::memory_order_acquire)) {
+      return;
+    }
+    if (advertisedDevice.haveName() && strstr(advertisedDevice.getName().c_str(), "EPCUBE") != nullptr) {
+      BLE.getScan().stop();
+      targetDevice = advertisedDevice;
+      doConnect.store(true, std::memory_order_release);
+    }
+  });
+  sc.setActiveScan(true);
+  sc.setInterval(125);   // 再スキャン中も Wi-Fi 通信枠を残す (125ms)
+  sc.setWindow(25);      // (25ms)
 
   allocRing();   // BLE・Wi-Fiの初期化後に確保し、空きヒープを確認する
   lastGoodMs = millis();

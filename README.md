@@ -34,7 +34,7 @@ EP CUBE ⇄ ATOMS3 Lite (192.168.0.36:80)
 ├── vite.config.ts                     # Vite + @cloudflare/vite-plugin 設定
 ├── index.html                         # EP VIEW ダッシュボード HTML
 ├── esp32s3/                           # M5Stack ATOMS3 Lite (ESP32-S3) ファームウェア
-│   ├── epcube-gw.ino                  # BLE ⇄ HTTP ゲートウェイ スケッチ (v1.2.1)
+│   ├── epcube-gw.ino                  # BLE ⇄ HTTP ゲートウェイ スケッチ (v1.3.0)
 │   ├── secrets.example.h              # Wi-Fi / API_TOKEN 設定テンプレート
 │   └── README.md                      # ゲートウェイ設計・レジスタ・運用仕様書
 ├── web/
