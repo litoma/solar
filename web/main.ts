@@ -411,7 +411,7 @@ function renderDashboard(data: DashboardResponse): void {
   const isOnline =
     typeof data.gatewayOnline === "boolean"
       ? data.gatewayOnline
-      : Math.abs(clientNowSec - ts) <= 240;
+      : Math.abs(clientNowSec - ts) <= 300;
   statusPill.dataset.state = isOnline ? "online" : "offline";
   statusText.textContent = isOnline ? "ONLINE" : "OFFLINE";
 

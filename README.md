@@ -33,6 +33,10 @@ EP CUBE ⇄ ATOMS3 Lite (192.168.0.36:80)
 ├── tsconfig.json
 ├── vite.config.ts                     # Vite + @cloudflare/vite-plugin 設定
 ├── index.html                         # EP VIEW ダッシュボード HTML
+├── esp32s3/                           # M5Stack ATOMS3 Lite (ESP32-S3) ファームウェア
+│   ├── epcube-gw.ino                  # BLE ⇄ HTTP ゲートウェイ スケッチ (v1.2.1)
+│   ├── secrets.example.h              # Wi-Fi / API_TOKEN 設定テンプレート
+│   └── README.md                      # ゲートウェイ設計・レジスタ・運用仕様書
 ├── web/
 │   ├── worker.ts                      # Cloudflare Worker (Cron直接取り込み + /api/dashboard)
 │   ├── main.ts                        # フロントエンド描画ロジック (非表示タブ時は自動更新停止)
@@ -79,9 +83,10 @@ EP CUBE ⇄ ATOMS3 Lite (192.168.0.36:80)
 ## 2. データ取り込み・D1 読み取り削減の仕組み
 
 - **毎分 Cron 取り込み (`* * * * *`)**:
-  - Worker の `scheduled` ハンドラが `minute_samples` / `bms_snapshots` の最新 `ts`（計2行）だけを取得し、VPC 経由で `/api/minutes?since=<max_ts>&limit=30` を取得して D1 へ UPSERT します（無料枠の 50クエリ / CPU 10ms 上限対策で1回30件までに制限）。
+  - Worker の `scheduled` ハンドラが `minute_samples` / `bms_snapshots` の最新 `ts`（計2行）だけを取得し、VPC 経由で `/api/minutes?since=<max_ts>&limit=30` を取得して D1 へ UPSERT します（無料枠の 50クエリ / CPU 10ms 上限対策で1回30件までに制限。単発通信失敗対策として 5秒タイムアウト・最大2回リトライを実施）。
   - 新規分があれば `daily_summary` の当日行（1〜2行）のみを参照して増分・日積算値を更新します（Open-Meteo の天気・外気温も 300秒キャッシュ付きで同時記録）。
   - 10分おき（585秒以上経過時）に `/api/latest?cells=1` を取得して 48セル・16温度センサー値を `bms_snapshots` へ保存します。
+  - 直近データ `latest.ts` が現在時刻から **300秒（5分）以内** なら `ONLINE`、超過すると `OFFLINE` として配信します。
 - **ダッシュボード応答 (`GET /api/dashboard`)**:
   - `minute_samples` の全件スキャンは行わず、最新1行 + BMS最新1行 + `daily_summary`（1日1行）のみを読み取ります。
   - Cache API（10〜60秒の動的 TTL、クライアント返却は `cache-control: no-store`）を併用し、複数端末・複数タブからの閲覧でも D1 読み取りを最小限に抑えています。

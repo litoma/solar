@@ -462,7 +462,10 @@ async function geocodeOpenMeteo(
 }
 
 const GATEWAY_MINUTES_LIMIT = 30;
-const GATEWAY_FETCH_TIMEOUT_MS = 8000;
+const GATEWAY_FETCH_TIMEOUT_MS = 5000;
+const GATEWAY_FETCH_MAX_ATTEMPTS = 2;
+const GATEWAY_FETCH_RETRY_DELAY_MS = 300;
+const GATEWAY_ONLINE_MAX_AGE_SEC = 300;
 const SNAPSHOT_INTERVAL_SEC = 600;
 const SNAPSHOT_MAX_AGE_SEC = 120;
 const GATEWAY_INTERNAL_ORIGIN = "http://192.168.0.36";
@@ -536,6 +539,15 @@ async function queryIngestWatermarks(
   };
 }
 
+class GatewayHttpError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 async function fetchGatewayJson(
   gateway: Fetcher,
   pathAndQuery: string,
@@ -546,15 +558,36 @@ async function fetchGatewayJson(
   if (token) {
     headers["X-Api-Token"] = token;
   }
-  const resp = await gateway.fetch(`${GATEWAY_INTERNAL_ORIGIN}${pathAndQuery}`, {
-    method: "GET",
-    headers,
-    signal: AbortSignal.timeout(GATEWAY_FETCH_TIMEOUT_MS),
-  });
-  if (!resp.ok) {
-    throw new Error(`Gateway HTTP ${resp.status} for ${pathAndQuery}`);
+
+  let lastErr: unknown = null;
+  for (let attempt = 1; attempt <= GATEWAY_FETCH_MAX_ATTEMPTS; attempt++) {
+    try {
+      const resp = await gateway.fetch(`${GATEWAY_INTERNAL_ORIGIN}${pathAndQuery}`, {
+        method: "GET",
+        headers,
+        signal: AbortSignal.timeout(GATEWAY_FETCH_TIMEOUT_MS),
+      });
+      if (!resp.ok) {
+        throw new GatewayHttpError(
+          resp.status,
+          `Gateway HTTP ${resp.status} for ${pathAndQuery}`,
+        );
+      }
+      return await resp.json();
+    } catch (err) {
+      lastErr = err;
+      // 4xx (認証エラー等) は再試行しても回復しないため即座に失敗させる
+      if (err instanceof GatewayHttpError && err.status >= 400 && err.status < 500) {
+        throw err;
+      }
+      if (attempt < GATEWAY_FETCH_MAX_ATTEMPTS) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, GATEWAY_FETCH_RETRY_DELAY_MS),
+        );
+      }
+    }
   }
-  return await resp.json();
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
 
 function parseGatewayMinutes(
@@ -956,7 +989,9 @@ async function buildDashboard(
   const tzSec = (cfg.timezoneOffsetMinutes ?? 540) * 60;
   const nowSec = Math.floor(Date.now() / 1000);
   const gatewayOnline = Boolean(
-    latest && typeof latest.ts === "number" && nowSec - latest.ts <= 240,
+    latest &&
+      typeof latest.ts === "number" &&
+      nowSec - latest.ts <= GATEWAY_ONLINE_MAX_AGE_SEC,
   );
 
   const jstDate = new Date((refTs + tzSec) * 1000);
