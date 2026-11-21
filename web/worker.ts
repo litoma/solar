@@ -1579,7 +1579,7 @@ async function queryCheckpointMonthlyAvg(
   buy: number | null;
   sell: number | null;
 }> {
-  const monthStartJst = `${todayJst.slice(0, 7)}-01`;
+  const targetMonth = todayJst.slice(5, 7);
   const curMin = getLocalMinuteOfDay(refTs, tzSec);
   const curSlot =
     Math.floor(curMin / CHECKPOINT_SLOT_MINUTES) * CHECKPOINT_SLOT_MINUTES;
@@ -1591,12 +1591,12 @@ async function queryCheckpointMonthlyAvg(
 
   const sql =
     prevSlot !== null
-      ? "SELECT slot_min, jst_date, solar_kwh, sell_kwh, buy_kwh, load_kwh FROM daily_checkpoints WHERE slot_min IN (?, ?) AND jst_date >= ? AND jst_date < ?"
-      : "SELECT slot_min, jst_date, solar_kwh, sell_kwh, buy_kwh, load_kwh FROM daily_checkpoints WHERE slot_min = ? AND jst_date >= ? AND jst_date < ?";
+      ? "SELECT slot_min, jst_date, solar_kwh, sell_kwh, buy_kwh, load_kwh FROM daily_checkpoints WHERE slot_min IN (?, ?) AND substr(jst_date, 6, 2) = ? AND jst_date < ?"
+      : "SELECT slot_min, jst_date, solar_kwh, sell_kwh, buy_kwh, load_kwh FROM daily_checkpoints WHERE slot_min = ? AND substr(jst_date, 6, 2) = ? AND jst_date < ?";
   const params: (number | string)[] =
     prevSlot !== null
-      ? [prevSlot, curSlot, monthStartJst, todayJst]
-      : [curSlot, monthStartJst, todayJst];
+      ? [prevSlot, curSlot, targetMonth, todayJst]
+      : [curSlot, targetMonth, todayJst];
 
   let rows: CheckpointRow[] = [];
   try {

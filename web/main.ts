@@ -70,7 +70,7 @@ function kwHtml(kw: number, unitClass = "ef-unit"): string {
 }
 
 function kwhDayHtml(kwh: number): string {
-  return `${kwh.toFixed(2)} kWh/d`;
+  return `<span class="ef-kwh-day">${kwh.toFixed(2)}<span class="ef-kwh-unit">kWh/d</span></span>`;
 }
 
 const AVG_ARROW_UP_RIGHT =
@@ -86,7 +86,7 @@ function kwhDayWithAvgHtml(
   kwh: number,
   monthlyAvg: number | null | undefined,
 ): string {
-  const base = `<span>${kwh.toFixed(2)} kWh/d</span>`;
+  const base = kwhDayHtml(kwh);
   if (
     typeof monthlyAvg !== "number" ||
     !Number.isFinite(monthlyAvg) ||
@@ -98,7 +98,7 @@ function kwhDayWithAvgHtml(
   const arrow =
     pct > 0 ? AVG_ARROW_UP_RIGHT : pct < 0 ? AVG_ARROW_DOWN_LEFT : "";
   const cls = pct > 0 ? "is-pos" : pct < 0 ? "is-neg" : "is-flat";
-  return `${base}<span class="ef-avg-delta ${cls}">${arrow}${Math.abs(pct)}% Avg.</span>`;
+  return `${base}<span class="ef-avg-delta ${cls}">${arrow}${Math.abs(pct)}%<span class="ef-avg-label">Avg.</span></span>`;
 }
 
 function formatTimeJst(
@@ -131,6 +131,26 @@ function quadBezier(
   return {
     x: u * u * x0 + 2 * u * t * x1 + t * t * x2,
     y: u * u * y0 + 2 * u * t * y1 + t * t * y2,
+  };
+}
+
+function cubicBezier(
+  t: number,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  x3: number,
+  y3: number,
+): { x: number; y: number } {
+  const u = 1 - t;
+  const u2 = u * u;
+  const t2 = t * t;
+  return {
+    x: u2 * u * x0 + 3 * u2 * t * x1 + 3 * u * t2 * x2 + t2 * t * x3,
+    y: u2 * u * y0 + 3 * u2 * t * y1 + 3 * u * t2 * y2 + t2 * t * y3,
   };
 }
 
@@ -257,7 +277,6 @@ function positionSunMarker(
   const badgeGroup = el<SVGGElement>("sun-badge-group");
   const badgeTemp = el<SVGTextElement>("sun-badge-temp");
   const iconGroup = el<SVGGElement>("sun-weather-icon");
-  const ring = el<SVGCircleElement>("sun-marker-ring");
   const glow = el<SVGCircleElement>("sun-marker-glow");
 
   const tempC = weather?.tempC;
@@ -267,15 +286,14 @@ function positionSunMarker(
   const isNight = minutesOfDay < sunriseMin || minutesOfDay > sunsetMin;
   const iconSpec = buildWeatherIconSvg(weather?.condition || "CLEAR", isNight);
   iconGroup.innerHTML = iconSpec.svg;
-  ring.setAttribute("stroke", iconSpec.ringColor);
   glow.setAttribute("fill", iconSpec.glowColor);
 
   let pos: { x: number; y: number };
   if (minutesOfDay < sunriseMin) {
-    // 00:00 〜 日の出: (12,98) -> (76,138) -> (140,98)
+    // 00:00 〜 日の出: (20,134) から滑らかに上昇して (140,98) へ接続
     const t = Math.max(0, Math.min(1, minutesOfDay / Math.max(1, sunriseMin)));
-    pos = quadBezier(t, 12, 98, 76, 138, 140, 98);
-    badgeGroup.setAttribute("transform", "translate(0, -22)");
+    pos = cubicBezier(t, 20, 134, 72, 134, 106, 124.35, 140, 98);
+    badgeGroup.setAttribute("transform", "translate(0, -23)");
   } else if (minutesOfDay <= sunsetMin) {
     // 日の出 〜 日の入り: (140,98) -> (300,-26) -> (460,98)
     const span = Math.max(60, sunsetMin - sunriseMin);
@@ -283,11 +301,11 @@ function positionSunMarker(
     pos = quadBezier(t, 140, 98, 300, -26, 460, 98);
     badgeGroup.setAttribute("transform", "translate(0, -24)");
   } else {
-    // 日の入り 〜 24:00: (460,98) -> (524,138) -> (588,98)
+    // 日の入り 〜 24:00: (460,98) から滑らかに下降して (580,134) へ接続
     const nightSpan = Math.max(1, 1440 - sunsetMin);
     const t = Math.max(0, Math.min(1, (minutesOfDay - sunsetMin) / nightSpan));
-    pos = quadBezier(t, 460, 98, 524, 138, 588, 98);
-    badgeGroup.setAttribute("transform", "translate(0, -22)");
+    pos = cubicBezier(t, 460, 98, 494, 124.35, 528, 134, 580, 134);
+    badgeGroup.setAttribute("transform", "translate(0, -23)");
   }
 
   marker.setAttribute(
@@ -382,6 +400,15 @@ function updateFlowLines(
   }
 }
 
+function socToBatteryColor(soc: number | null): string {
+  if (soc === null || !Number.isFinite(soc)) return "#6c667d";
+  const t = Math.max(0, Math.min(1, soc / 100));
+  const r = Math.round(68 + (213 - 68) * t);
+  const g = Math.round(63 + (203 - 63) * t);
+  const b = Math.round(86 + (249 - 86) * t);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
 /**
  * 太陽軌道下の家 (屋根SOLAR/窓USE/蓄電池BATTERY) と鉄塔電線 (BUY/SELL) の状態を連動更新する
  */
@@ -389,13 +416,18 @@ function updateSunSceneStatus(
   solarActive: boolean,
   useActive: boolean,
   battCharging: boolean,
+  soc: number | null,
   buyActive: boolean,
   sellActive: boolean,
 ): void {
   el("house-solar-left").classList.toggle("is-active", solarActive);
   el("house-solar-right").classList.toggle("is-active", solarActive);
+  el("house-solar-glow").classList.toggle("is-active", solarActive);
   el("house-use").classList.toggle("is-active", useActive);
-  el("house-battery").classList.toggle("is-charging", battCharging);
+
+  const houseBatt = el("house-battery");
+  houseBatt.style.setProperty("--house-batt-fill", socToBatteryColor(soc));
+  el("house-battery-glow").classList.toggle("is-charging", battCharging);
 
   const gridWire = el("sun-grid-flow");
   gridWire.classList.toggle("is-buy", buyActive);
@@ -407,7 +439,6 @@ function renderDashboard(data: DashboardResponse): void {
   const tzMin = cfg.timezoneOffsetMinutes ?? 540;
 
   el("sun-rise-label").textContent = data.sun.sunrise;
-  el("sun-noon-label").textContent = "12:00";
   el("sun-set-label").textContent = data.sun.sunset;
   el("val-batt-cap").textContent = `MAX ${cfg.batteryCapacityKwh.toFixed(1)} kWh`;
 
@@ -446,7 +477,7 @@ function renderDashboard(data: DashboardResponse): void {
       data.sun.sunsetMin,
       data.weather,
     );
-    updateSunSceneStatus(false, false, false, false, false);
+    updateSunSceneStatus(false, false, false, null, false, false);
     statusPill.dataset.state = "offline";
     statusText.textContent = "OFFLINE";
     return;
@@ -526,6 +557,7 @@ function renderDashboard(data: DashboardResponse): void {
     solarActive,
     useActive,
     battCharging,
+    soc,
     buyActive,
     sellActive,
   );

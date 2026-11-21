@@ -199,7 +199,7 @@ body {
 /* 太陽軌道セクション (BUY〜SELLの左右幅と揃えるため余白0で100%展開) */
 .ef-sun-wrap {
   width: 100%;
-  margin: 0 0 8px;
+  margin: 0;
 }
 
 .ef-sun-svg {
@@ -211,15 +211,25 @@ body {
 
 /* 太陽軌道下の家・鉄塔ステータス連動アニメーション */
 .house-solar {
-  stroke: #4c4634;
-  opacity: 0.55;
+  stroke: #564f39;
+  opacity: 0.6;
   transition: stroke 0.3s ease, opacity 0.3s ease;
 }
 
 .house-solar.is-active {
   stroke: #fbdd84;
   opacity: 1;
-  animation: house-solar-pulse 1.8s ease-in-out infinite;
+  animation: house-solar-pulse 2.6s ease-in-out infinite;
+}
+
+.house-solar-glow path {
+  stroke: rgba(251, 221, 132, 0.78);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.house-solar-glow.is-active path {
+  animation: house-glow-pulse 2.8s ease-in-out infinite;
 }
 
 @keyframes house-solar-pulse {
@@ -230,58 +240,88 @@ body {
   }
 
   50% {
-    stroke: #4c4634;
-    opacity: 0.35;
+    stroke: #c7ab5c;
+    opacity: 0.65;
   }
 }
 
 .house-use {
-  fill: #24332a;
-  opacity: 0.6;
+  fill: #2d593e;
+  opacity: 0.85;
   transition: fill 0.3s ease, opacity 0.3s ease;
 }
 
 .house-use.is-active {
   fill: #57f293;
   opacity: 1;
-  animation: house-use-pulse 1.8s ease-in-out infinite;
+  animation: house-use-flicker 3.1s ease-in-out infinite;
 }
 
-@keyframes house-use-pulse {
-  0%,
-  100% {
-    fill: #57f293;
+@keyframes house-use-flicker {
+  0% {
+    fill: #4fd986;
+    opacity: 0.92;
+  }
+
+  14% {
+    fill: #65ff9f;
     opacity: 1;
   }
 
-  50% {
-    fill: #24332a;
-    opacity: 0.35;
+  27% {
+    fill: #358f58;
+    opacity: 0.7;
+  }
+
+  41% {
+    fill: #57f293;
+    opacity: 0.96;
+  }
+
+  58% {
+    fill: #3fa969;
+    opacity: 0.78;
+  }
+
+  73% {
+    fill: #69ffa3;
+    opacity: 1;
+  }
+
+  88% {
+    fill: #338653;
+    opacity: 0.66;
+  }
+
+  100% {
+    fill: #4fd986;
+    opacity: 0.92;
   }
 }
 
 .house-battery {
-  fill: #3d3b47;
-  opacity: 0.65;
-  transition: fill 0.3s ease, opacity 0.3s ease;
+  fill: var(--house-batt-fill, #6c667d);
+  transition: fill 0.4s ease;
 }
 
-.house-battery.is-charging {
-  fill: #d5cbf9;
-  opacity: 1;
-  animation: house-batt-pulse 1.8s ease-in-out infinite;
+.house-battery-glow {
+  stroke: rgba(191, 182, 224, 0.82);
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
-@keyframes house-batt-pulse {
+.house-battery-glow.is-charging {
+  animation: house-glow-pulse 2.8s ease-in-out infinite;
+}
+
+@keyframes house-glow-pulse {
   0%,
   100% {
-    fill: #d5cbf9;
-    opacity: 1;
+    opacity: 0.95;
   }
 
   50% {
-    fill: #3d3b47;
-    opacity: 0.35;
+    opacity: 0.16;
   }
 }
 
@@ -326,6 +366,10 @@ body {
   font-family: var(--font-mono);
   font-size: 13px;
   text-anchor: middle;
+  paint-order: stroke;
+  stroke: #161618;
+  stroke-width: 4px;
+  stroke-linejoin: round;
 }
 
 .sun-badge-text {
@@ -600,8 +644,12 @@ body {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  column-gap: 7px;
+  column-gap: 6px;
   row-gap: 2px;
+}
+
+.ef-kwh-unit {
+  margin-left: 0.22em;
 }
 
 .ef-avg-delta {
@@ -612,6 +660,10 @@ body {
   font-weight: 400;
   letter-spacing: 0.01em;
   white-space: nowrap;
+}
+
+.ef-avg-label {
+  margin-left: 0.22em;
 }
 
 .ef-avg-arrow {
@@ -724,7 +776,6 @@ body {
 .ef-batt-model {
   font: inherit;
   letter-spacing: inherit;
-  color: #b6aed4;
 }
 
 .ef-batt-value {
@@ -1608,12 +1659,16 @@ body {
   .ef-card-sub {
     font-size: 12.5px;
     letter-spacing: 0.01em;
-    column-gap: 5px;
+    column-gap: 4px;
   }
 
   .ef-avg-delta {
     font-size: inherit;
     letter-spacing: 0;
+  }
+
+  .ef-avg-label {
+    display: none;
   }
 
   /* スマホ表示では屋根の余白を詰め、コンパクトに中央表示 */

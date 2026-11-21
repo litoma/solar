@@ -42,23 +42,45 @@
       <div class="ef-canvas">
         <!-- 太陽軌道・外気温テキスト(枠なし)・天気アイコン (上部余白を少し詰め、BUY〜SELLの左右幅に揃えた設計) -->
         <div class="ef-sun-wrap">
-          <svg class="ef-sun-svg" viewBox="0 10 600 134" preserveAspectRatio="xMidYMid meet"
+          <svg class="ef-sun-svg" viewBox="0 10 600 150" preserveAspectRatio="xMidYMid meet"
             aria-label="Solar Elevation & Weather Curve">
-            <!-- 地平線 (実線・左右端0〜600までフル幅) -->
-            <line x1="0" y1="98" x2="600" y2="98" stroke="#44454a" stroke-width="1.6" />
-            <!-- 太陽軌道の真ん中 (12:00の上) の家のアイコン (接地面 y=98, 屋根ソーラー左右分割, 緑窓, 左壁にEP CUBE) -->
+            <defs>
+              <filter id="house-soft-glow" x="-28" y="-26" width="56" height="48" filterUnits="userSpaceOnUse">
+                <feGaussianBlur stdDeviation="1.8" />
+              </filter>
+              <clipPath id="solar-glow-clip">
+                <path d="M -22 6 L -13.8 -1.26 L 0 -12.3 L 13.8 -1.26 L 22 6 L 22 -24 L -22 -24 Z" />
+              </clipPath>
+              <clipPath id="batt-glow-clip">
+                <rect x="-26" y="-4" width="14.1" height="20" />
+              </clipPath>
+            </defs>
+            <!-- 地平線 (日の出 x=140 〜 日の入り x=460 を終端) -->
+            <line x1="140" y1="98" x2="460" y2="98" stroke="#44454a" stroke-width="1.6" stroke-linecap="round" />
+            <!-- 太陽軌道の真ん中 (12:00の上) の家のアイコン (接地面 y=98, 屋根ソーラー左右分割, 正方形緑窓, 左壁にEP CUBE) -->
             <g transform="translate(300, 82)" aria-hidden="true">
+              <g clip-path="url(#batt-glow-clip)">
+                <path id="house-battery-glow" class="house-battery-glow"
+                  d="M-15.9 16 V6.8 Q-15.9 6 -15.1 6 H-11.9" fill="none" stroke-width="5.2" stroke-linecap="round"
+                  filter="url(#house-soft-glow)" />
+              </g>
               <rect id="house-battery" class="house-battery" x="-15.9" y="6" width="4" height="10" rx="0.8" />
+              <g clip-path="url(#solar-glow-clip)">
+                <g id="house-solar-glow" class="house-solar-glow" filter="url(#house-soft-glow)">
+                  <path d="M-14.4 -2.1 L-2.8 -11.4" fill="none" stroke-width="4.5" stroke-linecap="round" />
+                  <path d="M2.8 -11.4 L14.4 -2.1" fill="none" stroke-width="4.5" stroke-linecap="round" />
+                </g>
+              </g>
               <path d="M-15 2 L0 -10 L15 2 M-11 0 V16 H11 V0" fill="none" stroke="#44454a" stroke-width="1.8"
                 stroke-linecap="round" stroke-linejoin="round" />
               <path id="house-solar-left" class="house-solar" d="M-13.8 -1.26 L-2.2 -10.55" fill="none"
                 stroke-width="1.8" stroke-linecap="round" />
               <path id="house-solar-right" class="house-solar" d="M2.2 -10.55 L13.8 -1.26" fill="none"
                 stroke-width="1.8" stroke-linecap="round" />
-              <rect id="house-use" class="house-use" x="-4" y="3" width="8" height="6" rx="0.8" stroke="#44454a"
+              <rect id="house-use" class="house-use" x="-4" y="3" width="8" height="8" rx="0.8" stroke="#44454a"
                 stroke-width="1.3" />
-              <line x1="0" y1="3" x2="0" y2="9" stroke="#44454a" stroke-width="1.0" />
-              <line x1="-4" y1="6" x2="4" y2="6" stroke="#44454a" stroke-width="1.0" />
+              <line x1="0" y1="3" x2="0" y2="11" stroke="#44454a" stroke-width="1.0" />
+              <line x1="-4" y1="7" x2="4" y2="7" stroke="#44454a" stroke-width="1.0" />
             </g>
             <!-- 家と鉄塔をつなぐ電線 (1本 + 買電/売電時ドットアニメーション) -->
             <path d="M 311 84 Q 335.25 90.5 359.5 84" fill="none" stroke="#44454a" stroke-width="1.2"
@@ -74,9 +96,10 @@
               <path d="M-6.5 0 L5.4 -6 M6.5 0 L-5.4 -6 M-5.4 -6 L4.3 -14 M5.4 -6 L-4.3 -14 M-4.3 -14 L2.8 -21 M4.3 -14 L-2.8 -21"
                 fill="none" stroke="#44454a" stroke-width="1.0" stroke-linecap="round" />
             </g>
-            <!-- 日の出前・日の入り後の破線カーブ -->
-            <path d="M 12 98 Q 76 138 140 98" fill="none" stroke="#4d4e54" stroke-width="1.5" stroke-dasharray="4 4" />
-            <path d="M 460 98 Q 524 138 588 98" fill="none" stroke="#4d4e54" stroke-width="1.5"
+            <!-- 日の出前・日の入り後の破線カーブ (時刻表示の下から滑らかな波型に接続) -->
+            <path d="M 20 134 C 72 134 106 124.35 140 98" fill="none" stroke="#4d4e54" stroke-width="1.5"
+              stroke-dasharray="4 4" />
+            <path d="M 460 98 C 494 124.35 528 134 580 134" fill="none" stroke="#4d4e54" stroke-width="1.5"
               stroke-dasharray="4 4" />
             <!-- 日中の太陽軌道アーク (角度をつけた大きな円弧: 頂点 y=36) -->
             <path id="sun-arc-path" d="M 140 98 Q 300 -26 460 98" fill="none" stroke="#d7bd72" stroke-width="2.3"
@@ -88,16 +111,15 @@
 
             <!-- 時刻ラベル -->
             <text x="140" y="120" class="sun-time-label" id="sun-rise-label">--:--</text>
-            <text x="300" y="120" class="sun-time-label" id="sun-noon-label">12:00</text>
             <text x="460" y="120" class="sun-time-label" id="sun-set-label">--:--</text>
 
-            <!-- 現在時刻マーカー: 外気温テキスト(枠なし) + 天気アイコン (外側の半透明枠を太めに) -->
+            <!-- 現在時刻マーカー: 外気温テキスト(枠なし) + 天気アイコン (内枠線なし、外側半透明枠あり) -->
             <g id="sun-marker-group" transform="translate(300, 36)">
               <g id="sun-badge-group" transform="translate(0, -25)">
                 <text x="0" y="0" class="sun-badge-text" id="sun-badge-temp">--°C</text>
               </g>
               <circle cx="0" cy="0" r="19" fill="rgba(251, 221, 132, 0.25)" id="sun-marker-glow" />
-              <circle cx="0" cy="0" r="12" fill="#0f1012" stroke="#d7bd72" stroke-width="1.8" id="sun-marker-ring" />
+              <circle cx="0" cy="0" r="12" fill="#0f1012" id="sun-marker-ring" />
               <g id="sun-weather-icon"></g>
             </g>
           </svg>
