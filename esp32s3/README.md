@@ -82,6 +82,7 @@ EP CUBE ⇄ BLE ⇄ ATOMS3 Lite (192.168.0.36:80)
 
 - `0x0513`: 運転モード(1=自家消費、2=時間帯別、3=バックアップ)
 - `0x0515`: SOC(%)
+- `0x0516`: 蓄電池残電力量(0.01kWh単位)
 - `0x051F`: 系統電力(符号付き、10W単位。正=買電、負=売電)
 - `0x0542`: バックアップ負荷電力(10W単位)
 - `0x0543`: 太陽光発電電力(10W単位)
@@ -97,6 +98,7 @@ EP CUBE ⇄ BLE ⇄ ATOMS3 Lite (192.168.0.36:80)
 ### BMS(確認済み)
 
 - `0x5027`: パック電圧(0.1V単位)
+- `0x5046`: 蓄電池実容量(0.1kWh単位。実機4モジュール構成時は `132` = `13.2kWh`)
 - `0x5050`〜`0x507F`: セル電圧48個(mV)
 - `0x50D0`〜`0x50DF`: 温度センサー16個(℃、符号付き)
 - 検証: 48セルの合計がパック電圧と一致した。自機でも、セル電圧3265〜3270mV×48≒156.9Vに対し、パック電圧は156.6〜156.8Vだった。
@@ -116,7 +118,7 @@ EP CUBE ⇄ BLE ⇄ ATOMS3 Lite (192.168.0.36:80)
 
 ### 低速(60秒周期)
 
-- 5回の読み出し: `0x5027`×1、`0x5050`×16、`0x5060`×16、`0x5070`×16、`0x50D0`×16
+- 6回の読み出し: `0x5027`×1、`0x5050`×16、`0x5060`×16、`0x5070`×16、`0x50D0`×16、`0x5046`×1 (`REG_BATT_CAP` は失敗時も直近値を維持)
 - `runFast()` と毎分衝突しないよう、接続時は5秒オフセット (`SLOW_START_OFFSET_MS = 5000`) して開始する（Worker側の鮮度上限 `SNAPSHOT_MAX_AGE_SEC = 120` に対応するため60秒周期を維持）。
 - 妥当性検査: セルは2000〜4500mVの値が40個以上、温度は−40〜100℃の値が8個以上。満たさない場合は破棄し、エラーを統計と `last_error` に記録する。
 
@@ -131,7 +133,7 @@ EP CUBE ⇄ BLE ⇄ ATOMS3 Lite (192.168.0.36:80)
 - その分に取れた高速サンプルを集計する。`n` はサンプル数(通常6。起動直後や欠測時は少ない)。
 - PV電力は平均・最小・最大(W)、PV電圧・電流は平均。太陽光・系統・負荷・蓄電池・PCSの電力は平均。SOC、運転モード、日積算は、分の最後の値。
 - BMS: 分の確定時に、直近120秒以内の低速サンプルがあれば、パック電圧、セル電圧の最大・最小・平均、温度の最大・最小・平均を付ける。なければ `null`。
-- 確定した分だけを、リングバッファ(最大720件=12時間分、1件76バイトで約54.7KB)に保持する。起動時に `BLE_TASK_STACK` (8KB) と最低空きヒープ (`MIN_HEAP_AFTER_RING` = 50KB) を差し引いても残るサイズで確保し、足りなければ件数を半分ずつ減らす(最小60件)。再起動で消える。取り込み停止が保持時間を超えると欠損する。
+- 確定した分だけを、リングバッファ(最大720件=12時間分、1件80バイトで約57.6KB)に保持する。起動時に `BLE_TASK_STACK` (8KB) と最低空きヒープ (`MIN_HEAP_AFTER_RING` = 50KB) を差し引いても残るサイズで確保し、足りなければ件数を半分ずつ減らす(最小60件)。再起動で消える。取り込み停止が保持時間を超えると欠損する。
 - 集計中の分は `/api/minutes` に出ない。確定は、次の分の最初のサンプルが取れた時点(最大約10秒遅れ)。
 
 ## 9. HTTP API
@@ -145,7 +147,7 @@ EP CUBE ⇄ BLE ⇄ ATOMS3 Lite (192.168.0.36:80)
 - `since`: この時刻より新しい `ts` だけを返す。`limit`: 最大件数(1〜保持件数、既定60。Worker 側は `30` を指定)。
 - 転送方式: 3件以下(平常時の毎分0〜1件)は `Content-Length` 付きで一括送信(`server.send`)。4件以上の追いつき時は `dataMutex` を細切れに解放しながら3件(約2KB)単位でチャンク送信する。
 - 応答: `device`、`now`、`time_valid`、`minutes`(ts昇順の配列)。
-- `minutes` の各要素: `ts`、`n`、`pv`(4要素の配列。`p_avg`、`p_min`、`p_max`、`v`、`i`)、`sys`(`solar_w`、`grid_w`、`load_w`、`batt_w`、`pcs_w`、`soc`、`mode`、`solar_day_kwh`、`buy_day_kwh`、`load_day_kwh`)、`bms`(`pack_v`、`cell_max_mv`、`cell_min_mv`、`cell_avg_mv`、`temp_max_c`、`temp_min_c`、`temp_avg_c`。なければ `null`)
+- `minutes` の各要素: `ts`、`n`、`pv`(4要素の配列。`p_avg`、`p_min`、`p_max`、`v`、`i`)、`sys`(`solar_w`、`grid_w`、`load_w`、`batt_w`、`pcs_w`、`soc`、`mode`、`batt_kwh`、`solar_day_kwh`、`buy_day_kwh`、`load_day_kwh`)、`bms`(`pack_v`、`cell_max_mv`、`cell_min_mv`、`cell_avg_mv`、`temp_max_c`、`temp_min_c`、`temp_avg_c`、`batt_cap_kwh`。なければ `null`)
 - 単位: 電力W、電圧V、電流A、日積算kWh、セル電圧mV、温度℃。`pv` の配列はPV1〜4の順。
 
 ### `GET /api/latest?cells=1`
@@ -160,6 +162,14 @@ EP CUBE ⇄ BLE ⇄ ATOMS3 Lite (192.168.0.36:80)
 - `addr`: 開始アドレス(16進)。`count`: 1〜16(既定16)。
 - 応答: `addr`(10進)、`count`、`values`(レジスタ値の配列)。エラーは `400`(範囲不正)、`502`(読み取り失敗)、`503`(BLE未接続)。
 - 認証は他のAPIと同じ(`API_TOKEN`)。`bleMutex` で通常ポーリングと調停される。
+
+### `POST /api/ota`
+
+- LAN 内ネットワーク経由でファームウェア (`.bin`) を書き換える HTTP OTA エンドポイント (`<Update.h>`)。`v1.4.0` から対応（`v1.3.0` からの初回のみ USB 接続での書き込みが必要）。
+- リクエスト: `multipart/form-data` の `firmware` パートに `epcube-gw.ino.bin` を指定して送信する（任意で `?md5=<32桁hex>` を付けると書き込み後の MD5 検証も行う）。
+- 認証: `secrets.h` に `API_TOKEN` を設定している場合は `X-Api-Token` ヘッダが必須。
+- 安全制御: 受信開始時に BLE スキャン・接続を一時停止し、完了後に `Update.end(true)` 成功時のみ再起動して新スロットへ切り替える（失敗時は自動復旧。再起動で本体メモリ上のリングバッファ未取得分は消えるため、毎分 1 回の D1 取り込み直後に実行することを推奨）。
+- ビルド＆書き込みヘルパー: [esp32s3/ota_upload.sh](file:///home/litoma/solar/esp32s3/ota_upload.sh) を実行すると、`secrets.h` を含めてコンパイルし MD5 付きで `http://192.168.0.36/api/ota` へ自動送信する。
 
 ## 10. Cloudflare 取り込み仕様・D1 スキーマ
 
@@ -180,8 +190,8 @@ EP CUBE ⇄ BLE ⇄ ATOMS3 Lite (192.168.0.36:80)
   - `ts INTEGER PRIMARY KEY` (UTC epoch秒)、`n INTEGER`
   - `pv1_p_avg_w REAL`, `pv1_p_min_w INTEGER`, `pv1_p_max_w INTEGER`, `pv1_v REAL`, `pv1_i REAL` (`pv2`〜`pv4` も同様)
   - `solar_w REAL`, `grid_w REAL`, `load_w REAL`, `batt_w REAL`, `pcs_w REAL`, `soc INTEGER`, `mode INTEGER`
-  - `solar_day_kwh REAL`, `buy_day_kwh REAL`, `load_day_kwh REAL`
-  - `pack_v REAL`, `cell_max_mv INTEGER`, `cell_min_mv INTEGER`, `cell_avg_mv INTEGER`, `temp_max_c INTEGER`, `temp_min_c INTEGER`, `temp_avg_c REAL` (BMSの欠測はNULL)
+  - `solar_day_kwh REAL`, `buy_day_kwh REAL`, `load_day_kwh REAL`, `batt_kwh REAL`
+  - `pack_v REAL`, `cell_max_mv INTEGER`, `cell_min_mv INTEGER`, `cell_avg_mv INTEGER`, `temp_max_c INTEGER`, `temp_min_c INTEGER`, `temp_avg_c REAL`, `batt_cap_kwh REAL` (BMSの欠測はNULL)
   - `weather_code INTEGER`, `outdoor_temp_c REAL`
 - `bms_snapshots` (10分ごと)
   - `ts INTEGER PRIMARY KEY`, `cells_json TEXT`, `temps_json TEXT`
@@ -211,7 +221,8 @@ EP CUBE ⇄ BLE ⇄ ATOMS3 Lite (192.168.0.36:80)
 
 1. `esp32s3/secrets.example.h` を同じフォルダに `secrets.h` としてコピーし、`WIFI_SSID` / `WIFI_PASS`(必要なら `API_TOKEN`)を設定する。Arduino IDE（または `arduino-cli`）でボードに `M5AtomS3`（`Partition Scheme` は `8M with spiffs (3MB APP/1.5MB SPIFFS)` 等、`USB CDC On Boot: Enabled`、`USB Mode: Hardware CDC and JTAG`）を選択して書き込む。調査用スケッチやスマホアプリのBLEは止めておく。
 2. シリアルモニタ(115200bps)で、Wi-FiのIP、「EP CUBEに接続しました」、`[fast]` と `[slow]` の行が出ることを確認する。
-3. `http://192.168.0.36/api/latest?cells=1` を開き、`fw` が `1.3.0` であること、`fast` のPV電力がログと一致すること、セルが48個あること、`cell_avg_mv×48÷1000` が `pack_v` に近いことを確認する。
+3. `http://192.168.0.36/api/latest?cells=1` を開き、`fw` が `1.4.0` であること、`fast` のPV電力と `batt_kwh` がログと一致すること、`slow.batt_cap_kwh` やセルが48個あること、`cell_avg_mv×48÷1000` が `pack_v` に近いことを確認する。
+4. （初回 USB 書き込み後、次回以降の更新時は）[esp32s3/ota_upload.sh](file:///home/litoma/solar/esp32s3/ota_upload.sh) から LAN 経由で OTA 更新できる。
 4. 3分後に `/api/minutes` に確定分が約3件あり、`n` が約6であることを確認する。
 5. Cloudflare D1 (`minute_samples` / `bms_snapshots` / `daily_summary`) にデータが入ること、公開サイト (`/api/dashboard`) が `gatewayOnline: true` になることを確認する。
 6. 24時間運転し、`stats` の再接続数・タイムアウト数と、`free_heap`・`min_free_heap`・`max_alloc_heap` の推移を確認する。
@@ -235,6 +246,7 @@ EP CUBE ⇄ BLE ⇄ ATOMS3 Lite (192.168.0.36:80)
 
 ## 15. 変更履歴
 
+- 1.5(2026-11-22): `epcube-gw.ino` v1.4.0 (`0x0516` `batt_kwh` 蓄電池残電力量、`0x5046` `batt_cap_kwh` 蓄電池実容量の取得対応、および `POST /api/ota` による LAN 内 HTTP OTA 更新・`ota_upload.sh` 追加) へ更新。
 - 1.4(2026-11-21): `epcube-gw.ino` v1.3.0 (Arduino-ESP32 `4.0.0` BLE API (`<BLE.h>`) 対応、スキャン時間・間隔のms単位化、`std::atomic` / 値ハンドル化) へ更新。
 - 1.3(2026-11-20): `epcube-gw.ino` v1.2.0〜v1.2.1(FreeRTOSタスク分離、HTTP一括/まとめ送信、`TCP_NODELAY`、USB CDC非ブロッキングログ、`secrets.h`分離、Wi-Fi切断フェイルセーフ)および Cloudflare Worker 直接取り込み構成 (Workers VPC + D1 + 5秒リトライ + 300秒オンライン判定) へ全面改訂。夜間8時間超の稼働実績を追記。
 - 1.2(2026-11-19): v1.1.0を実機で動作確認。`load_w` の確認結果(待機消費約33W、日積算が機器の値と一致)を反映。D1の対応状況と現行の取り込み構成を追記。`load_w` の確認手順を更新(方法Dを追加)。

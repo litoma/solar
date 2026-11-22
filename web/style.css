@@ -31,14 +31,20 @@ body {
   gap: 0;
 }
 
-/* 最上部ヘッダー: EP VIEW & ONLINE/OFFLINE (上下余白を均等かつコンパクトに) */
+/* 最上部ヘッダー: EP VIEW & ONLINE/OFFLINE + 紹介アコーディオン */
 .top-bar {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0 6px;
+  margin-bottom: 14px;
+}
+
+.top-bar-row {
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 6px;
-  margin-bottom: 14px;
   gap: 12px;
 }
 
@@ -51,12 +57,108 @@ body {
   color: #e8e8e8;
 }
 
+.top-bar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.top-bar-info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 999px;
+  background-color: #19191b;
+  border: 1px solid #2b2c32;
+  color: #b8bac4;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.top-bar-info-btn:hover {
+  background-color: #212228;
+  border-color: #444754;
+  color: #e8e8e8;
+}
+
+.top-bar-info-btn svg {
+  transition: transform 0.24s ease;
+}
+
+.top-bar-info-btn[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.top-bar-about {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  margin-top: 0;
+  transition: grid-template-rows 0.24s ease, opacity 0.2s ease, margin-top 0.24s ease;
+}
+
+.top-bar-about.is-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  margin-top: 10px;
+}
+
+.top-bar-about-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.top-bar-about-text {
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: #a6a9b5;
+  padding: 2px 0 0;
+  letter-spacing: 0.01em;
+}
+
+.top-bar-about-links {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.top-bar-about-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background-color: #19191b;
+  border: 1px solid #2b2c32;
+  color: #c8cad4;
+  text-decoration: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.top-bar-about-link:hover {
+  background-color: #212228;
+  border-color: #444754;
+  color: #ffffff;
+}
+
+.top-bar-about-link img {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  display: block;
+}
+
 /* 外枠コンテナ (枠線なし、背景色はもう1段暗い #0f1012) */
 .ef-shell {
   background-color: #0f1012;
   border: none;
   border-radius: 20px;
-  padding: 14px 16px 16px;
+  padding: 16px 16px 24px;
   box-shadow: 0 18px 42px rgba(0, 0, 0, 0.45);
 }
 
@@ -254,48 +356,43 @@ body {
 .house-use.is-active {
   fill: #57f293;
   opacity: 1;
-  animation: house-use-flicker 3.1s ease-in-out infinite;
+  animation: house-use-flicker 3.8s ease-in-out infinite;
 }
 
 @keyframes house-use-flicker {
   0% {
-    fill: #4fd986;
+    fill: #53de89;
+    opacity: 0.95;
+  }
+
+  18% {
+    fill: #5ef498;
+    opacity: 1;
+  }
+
+  35% {
+    fill: #4ac97c;
+    opacity: 0.9;
+  }
+
+  52% {
+    fill: #59eb91;
+    opacity: 0.98;
+  }
+
+  70% {
+    fill: #4ed383;
     opacity: 0.92;
   }
 
-  14% {
-    fill: #65ff9f;
+  85% {
+    fill: #5df297;
     opacity: 1;
-  }
-
-  27% {
-    fill: #358f58;
-    opacity: 0.7;
-  }
-
-  41% {
-    fill: #57f293;
-    opacity: 0.96;
-  }
-
-  58% {
-    fill: #3fa969;
-    opacity: 0.78;
-  }
-
-  73% {
-    fill: #69ffa3;
-    opacity: 1;
-  }
-
-  88% {
-    fill: #338653;
-    opacity: 0.66;
   }
 
   100% {
-    fill: #4fd986;
-    opacity: 0.92;
+    fill: #53de89;
+    opacity: 0.95;
   }
 }
 
@@ -367,7 +464,7 @@ body {
   font-size: 13px;
   text-anchor: middle;
   paint-order: stroke;
-  stroke: #161618;
+  stroke: #0f1012;
   stroke-width: 4px;
   stroke-linejoin: round;
 }
@@ -396,12 +493,12 @@ body {
   color: #9c9ea6;
 }
 
-/* 1段目: SOLAR / USE, 2段目: BATTERY, 境界線(HOME/GRID), 3段目: BUY / SELL */
+/* 1段目: SOLAR / USE, 2段目: BATTERY, 境界線(HOME / GRID), 3段目: BUY / SELL */
 .ef-flow-layout {
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr);
-  grid-template-rows: 142px 24px 166px 48px 142px;
+  grid-template-rows: 142px 24px 166px 26px 142px;
 }
 
 #card-solar {
@@ -423,14 +520,27 @@ body {
 .ef-grid-divider {
   grid-column: 1 / 4;
   grid-row: 4;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22px minmax(0, 1fr);
+  align-items: center;
   padding: 0 4px;
-  gap: 3px;
   pointer-events: none;
   z-index: 0;
+}
+
+.ef-divider-left {
+  grid-column: 1;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.ef-divider-stub {
+  width: 12px;
+  height: 0;
+  border-top: 1px dashed #444754;
+  flex-shrink: 0;
 }
 
 .ef-divider-label {
@@ -440,25 +550,18 @@ body {
   line-height: 1;
   letter-spacing: 0.14em;
   color: #8f929f;
-}
-
-.ef-divider-rule {
-  width: 100%;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 22px minmax(0, 1fr);
-  align-items: center;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .ef-divider-seg {
   height: 0;
   border-top: 1px dashed #444754;
+  flex: 1;
+  min-width: 0;
 }
 
-.ef-divider-seg:first-child {
-  grid-column: 1;
-}
-
-.ef-divider-seg:last-child {
+.ef-divider-right {
   grid-column: 3;
 }
 
@@ -611,7 +714,7 @@ body {
   color: #e4e4e4;
   line-height: 1.06;
   letter-spacing: -0.015em;
-  margin: 1px 0 3px;
+  margin: 1px 0;
 }
 
 .ef-unit {
@@ -630,22 +733,26 @@ body {
   color: #d4d4d8;
 }
 
-/* 3段目 (0.5 kWh/d + 月平均比較) と 4段目 (VALUE/SELF/COST/REV) は15px & 同色に */
-.ef-card-sub,
+/* 3段目 (0.5 kWh/d + 月平均比較) を4段目 (VALUE/SELF/COST/REV) より1段階大きく表示 */
+.ef-card-sub {
+  font-family: var(--font-mono);
+  font-size: 16.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: 6px;
+  row-gap: 2px;
+}
+
 .ef-card-highlight {
   font-family: var(--font-mono);
   font-size: 15px;
   font-weight: 500;
   letter-spacing: 0.03em;
   line-height: 1.25;
-}
-
-.ef-card-sub {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  column-gap: 6px;
-  row-gap: 2px;
 }
 
 .ef-kwh-unit {
@@ -785,7 +892,7 @@ body {
   color: #e4e4e4;
   line-height: 1.06;
   letter-spacing: -0.015em;
-  margin: 1px 0 3px;
+  margin: 1px 0;
 }
 
 .ef-batt-bar-track {
@@ -1601,17 +1708,59 @@ body {
 }
 
 @media (max-width: 680px) {
+  body {
+    padding: 4px 0 32px;
+  }
+
   .top-bar {
-    padding: 0 12px;
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    padding: 10px 12px;
+    margin-bottom: 4px;
+    background-color: rgba(43, 44, 50, 0);
+    border-bottom: 1px solid transparent;
+    transition:
+      transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 0.24s ease,
+      background-color 0.24s ease,
+      border-color 0.24s ease;
+    will-change: transform, opacity;
+  }
+
+  .top-bar.is-stuck {
+    background-color: rgba(24, 25, 30, 0.88);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .top-bar.is-stuck.is-hidden {
+    transform: translateY(calc(-100% - 2px));
+    opacity: 0;
+    pointer-events: none;
   }
 
   .ef-shell {
-    padding: 14px 12px 15px;
+    padding: 16px 12px 24px;
   }
 
   .ef-flow-layout {
     grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr);
-    grid-template-rows: 136px 20px 158px 44px 136px;
+    grid-template-rows: 136px 20px 158px 24px 136px;
+  }
+
+  .ef-divider-left {
+    gap: 5px;
+  }
+
+  .ef-divider-stub {
+    width: 8px;
+  }
+
+  .ef-divider-label {
+    font-size: 10px;
+    letter-spacing: 0.1em;
   }
 
   .ef-col-headers {
@@ -1650,16 +1799,18 @@ body {
     margin-left: 3px;
   }
 
-  .ef-card-sub,
-  .ef-card-highlight,
+  .ef-card-highlight {
+    font-size: 12.5px;
+  }
+
   .ef-batt-bottom {
-    font-size: 13.5px;
+    font-size: 13px;
   }
 
   .ef-card-sub {
-    font-size: 12.5px;
-    letter-spacing: 0.01em;
-    column-gap: 4px;
+    font-size: 14px;
+    letter-spacing: 0;
+    column-gap: 3px;
   }
 
   .ef-avg-delta {

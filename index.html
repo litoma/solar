@@ -15,12 +15,59 @@
 
 <body>
   <main class="page">
-    <!-- 最上部ヘッダー: EP VIEW (アイコンなし) & ONLINE/OFFLINE (ef-shellと同じ横幅) -->
+    <!-- 最上部ヘッダー: EP VIEW (アイコンなし) & ONLINE/OFFLINE + サイト紹介アコーディオン -->
     <header class="top-bar" aria-label="Site Header">
-      <h1 class="top-bar-title">EP VIEW</h1>
-      <div class="ef-status-pill" id="ef-status-pill" data-state="online">
-        <span class="ef-status-dot" id="ef-status-dot"></span>
-        <span id="ef-status-text">ONLINE</span>
+      <div class="top-bar-row">
+        <h1 class="top-bar-title">EP VIEW</h1>
+        <div class="top-bar-actions">
+          <div class="ef-status-pill" id="ef-status-pill" data-state="online">
+            <span class="ef-status-dot" id="ef-status-dot"></span>
+            <span id="ef-status-text">ONLINE</span>
+          </div>
+          <button
+            type="button"
+            class="top-bar-info-btn"
+            id="top-bar-info-btn"
+            aria-expanded="false"
+            aria-controls="top-bar-about"
+            aria-label="このサイトについてを表示"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="top-bar-about" id="top-bar-about" aria-hidden="true">
+        <div class="top-bar-about-inner">
+          <p class="top-bar-about-text">
+            自宅の太陽光発電と EP CUBE 蓄電池の稼働状況をリアルタイムに可視化するホームエネルギーモニターです。日々の発電・消費・充放電や売買電の推移、投資回収実績、セル単位のバッテリー状態までひと目で確認できます。
+          </p>
+          <div class="top-bar-about-links">
+            <a
+              href="https://yusukesakai.com"
+              class="top-bar-about-link"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="yusukesakai.com"
+              title="https://yusukesakai.com"
+            >
+              <img src="https://yusukesakai.com/favicon.ico" alt="yusukesakai.com" width="16" height="16" />
+            </a>
+            <a
+              href="https://x.com/litoma"
+              class="top-bar-about-link"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="X (@litoma)"
+              title="https://x.com/litoma"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+              </svg>
+            </a>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -109,8 +156,9 @@
             <circle cx="300" cy="36" r="3.2" fill="#fbdd84" />
             <circle cx="460" cy="98" r="3.2" fill="#fbdd84" />
 
-            <!-- 時刻ラベル -->
+            <!-- 時刻ラベル (天気アイコンより背面に配置し、重なる場合は天気アイコンを優先表示) -->
             <text x="140" y="120" class="sun-time-label" id="sun-rise-label">--:--</text>
+            <text x="300" y="53" class="sun-time-label" id="sun-noon-label">12:00</text>
             <text x="460" y="120" class="sun-time-label" id="sun-set-label">--:--</text>
 
             <!-- 現在時刻マーカー: 外気温テキスト(枠なし) + 天気アイコン (内枠線なし、外側半透明枠あり) -->
@@ -158,8 +206,9 @@
             <div class="ef-card-head">
               <span class="ef-card-title">
                 <svg class="ef-card-icon" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                  <path d="M2.2 7.5L8 2.5L13.8 7.5M4 6.3V13.2H12V6.3" stroke="currentColor" stroke-width="1.5"
-                    stroke-linecap="round" stroke-linejoin="round" />
+                  <path
+                    d="M5.5 2V5.5M10.5 2V5.5M3.5 5.5H12.5V8.5C12.5 10.7 10.7 12.5 8.5 12.5H7.5C5.3 12.5 3.5 10.7 3.5 8.5V5.5ZM8 12.5V14.5"
+                    stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
                 USE
               </span>
@@ -205,22 +254,22 @@
 
           <!-- 自宅側 (SOLAR/USE/BATTERY) と 系統側 (BUY/SELL) の境界線 -->
           <div class="ef-grid-divider" aria-hidden="true">
-            <span class="ef-divider-label">HOME</span>
-            <div class="ef-divider-rule">
-              <span class="ef-divider-seg"></span>
+            <div class="ef-divider-left">
+              <span class="ef-divider-stub"></span>
+              <span class="ef-divider-label">HOME / GRID</span>
               <span class="ef-divider-seg"></span>
             </div>
-            <span class="ef-divider-label">GRID</span>
+            <span class="ef-divider-seg ef-divider-right"></span>
           </div>
 
           <!-- 下段コネクタ: BATTERY 下端 ⇄ BUY / SELL (中央角丸逆T) -->
-          <svg class="ef-connectors ef-connectors-bottom" viewBox="0 0 64 190" preserveAspectRatio="none" aria-hidden="true">
-            <path d="M 32 0 V 101" fill="none" class="flow-line-base" vector-effect="non-scaling-stroke" />
-            <path d="M 0 119 H 14 Q 32 119 32 101" fill="none" class="flow-line-base" vector-effect="non-scaling-stroke" />
-            <path d="M 32 101 Q 32 119 50 119 H 64" fill="none" class="flow-line-base" vector-effect="non-scaling-stroke" />
-            <path id="line-trunk-low" d="M 32 0 V 101" fill="none" class="flow-line" vector-effect="non-scaling-stroke" />
-            <path id="line-buy" d="M 0 119 H 14 Q 32 119 32 101" fill="none" class="flow-line" vector-effect="non-scaling-stroke" />
-            <path id="line-sell" d="M 32 101 Q 32 119 50 119 H 64" fill="none" class="flow-line" vector-effect="non-scaling-stroke" />
+          <svg class="ef-connectors ef-connectors-bottom" viewBox="0 0 64 168" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M 32 0 V 79" fill="none" class="flow-line-base" vector-effect="non-scaling-stroke" />
+            <path d="M 0 97 H 14 Q 32 97 32 79" fill="none" class="flow-line-base" vector-effect="non-scaling-stroke" />
+            <path d="M 32 79 Q 32 97 50 97 H 64" fill="none" class="flow-line-base" vector-effect="non-scaling-stroke" />
+            <path id="line-trunk-low" d="M 32 0 V 79" fill="none" class="flow-line" vector-effect="non-scaling-stroke" />
+            <path id="line-buy" d="M 0 97 H 14 Q 32 97 32 79" fill="none" class="flow-line" vector-effect="non-scaling-stroke" />
+            <path id="line-sell" d="M 32 79 Q 32 97 50 97 H 64" fill="none" class="flow-line" vector-effect="non-scaling-stroke" />
           </svg>
 
           <!-- BUY (3段目・左) -->
@@ -228,9 +277,8 @@
             <div class="ef-card-head">
               <span class="ef-card-title">
                 <svg class="ef-card-icon" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                  <path
-                    d="M5.5 2V5.5M10.5 2V5.5M3.5 5.5H12.5V8.5C12.5 10.7 10.7 12.5 8.5 12.5H7.5C5.3 12.5 3.5 10.7 3.5 8.5V5.5ZM8 12.5V14.5"
-                    stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                  <path d="M8 2.5V12.5M8 12.5L4.2 8.7M8 12.5L11.8 8.7M3 2.5H13" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
                 BUY
               </span>

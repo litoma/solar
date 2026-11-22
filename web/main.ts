@@ -630,9 +630,16 @@ function renderDashboard(data: DashboardResponse): void {
     battCharging,
   );
 
-  // BATTERY カード
-  const capKwh = cfg.batteryCapacityKwh;
-  const storedKwh = (capKwh * soc) / 100;
+  // BATTERY カード (マイコンから実容量・実残電力量が取得できる場合は優先使用)
+  const capKwh =
+    typeof latest.batt_cap_kwh === "number" && latest.batt_cap_kwh > 0
+      ? latest.batt_cap_kwh
+      : cfg.batteryCapacityKwh;
+  const storedKwh =
+    typeof latest.batt_kwh === "number" && latest.batt_kwh >= 0
+      ? latest.batt_kwh
+      : (capKwh * soc) / 100;
+  el("val-batt-cap").textContent = `MAX ${capKwh.toFixed(1)} kWh`;
 
   let battStateLabel = "IDLE";
   if (battCharging) battStateLabel = "CHARGING";
@@ -843,6 +850,92 @@ async function refresh(): Promise<void> {
 }
 
 function setupControls(): void {
+  const infoBtn = document.getElementById("top-bar-info-btn");
+  const infoBox = document.getElementById("top-bar-about");
+  const setAboutOpen = (open: boolean) => {
+    if (!infoBtn || !infoBox) return;
+    infoBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    infoBtn.setAttribute(
+      "aria-label",
+      open ? "このサイトについてを閉じる" : "このサイトについてを表示",
+    );
+    infoBox.classList.toggle("is-open", open);
+    infoBox.setAttribute("aria-hidden", open ? "false" : "true");
+  };
+  if (infoBtn && infoBox) {
+    infoBtn.addEventListener("click", () => {
+      const nextOpen = infoBtn.getAttribute("aria-expanded") !== "true";
+      setAboutOpen(nextOpen);
+    });
+  }
+
+  // スマホ表示時: 下スクロールで隠し、上スクロール時に自然に再表示する
+  const topBar = document.querySelector<HTMLElement>(".top-bar");
+  if (topBar) {
+    const mobileMq = window.matchMedia("(max-width: 680px)");
+    let lastY = Math.max(0, window.scrollY || 0);
+    let downAccum = 0;
+    let upAccum = 0;
+    let ticking = false;
+
+    const syncTopBarScroll = () => {
+      ticking = false;
+      const y = Math.max(0, window.scrollY || 0);
+      if (!mobileMq.matches) {
+        topBar.classList.remove("is-stuck", "is-hidden");
+        lastY = y;
+        downAccum = 0;
+        upAccum = 0;
+        return;
+      }
+
+      topBar.classList.toggle("is-stuck", y > 16);
+
+      const maxScroll = Math.max(
+        0,
+        document.documentElement.scrollHeight - window.innerHeight,
+      );
+      const nearBottom = maxScroll > 40 && y >= maxScroll - 6;
+      const delta = y - lastY;
+      lastY = y;
+
+      if (y <= 64) {
+        topBar.classList.remove("is-hidden");
+        downAccum = 0;
+        upAccum = 0;
+        return;
+      }
+
+      if (delta > 0) {
+        upAccum = 0;
+        downAccum += delta;
+        if (downAccum > 18 && y > 80 && !topBar.classList.contains("is-hidden")) {
+          setAboutOpen(false);
+          topBar.classList.add("is-hidden");
+        }
+      } else if (delta < 0 && !nearBottom) {
+        downAccum = 0;
+        upAccum += -delta;
+        if (upAccum > 12) {
+          topBar.classList.remove("is-hidden");
+        }
+      }
+    };
+
+    window.addEventListener(
+      "scroll",
+      () => {
+        if (!ticking) {
+          ticking = true;
+          window.requestAnimationFrame(syncTopBarScroll);
+        }
+      },
+      { passive: true },
+    );
+    mobileMq.addEventListener("change", syncTopBarScroll);
+    syncTopBarScroll();
+  }
+
   for (let i = 1; i <= 4; i++) {
     const box = document.getElementById(`pv-box-${i}`);
     const roof = document.getElementById(`roof-group-pv${i}`);

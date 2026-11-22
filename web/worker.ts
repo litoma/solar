@@ -130,6 +130,7 @@ const MINUTE_COLS = [
   "solar_day_kwh",
   "buy_day_kwh",
   "load_day_kwh",
+  "batt_kwh",
   "pack_v",
   "cell_max_mv",
   "cell_min_mv",
@@ -137,6 +138,7 @@ const MINUTE_COLS = [
   "temp_max_c",
   "temp_min_c",
   "temp_avg_c",
+  "batt_cap_kwh",
   "weather_code",
   "outdoor_temp_c",
 ] as const;
@@ -149,9 +151,9 @@ const CREATE_TABLES_SQL = [
     pv3_p_avg_w REAL, pv3_p_min_w INTEGER, pv3_p_max_w INTEGER, pv3_v REAL, pv3_i REAL,
     pv4_p_avg_w REAL, pv4_p_min_w INTEGER, pv4_p_max_w INTEGER, pv4_v REAL, pv4_i REAL,
     solar_w REAL, grid_w REAL, load_w REAL, batt_w REAL, pcs_w REAL, soc INTEGER, mode INTEGER,
-    solar_day_kwh REAL, buy_day_kwh REAL, load_day_kwh REAL,
+    solar_day_kwh REAL, buy_day_kwh REAL, load_day_kwh REAL, batt_kwh REAL,
     pack_v REAL, cell_max_mv INTEGER, cell_min_mv INTEGER, cell_avg_mv INTEGER,
-    temp_max_c INTEGER, temp_min_c INTEGER, temp_avg_c REAL,
+    temp_max_c INTEGER, temp_min_c INTEGER, temp_avg_c REAL, batt_cap_kwh REAL,
     weather_code INTEGER, outdoor_temp_c REAL
   )`,
   `CREATE TABLE IF NOT EXISTS bms_snapshots (
@@ -764,6 +766,7 @@ function parseGatewayMinutes(
     row.solar_day_kwh = toReal(sys.solar_day_kwh);
     row.buy_day_kwh = toReal(sys.buy_day_kwh);
     row.load_day_kwh = toReal(sys.load_day_kwh);
+    row.batt_kwh = toReal(sys.batt_kwh);
 
     const bms =
       rec.bms && typeof rec.bms === "object"
@@ -776,6 +779,7 @@ function parseGatewayMinutes(
     row.temp_max_c = toInt(bms.temp_max_c);
     row.temp_min_c = toInt(bms.temp_min_c);
     row.temp_avg_c = toReal(bms.temp_avg_c);
+    row.batt_cap_kwh = toReal(bms.batt_cap_kwh);
 
     byTs.set(rawTs, row);
   }

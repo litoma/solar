@@ -6,9 +6,11 @@
 #include <math.h>
 #include <stdarg.h>
 #include <atomic>
+#include <ctype.h>
 #include <BLE.h>
+#include <Update.h>
 
-#define FW_VERSION "1.3.0"
+#define FW_VERSION "1.4.0"
 
 // ---------- 設定 (Wi-Fi 認証情報は secrets.example.h を secrets.h にコピーして設定) ----------
 #if __has_include("secrets.h")
@@ -24,7 +26,7 @@ static const uint32_t WIFI_REINIT_MS         = 60000UL;   // Wi-Fi 切断が60�
 static const uint32_t WIFI_DISCONNECT_RESTART_MS = 900000UL; // Wi-Fi 切断が15分連続したら再起動
 
 static const uint32_t FAST_MS               = 10000;   // 高速サンプリング周期
-static const uint32_t SLOW_MS               = 60000;   // 低速(BMS)サンプリング周期 (Worker側の上限120秒に収まる周期を維持)
+static const uint32_t SLOW_MS               = 60000;   // 低速サンプリング周期 (Worker側の上限120秒に収まる周期を維持)
 static const uint32_t SLOW_START_OFFSET_MS  = 5000;    // fast と同じ瞬間に重ならないよう 5秒ずらして開始
 static const uint32_t RESP_TIMEOUT_MS       = 800;     // BLE応答待ち
 static const uint32_t GAP_MS                = 100;     // BLEリクエスト最小間隔
@@ -45,13 +47,14 @@ static const uint8_t MB_SLAVE_ID = 0x64;
 static const uint8_t MB_FUNC     = 0x03;   // 読み取り専用。変更しないこと
 
 // ---------- レジスタ ----------
-static const uint16_t REG_PV     = 0x501B;  // 12個: 電圧1-4(0.1V) 電流1-4(0.1A) 電力1-4(W)
-static const uint16_t REG_SYS1   = 0x0510;  // 16個: [3]=運転モード [5]=SOC [15]=系統電力(10W, 符号付き)
-static const uint16_t REG_SYS2   = 0x0540;  // 16個: [2]=負荷(10W) [3]=太陽光(10W) [4]=本日買電 [6]=本日発電 [10]=本日負荷 (0.01kWh)
-static const uint16_t REG_SYS3   = 0x0580;  // 16個: [2]=蓄電池電力(W, 符号付き) [6]=PCS出力(W, 符号付き)
-static const uint16_t REG_PACK_V = 0x5027;  // 1個: パック電圧(0.1V)
-static const uint16_t REG_CELLS  = 0x5050;  // 48個(16個x3): セル電圧(mV)
-static const uint16_t REG_TEMPS  = 0x50D0;  // 16個: 温度(℃, 符号付き)
+static const uint16_t REG_PV       = 0x501B;  // 12個: 電圧1-4(0.1V) 電流1-4(0.1A) 電力1-4(W)
+static const uint16_t REG_SYS1     = 0x0510;  // 16個: [3]=運転モード [5]=SOC [6]=蓄電池残電力量(0.01kWh) [15]=系統電力(10W, 符号付き)
+static const uint16_t REG_SYS2     = 0x0540;  // 16個: [2]=負荷(10W) [3]=太陽光(10W) [4]=本日買電 [6]=本日発電 [10]=本日負荷 (0.01kWh)
+static const uint16_t REG_SYS3     = 0x0580;  // 16個: [2]=蓄電池電力(W, 符号付き) [6]=PCS出力(W, 符号付き)
+static const uint16_t REG_PACK_V   = 0x5027;  // 1個: パック電圧(0.1V)
+static const uint16_t REG_BATT_CAP = 0x5046;  // 1個: 蓄電池実容量(0.1kWh)
+static const uint16_t REG_CELLS    = 0x5050;  // 48個(16個x3): セル電圧(mV)
+static const uint16_t REG_TEMPS    = 0x50D0;  // 16個: 温度(℃, 符号付き)
 static const int N_CELLS = 48;
 static const int N_TEMPS = 16;
 
@@ -62,7 +65,7 @@ struct FastSample {
   float pvV[4], pvI[4];
   uint16_t pvP[4];
   int solarW, gridW, loadW, battW, pcsW, soc, mode;
-  float solarDay, buyDay, loadDay;
+  float battKwh, solarDay, buyDay, loadDay;
 };
 
 struct SlowSample {
@@ -70,6 +73,7 @@ struct SlowSample {
   time_t epoch;
   bool ok;
   float packV;
+  float battCapKwh;
   uint16_t cell[N_CELLS];
   int16_t temp[N_TEMPS];
   uint16_t cellMax, cellMin, cellAvg;
@@ -77,7 +81,7 @@ struct SlowSample {
   float tAvg;
 };
 
-struct MinuteRec {            // 確定した1分集計 (76バイトに圧縮。出力時に元の単位へ戻す)
+struct MinuteRec {            // 確定した1分集計 (80バイトに圧縮。出力時に元の単位へ戻す)
   uint32_t ts;                // 分の開始時刻 (UTC epoch秒, 60の倍数)
   uint16_t pvPAvg10[4];       // PV電力の平均 (0.1W単位)
   uint16_t pvPMin[4], pvPMax[4];  // PV電力の最小・最大 (W)
@@ -85,6 +89,7 @@ struct MinuteRec {            // 確定した1分集計 (76バイトに圧縮。
   uint16_t pvI100[4];         // PV電流の平均 (0.01A単位)
   int16_t solarW, gridW, loadW, battW, pcsW;   // 平均電力 (W)
   uint16_t solarDay100, buyDay100, loadDay100; // 日積算 (0.01kWh単位)
+  uint16_t battKwh100, battCap10;              // 蓄電池残電力量(0.01kWh)・実容量(0.1kWh)
   uint16_t packV10;           // パック電圧 (0.1V単位)
   uint16_t cellMax, cellMin, cellAvg;          // セル電圧 (mV)
   int16_t tAvg10;             // 温度の平均 (0.1℃単位)
@@ -103,7 +108,7 @@ struct MinuteAcc {            // 集計中の1分
   float pvVSum[4], pvISum[4];
   float solarSum, gridSum, loadSum, battSum, pcsSum;
   int soc, mode;
-  float solarDay, buyDay, loadDay;
+  float battKwh, solarDay, buyDay, loadDay;
 };
 
 // ---------- 状態 ----------
@@ -117,6 +122,12 @@ static BLERemoteCharacteristic rxChar;
 static std::atomic<bool> doConnect{false};
 static std::atomic<bool> connecting{false};
 static std::atomic<bool> connected{false};
+static std::atomic<bool> otaInProgress{false};
+static uint32_t otaLastChunkMs = 0;
+static bool otaReqAuthorized = false;
+static bool otaReqStarted = false;
+static bool otaReqOk = false;
+static char otaErrBuf[96] = "";
 
 // 同期プリミティブ
 static portMUX_TYPE rxMux = portMUX_INITIALIZER_UNLOCKED;
@@ -146,6 +157,7 @@ static uint32_t nextFast = 0, nextSlow = 0, lastGoodMs = 0;
 static uint32_t lastBleDoneMs = 0;
 static int consecFail = 0;
 static bool slowErrActive = false;
+static float lastKnownBattCapKwh = 0.0f;
 static uint32_t statFastOk = 0, statFastFail = 0, statSlowOk = 0, statSlowFail = 0;
 static uint32_t statConnects = 0, statConnectFail = 0, statTimeouts = 0;
 static char lastError[64] = "";
@@ -454,6 +466,7 @@ static void closeMinuteLocked() {
   m.pcsW = clampI16(acc.pcsSum * inv);
   m.soc = (uint8_t)acc.soc;
   m.mode = (uint8_t)acc.mode;
+  m.battKwh100 = clampU16(acc.battKwh * 100.0f);
   m.solarDay100 = clampU16(acc.solarDay * 100.0f);
   m.buyDay100 = clampU16(acc.buyDay * 100.0f);
   m.loadDay100 = clampU16(acc.loadDay * 100.0f);
@@ -461,6 +474,7 @@ static void closeMinuteLocked() {
   if (gHaveSlow && gSlow.ok && (millis() - gSlow.atMs) < BMS_MAX_AGE_MS) {
     m.bmsOk = 1;
     m.packV10 = clampU16(gSlow.packV * 10.0f);
+    m.battCap10 = (gSlow.battCapKwh > 0.0f) ? clampU16(gSlow.battCapKwh * 10.0f) : 0;
     m.cellMax = gSlow.cellMax;
     m.cellMin = gSlow.cellMin;
     m.cellAvg = gSlow.cellAvg;
@@ -497,6 +511,7 @@ static void accumulateLocked(const FastSample& f) {
   acc.pcsSum += f.pcsW;
   acc.soc = f.soc;
   acc.mode = f.mode;
+  acc.battKwh = f.battKwh;
   acc.solarDay = f.solarDay;
   acc.buyDay = f.buyDay;
   acc.loadDay = f.loadDay;
@@ -532,6 +547,7 @@ static void runFast() {
   }
   f.mode = s1[3];
   f.soc = s1[5];
+  f.battKwh = s1[6] * 0.01f;
   f.gridW = (int16_t)s1[15] * 10;
   f.loadW = s2[2] * 10;
   f.solarW = s2[3] * 10;
@@ -575,11 +591,17 @@ static void runSlow() {
     return;
   }
 
+  uint16_t bcap[1] = {0};
+  if (readRegs(REG_BATT_CAP, 1, bcap, nullptr, 0) && bcap[0] >= 10 && bcap[0] <= 1000) {
+    lastKnownBattCapKwh = bcap[0] * 0.1f;
+  }
+
   SlowSample s;
   memset(&s, 0, sizeof(s));
   s.atMs = millis();
   s.epoch = time(nullptr);
   s.packV = pk[0] * 0.1f;
+  s.battCapKwh = lastKnownBattCapKwh;
   for (int i = 0; i < 16; i++) {
     s.cell[i] = c1[i];
     s.cell[16 + i] = c2[i];
@@ -658,15 +680,19 @@ static void appendMinuteJson(char* buf, size_t cap, size_t& pos, const MinuteRec
   }
   appendFmt(buf, cap, pos,
             "],\"sys\":{\"solar_w\":%d,\"grid_w\":%d,\"load_w\":%d,\"batt_w\":%d,\"pcs_w\":%d,"
-            "\"soc\":%u,\"mode\":%u,\"solar_day_kwh\":%.2f,\"buy_day_kwh\":%.2f,\"load_day_kwh\":%.2f}",
+            "\"soc\":%u,\"mode\":%u,\"batt_kwh\":%.2f,\"solar_day_kwh\":%.2f,\"buy_day_kwh\":%.2f,\"load_day_kwh\":%.2f}",
             m.solarW, m.gridW, m.loadW, m.battW, m.pcsW, (unsigned)m.soc, (unsigned)m.mode,
-            m.solarDay100 / 100.0f, m.buyDay100 / 100.0f, m.loadDay100 / 100.0f);
+            m.battKwh100 / 100.0f, m.solarDay100 / 100.0f, m.buyDay100 / 100.0f, m.loadDay100 / 100.0f);
   if (m.bmsOk) {
     appendFmt(buf, cap, pos,
               ",\"bms\":{\"pack_v\":%.1f,\"cell_max_mv\":%u,\"cell_min_mv\":%u,\"cell_avg_mv\":%u,"
-              "\"temp_max_c\":%d,\"temp_min_c\":%d,\"temp_avg_c\":%.1f}}",
+              "\"temp_max_c\":%d,\"temp_min_c\":%d,\"temp_avg_c\":%.1f",
               m.packV10 / 10.0f, (unsigned)m.cellMax, (unsigned)m.cellMin, (unsigned)m.cellAvg,
               (int)m.tMax, (int)m.tMin, m.tAvg10 / 10.0f);
+    if (m.battCap10 > 0) {
+      appendFmt(buf, cap, pos, ",\"batt_cap_kwh\":%.1f", m.battCap10 / 10.0f);
+    }
+    appendFmt(buf, cap, pos, "}}");
   } else {
     appendFmt(buf, cap, pos, ",\"bms\":null}");
   }
@@ -815,9 +841,9 @@ static void handleLatest() {
     }
     appendFmt(latestBuf, sizeof(latestBuf), pos,
               "],\"solar_w\":%d,\"grid_w\":%d,\"load_w\":%d,\"batt_w\":%d,\"pcs_w\":%d,\"soc\":%d,\"mode\":%d,"
-              "\"solar_day_kwh\":%.2f,\"buy_day_kwh\":%.2f,\"load_day_kwh\":%.2f}",
+              "\"batt_kwh\":%.2f,\"solar_day_kwh\":%.2f,\"buy_day_kwh\":%.2f,\"load_day_kwh\":%.2f}",
               fCopy.solarW, fCopy.gridW, fCopy.loadW, fCopy.battW, fCopy.pcsW,
-              fCopy.soc, fCopy.mode, fCopy.solarDay, fCopy.buyDay, fCopy.loadDay);
+              fCopy.soc, fCopy.mode, fCopy.battKwh, fCopy.solarDay, fCopy.buyDay, fCopy.loadDay);
   } else {
     appendFmt(latestBuf, sizeof(latestBuf), pos, ",\"fast\":null");
   }
@@ -828,6 +854,9 @@ static void handleLatest() {
               "\"temp_max_c\":%d,\"temp_min_c\":%d,\"temp_avg_c\":%.1f",
               (unsigned long)((nowMs - sCopy.atMs) / 1000), sCopy.packV, sCopy.cellMax,
               sCopy.cellMin, sCopy.cellAvg, sCopy.tMax, sCopy.tMin, sCopy.tAvg);
+    if (sCopy.battCapKwh > 0.0f) {
+      appendFmt(latestBuf, sizeof(latestBuf), pos, ",\"batt_cap_kwh\":%.1f", sCopy.battCapKwh);
+    }
     if (withCells) {
       appendFmt(latestBuf, sizeof(latestBuf), pos, ",\"cells_mv\":[");
       for (int i = 0; i < N_CELLS; i++) {
@@ -861,6 +890,7 @@ static void handleRegs() {
     return;
   }
   if (!connected) { server.send(503, "text/plain", "ble not connected"); return; }
+  if (otaInProgress.load(std::memory_order_acquire)) { server.send(503, "text/plain", "ota in progress"); return; }
   uint16_t v[16];
   char err[64] = "";
   if (!readRegs((uint16_t)addr, (uint8_t)count, v, err, sizeof(err))) {
@@ -875,6 +905,137 @@ static void handleRegs() {
   }
   appendFmt(b, sizeof(b), pos, "]}");
   server.send(200, "application/json", b);
+}
+
+// HTTP OTA 更新 (multipart/form-data で firmware (.bin) を受信して書き換える)
+static bool isValidHex32(const String& s) {
+  if (s.length() != 32) return false;
+  for (size_t i = 0; i < 32; i++) {
+    if (!isxdigit((unsigned char)s[i])) return false;
+  }
+  return true;
+}
+
+static void handleOtaUpload() {
+  HTTPUpload& upload = server.upload();
+  otaLastChunkMs = millis();
+
+  if (upload.status == UPLOAD_FILE_START) {
+    otaReqAuthorized = (strlen(API_TOKEN) == 0 || server.header("X-Api-Token") == API_TOKEN);
+    otaReqStarted = false;
+    otaReqOk = false;
+    otaErrBuf[0] = '\0';
+    if (!otaReqAuthorized) {
+      logPrintf("[ota] 認証エラー\n");
+      return;
+    }
+
+    if (server.hasArg("md5") && server.arg("md5").length() > 0 && !isValidHex32(server.arg("md5"))) {
+      snprintf(otaErrBuf, sizeof(otaErrBuf), "invalid md5");
+      logPrintf("[ota] 失敗: %s\n", otaErrBuf);
+      return;
+    }
+
+    otaInProgress.store(true, std::memory_order_release);
+    if (bleMutex && xSemaphoreTake(bleMutex, pdMS_TO_TICKS(5000)) == pdTRUE) {
+      BLEScan sc = BLE.getScan();
+      if (sc.isScanning()) sc.stop();
+      if (bleClient && bleClient.isConnected()) bleClient.disconnect();
+      txChar = BLERemoteCharacteristic();
+      rxChar = BLERemoteCharacteristic();
+      connected = false;
+      doConnect.store(false, std::memory_order_release);
+      xSemaphoreGive(bleMutex);
+    } else {
+      otaInProgress.store(false, std::memory_order_release);
+      snprintf(otaErrBuf, sizeof(otaErrBuf), "ble busy");
+      logPrintf("[ota] 失敗: %s\n", otaErrBuf);
+      return;
+    }
+    delay(30);
+
+    if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
+      snprintf(otaErrBuf, sizeof(otaErrBuf), "%s", Update.errorString());
+      Update.abort();
+      otaInProgress.store(false, std::memory_order_release);
+      logPrintf("[ota] begin 失敗: %s\n", otaErrBuf);
+      return;
+    }
+    if (server.hasArg("md5") && server.arg("md5").length() == 32) {
+      if (!Update.setMD5(server.arg("md5").c_str())) {
+        snprintf(otaErrBuf, sizeof(otaErrBuf), "setMD5 failed");
+        Update.abort();
+        otaInProgress.store(false, std::memory_order_release);
+        return;
+      }
+    }
+    otaReqStarted = true;
+    logPrintf("[ota] 受信開始: %s (free_heap=%lu)\n", upload.filename.c_str(), (unsigned long)ESP.getFreeHeap());
+  } else if (upload.status == UPLOAD_FILE_WRITE) {
+    if (!otaReqAuthorized || !otaReqStarted || otaErrBuf[0]) return;
+    if (upload.currentSize > 0) {
+      size_t written = Update.write(upload.buf, upload.currentSize);
+      if (written != upload.currentSize) {
+        snprintf(otaErrBuf, sizeof(otaErrBuf), "%s", Update.errorString());
+        Update.abort();
+        logPrintf("[ota] write 失敗: %s\n", otaErrBuf);
+      }
+    }
+    yield();
+  } else if (upload.status == UPLOAD_FILE_END) {
+    if (!otaReqAuthorized || !otaReqStarted) return;
+    if (!otaErrBuf[0]) {
+      if (upload.totalSize == 0) {
+        snprintf(otaErrBuf, sizeof(otaErrBuf), "empty firmware");
+        Update.abort();
+      } else if (Update.end(true)) {
+        otaReqOk = true;
+        logPrintf("[ota] 完了: %lu bytes\n", (unsigned long)upload.totalSize);
+      } else {
+        snprintf(otaErrBuf, sizeof(otaErrBuf), "%s", Update.errorString());
+        logPrintf("[ota] end 失敗: %s\n", otaErrBuf);
+      }
+    }
+    if (!otaReqOk) {
+      otaInProgress.store(false, std::memory_order_release);
+    }
+  } else if (upload.status == UPLOAD_FILE_ABORTED) {
+    if (otaReqStarted) Update.abort();
+    otaReqStarted = false;
+    otaReqOk = false;
+    otaInProgress.store(false, std::memory_order_release);
+    snprintf(otaErrBuf, sizeof(otaErrBuf), "upload aborted");
+    logPrintf("[ota] 受信中断\n");
+  }
+}
+
+static void handleOtaComplete() {
+  if (!authOk()) {
+    otaInProgress.store(false, std::memory_order_release);
+    return;
+  }
+  server.client().setNoDelay(true);
+  server.sendHeader("Connection", "close");
+  if (otaReqOk) {
+    server.send(200, "application/json", "{\"ok\":true,\"rebooting\":true}\n");
+    delay(300);
+    ESP.restart();
+    return;
+  }
+  otaInProgress.store(false, std::memory_order_release);
+  if (!otaReqStarted && !otaErrBuf[0]) {
+    snprintf(otaErrBuf, sizeof(otaErrBuf), "multipart firmware field required");
+  }
+  char resp[192];
+  size_t pos = 0;
+  appendFmt(resp, sizeof(resp), pos, "{\"ok\":false,\"error\":\"");
+  appendJsonEscaped(resp, sizeof(resp), pos, otaErrBuf[0] ? otaErrBuf : "ota failed");
+  appendFmt(resp, sizeof(resp), pos, "\"}\n");
+  server.send(400, "application/json", resp);
+  otaErrBuf[0] = '\0';
+  otaReqStarted = false;
+  otaReqOk = false;
+  otaReqAuthorized = false;
 }
 
 // ---------- BLE接続・専用タスク ----------
@@ -940,6 +1101,10 @@ static bool connectToServer() {
 static void blePollTask(void* /*pvParameters*/) {
   uint32_t lastScan = 0;
   for (;;) {
+    if (otaInProgress.load(std::memory_order_acquire)) {
+      vTaskDelay(pdMS_TO_TICKS(50));
+      continue;
+    }
     if (doConnect.load(std::memory_order_acquire)) {
       connecting.store(true, std::memory_order_release);
       doConnect.store(false, std::memory_order_release);
@@ -1089,6 +1254,7 @@ void setup() {
   server.on("/api/latest", HTTP_GET, handleLatest);
   server.on("/api/minutes", HTTP_GET, handleMinutes);
   server.on("/api/regs", HTTP_GET, handleRegs);
+  server.on("/api/ota", HTTP_POST, handleOtaComplete, handleOtaUpload);
   server.onNotFound([]() {
     server.client().setNoDelay(true);
     server.send(404, "text/plain", "not found");
@@ -1125,6 +1291,14 @@ void setup() {
 void loop() {
   wifiTask();
   if (httpStarted) server.handleClient();
+
+  if (otaInProgress.load(std::memory_order_acquire) && !otaReqOk &&
+      (millis() - otaLastChunkMs) > 30000UL) {
+    Update.abort();
+    otaReqStarted = false;
+    otaInProgress.store(false, std::memory_order_release);
+    logPrintf("[ota] タイムアウトにより中断しました\n");
+  }
 
   uint32_t lastOkMs = 0;
   if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
