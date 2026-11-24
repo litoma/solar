@@ -1,5 +1,9 @@
 import { mountOrUpdatePaybackChart, type PaybackData } from "./PaybackChart";
 import { mountOrUpdateSimulationChart } from "./SimulationChart";
+import {
+  mountOrUpdateSummaryCharts,
+  type MonthlyTotalsData,
+} from "./SummaryCharts";
 
 interface DashboardResponse {
   hasData: boolean;
@@ -33,6 +37,8 @@ interface DashboardResponse {
   } | null;
   latest: Record<string, number | null> | null;
   sellDayKwhComputed: number;
+  todayBatteryChgKwh?: number | null;
+  todayBatteryDischgKwh?: number | null;
   pvDayKwh?: {
     pv1: number;
     pv2: number;
@@ -45,6 +51,7 @@ interface DashboardResponse {
     buy: number | null;
     sell: number | null;
   };
+  monthlyTotals?: MonthlyTotalsData;
   monthlyActualKwh?: Record<number, number>;
   payback?: PaybackData;
   snapshot: {
@@ -464,6 +471,18 @@ function renderDashboard(data: DashboardResponse): void {
       tzMin,
     );
     el("ef-time").textContent = `${timeText} UPDATE`;
+    mountOrUpdateSummaryCharts(
+      {
+        solarToday: 0,
+        buyToday: 0,
+        useToday: 0,
+        sellToday: 0,
+        batteryChgKwh: 0,
+        batteryDischgKwh: 0,
+      },
+      data.monthlyTotals || { months: [] },
+      month,
+    );
     mountOrUpdateSimulationChart(month, data.monthlyActualKwh || {});
     mountOrUpdatePaybackChart(
       fallbackPayback,
@@ -572,6 +591,19 @@ function renderDashboard(data: DashboardResponse): void {
   const buyCostYen = Math.round(buyToday * cfg.buyPriceYenPerKwh);
   const sellRevYen = Math.round(sellToday * cfg.sellPriceYenPerKwh);
 
+  mountOrUpdateSummaryCharts(
+    {
+      solarToday,
+      buyToday,
+      useToday,
+      sellToday,
+      batteryChgKwh: data.todayBatteryChgKwh ?? 0,
+      batteryDischgKwh: data.todayBatteryDischgKwh ?? 0,
+    },
+    data.monthlyTotals || { months: [] },
+    month,
+  );
+
   // 自給率 SELF (%) = (使用量 - 買電量) / 使用量
   const selfPct =
     useToday > 0.05
@@ -653,7 +685,8 @@ function renderDashboard(data: DashboardResponse): void {
 
   el("val-batt-state").textContent = battStateLabel;
   el("val-batt-kw").innerHTML = kwHtml(displayBattKw);
-  el("val-batt-soc").textContent = `${soc}% (${storedKwh.toFixed(1)} kWh)`;
+  el("val-batt-soc").innerHTML =
+    `${soc}% (${storedKwh.toFixed(1)}<span class="ef-kwh-unit">kWh</span>)`;
   el("val-batt-bar").style.width = `${soc}%`;
 
   // 推定残り時間 EST (残量kWh ÷ 使用電力useKw)
@@ -849,9 +882,45 @@ async function refresh(): Promise<void> {
   }
 }
 
+function setupSnapPager(pagerId: string, dotsSelector: string): void {
+  const pager = document.getElementById(pagerId);
+  const dots = Array.from(
+    document.querySelectorAll<HTMLButtonElement>(dotsSelector),
+  );
+  if (!pager || dots.length === 0) return;
+
+  const updateDots = (activeIdx: number) => {
+    dots.forEach((btn, idx) => {
+      const isAct = idx === activeIdx;
+      btn.classList.toggle("is-active", isAct);
+      btn.setAttribute("aria-selected", isAct ? "true" : "false");
+    });
+  };
+  pager.addEventListener("scroll", () => {
+    const idx = Math.round(
+      pager.scrollLeft / Math.max(1, pager.clientWidth),
+    );
+    updateDots(idx);
+  });
+  dots.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.page || 0);
+      pager.scrollTo({
+        left: idx * pager.clientWidth,
+        behavior: "smooth",
+      });
+      updateDots(idx);
+    });
+  });
+}
+
 function setupControls(): void {
+  const topBar = document.querySelector<HTMLElement>(".top-bar");
   const infoBtn = document.getElementById("top-bar-info-btn");
   const infoBox = document.getElementById("top-bar-about");
+
+  const mobileMq = window.matchMedia("(max-width: 680px)");
+
   const setAboutOpen = (open: boolean) => {
     if (!infoBtn || !infoBox) return;
     infoBtn.setAttribute("aria-expanded", open ? "true" : "false");
@@ -864,15 +933,17 @@ function setupControls(): void {
   };
   if (infoBtn && infoBox) {
     infoBtn.addEventListener("click", () => {
+      if (topBar && mobileMq.matches && topBar.classList.contains("is-stuck")) {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
       const nextOpen = infoBtn.getAttribute("aria-expanded") !== "true";
       setAboutOpen(nextOpen);
     });
   }
 
-  // スマホ表示時: 下スクロールで隠し、上スクロール時に自然に再表示する
-  const topBar = document.querySelector<HTMLElement>(".top-bar");
+  // スマホ表示時: 下スクロールで隠し、上スクロールで再表示。固定表示中は最上部へ戻るボタンとして機能する
   if (topBar) {
-    const mobileMq = window.matchMedia("(max-width: 680px)");
     let lastY = Math.max(0, window.scrollY || 0);
     let downAccum = 0;
     let upAccum = 0;
@@ -883,13 +954,27 @@ function setupControls(): void {
       const y = Math.max(0, window.scrollY || 0);
       if (!mobileMq.matches) {
         topBar.classList.remove("is-stuck", "is-hidden");
+        if (infoBtn) {
+          const isOpen = infoBtn.getAttribute("aria-expanded") === "true";
+          infoBtn.setAttribute(
+            "aria-label",
+            isOpen ? "このサイトについてを閉じる" : "このサイトについてを表示",
+          );
+        }
         lastY = y;
         downAccum = 0;
         upAccum = 0;
         return;
       }
 
-      topBar.classList.toggle("is-stuck", y > 16);
+      const stuck = y > 16;
+      topBar.classList.toggle("is-stuck", stuck);
+      if (stuck) {
+        setAboutOpen(false);
+        infoBtn?.setAttribute("aria-label", "最上部に戻る");
+      } else if (infoBtn && infoBtn.getAttribute("aria-expanded") !== "true") {
+        infoBtn.setAttribute("aria-label", "このサイトについてを表示");
+      }
 
       const maxScroll = Math.max(
         0,
@@ -909,8 +994,7 @@ function setupControls(): void {
       if (delta > 0) {
         upAccum = 0;
         downAccum += delta;
-        if (downAccum > 18 && y > 80 && !topBar.classList.contains("is-hidden")) {
-          setAboutOpen(false);
+        if (downAccum > 18 && y > 80) {
           topBar.classList.add("is-hidden");
         }
       } else if (delta < 0 && !nearBottom) {
@@ -954,36 +1038,9 @@ function setupControls(): void {
     roof.addEventListener("mouseleave", leave);
   }
 
-  // PV STRINGS ページ送り (横スクロールスナップ + ドットクリック連動)
-  const pvPager = document.getElementById("pv-pager");
-  const pvDots = Array.from(
-    document.querySelectorAll<HTMLButtonElement>("#pv-dots .pv-dot"),
-  );
-  if (pvPager && pvDots.length > 0) {
-    const updateDots = (activeIdx: number) => {
-      pvDots.forEach((btn, idx) => {
-        const isAct = idx === activeIdx;
-        btn.classList.toggle("is-active", isAct);
-        btn.setAttribute("aria-selected", isAct ? "true" : "false");
-      });
-    };
-    pvPager.addEventListener("scroll", () => {
-      const idx = Math.round(
-        pvPager.scrollLeft / Math.max(1, pvPager.clientWidth),
-      );
-      updateDots(idx);
-    });
-    pvDots.forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const idx = Number(btn.dataset.page || 0);
-        pvPager.scrollTo({
-          left: idx * pvPager.clientWidth,
-          behavior: "smooth",
-        });
-        updateDots(idx);
-      });
-    });
-  }
+  // SUMMARY / PV STRINGS ページ送り (横スクロールスナップ + ドットクリック連動)
+  setupSnapPager("summary-pager", "#summary-dots .pv-dot");
+  setupSnapPager("pv-pager", "#pv-dots .pv-dot");
 
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
@@ -997,6 +1054,18 @@ function setupControls(): void {
 
 setupControls();
 const initTime = formatTimeJst(Math.floor(Date.now() / 1000));
+mountOrUpdateSummaryCharts(
+  {
+    solarToday: 0,
+    buyToday: 0,
+    useToday: 0,
+    sellToday: 0,
+    batteryChgKwh: 0,
+    batteryDischgKwh: 0,
+  },
+  { months: [] },
+  initTime.month,
+);
 mountOrUpdateSimulationChart(initTime.month);
 mountOrUpdatePaybackChart(
   {

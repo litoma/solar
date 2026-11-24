@@ -163,6 +163,7 @@ const CREATE_TABLES_SQL = [
     jst_date TEXT PRIMARY KEY,
     solar_kwh REAL, sell_kwh REAL, buy_kwh REAL, load_kwh REAL,
     pv1_kwh REAL, pv2_kwh REAL, pv3_kwh REAL, pv4_kwh REAL,
+    batt_chg_kwh REAL, batt_dischg_kwh REAL,
     samples INTEGER, last_ts INTEGER
   )`,
   `CREATE TABLE IF NOT EXISTS alert_state (
@@ -230,6 +231,8 @@ const DAILY_COLS = [
   "pv2_kwh",
   "pv3_kwh",
   "pv4_kwh",
+  "batt_chg_kwh",
+  "batt_dischg_kwh",
   "samples",
   "last_ts",
 ] as const;
@@ -252,6 +255,8 @@ interface DailySummaryRow {
   pv2_kwh: number | null;
   pv3_kwh: number | null;
   pv4_kwh: number | null;
+  batt_chg_kwh: number | null;
+  batt_dischg_kwh: number | null;
   samples: number | null;
   last_ts: number | null;
 }
@@ -873,6 +878,8 @@ async function buildDailyUpsertStmts(
     let pv2Kwh = cur?.pv2_kwh ?? 0;
     let pv3Kwh = cur?.pv3_kwh ?? 0;
     let pv4Kwh = cur?.pv4_kwh ?? 0;
+    let battChgKwh = cur?.batt_chg_kwh ?? 0;
+    let battDischgKwh = cur?.batt_dischg_kwh ?? 0;
     let prevSlot: number | null =
       lastTs >= 0
         ? Math.floor(
@@ -930,6 +937,8 @@ async function buildDailyUpsertStmts(
       }
 
       if (m.grid_w && m.grid_w < 0) sellKwh += -m.grid_w / 60000;
+      if (m.batt_w && m.batt_w <= -15) battChgKwh += -m.batt_w / 60000;
+      if (m.batt_w && m.batt_w >= 15) battDischgKwh += m.batt_w / 60000;
       if (m.pv1_p_avg_w && m.pv1_p_avg_w > 0) pv1Kwh += m.pv1_p_avg_w / 60000;
       if (m.pv2_p_avg_w && m.pv2_p_avg_w > 0) pv2Kwh += m.pv2_p_avg_w / 60000;
       if (m.pv3_p_avg_w && m.pv3_p_avg_w > 0) pv3Kwh += m.pv3_p_avg_w / 60000;
@@ -958,6 +967,8 @@ async function buildDailyUpsertStmts(
           round4(pv2Kwh),
           round4(pv3Kwh),
           round4(pv4Kwh),
+          round4(battChgKwh),
+          round4(battDischgKwh),
           samples,
           lastTs,
         ),
@@ -1365,7 +1376,7 @@ async function queryDashboardRows(env: Env) {
     env.DB.prepare("SELECT * FROM minute_samples ORDER BY ts DESC LIMIT 1"),
     env.DB.prepare("SELECT * FROM bms_snapshots ORDER BY ts DESC LIMIT 1"),
     env.DB.prepare(
-      "SELECT jst_date, solar_kwh, sell_kwh, buy_kwh, load_kwh, pv1_kwh, pv2_kwh, pv3_kwh, pv4_kwh FROM daily_summary",
+      "SELECT jst_date, solar_kwh, sell_kwh, buy_kwh, load_kwh, pv1_kwh, pv2_kwh, pv3_kwh, pv4_kwh, batt_chg_kwh, batt_dischg_kwh, samples FROM daily_summary",
     ),
   ];
   try {
@@ -1384,8 +1395,10 @@ async function buildDashboard(
   env: Env,
 ): Promise<{ body: Record<string, unknown>; ttlSec: number }> {
   const cfg = await resolveSiteConfig(env);
+  const tzSec = (cfg.timezoneOffsetMinutes ?? 540) * 60;
+  const nowSec = Math.floor(Date.now() / 1000);
 
-  // D1 の読み取りは「最新の1分値1行」「最新のBMS 1行」「日別サマリー(1日1行)」だけ
+  // D1 の読み取りは「最新1分値1行」「最新BMS 1行」「日別サマリー(1日1行)」だけ
   const [latestResult, snapResult, dailyResult] = await queryDashboardRows(env);
   const latest =
     (latestResult.results?.[0] as Record<string, number | null> | undefined) ??
@@ -1398,8 +1411,6 @@ async function buildDashboard(
 
   const refTs =
     typeof latest?.ts === "number" ? latest.ts : Math.floor(Date.now() / 1000);
-  const tzSec = (cfg.timezoneOffsetMinutes ?? 540) * 60;
-  const nowSec = Math.floor(Date.now() / 1000);
   const gatewayOnline = Boolean(
     latest &&
       typeof latest.ts === "number" &&
@@ -1411,9 +1422,11 @@ async function buildDashboard(
   const todayJst = jstDate.toISOString().slice(0, 10);
   const round2 = (v: number) => Math.round(v * 100) / 100;
 
-  // 当日の売電電力量 (kWh) と PV1〜4別の1日発電量 (kWh/d)
+  // 当日の売電電力量 / 蓄電池充放電電力量 (kWh) と PV1〜4別の1日発電量 (kWh/d)
   const today = dailyRows.find((d) => d.jst_date === todayJst);
   const sellDayKwhFromSeries = round2(Math.max(0, today?.sell_kwh ?? 0));
+  const todayBatteryChgKwh = round2(Math.max(0, today?.batt_chg_kwh ?? 0));
+  const todayBatteryDischgKwh = round2(Math.max(0, today?.batt_dischg_kwh ?? 0));
   const pvDayKwh = {
     pv1: round2(Math.max(0, today?.pv1_kwh ?? 0)),
     pv2: round2(Math.max(0, today?.pv2_kwh ?? 0)),
@@ -1421,8 +1434,43 @@ async function buildDashboard(
     pv4: round2(Math.max(0, today?.pv4_kwh ?? 0)),
   };
 
-  // 当年(JST)の月別実績発電量 (kWh) と、全期間の投資回収実績 (自家消費節約額 + 売電収益)
+  // 直近1年間 (365日・12か月分) の月別実績合計電力量 (横軸は JAN〜DEC 固定順) と、
+  // 当年(JST)の月別実績発電量 (kWh)、および全期間の投資回収実績
   const monthlyActualKwh: Record<number, number> = {};
+  const rollingMonths: Array<{ month: number; ym: string; label: string }> = [];
+  const rollingMap = new Map<
+    string,
+    { solar: number; use: number; buy: number; sell: number; days: number }
+  >();
+  const MONTH_LABELS = [
+    "JAN",
+    "FEB",
+    "MAR",
+    "APR",
+    "MAY",
+    "JUN",
+    "JUL",
+    "AUG",
+    "SEP",
+    "OCT",
+    "NOV",
+    "DEC",
+  ];
+  const refDayStartSec = Math.floor((refTs + tzSec) / 86400) * 86400;
+  const cutoffDate365 = new Date((refDayStartSec - 364 * 86400) * 1000)
+    .toISOString()
+    .slice(0, 10);
+  const jstMonth = jstDate.getUTCMonth() + 1;
+  for (let offset = 11; offset >= 0; offset--) {
+    const totalMonths = jstYear * 12 + (jstMonth - 1) - offset;
+    const y = Math.floor(totalMonths / 12);
+    const m = (totalMonths % 12) + 1;
+    const ym = `${y}-${String(m).padStart(2, "0")}`;
+    rollingMonths.push({ month: m, ym, label: MONTH_LABELS[m - 1] });
+    rollingMap.set(ym, { solar: 0, use: 0, buy: 0, sell: 0, days: 0 });
+  }
+  rollingMonths.sort((a, b) => a.month - b.month);
+
   let totalSolarKwh = 0;
   let totalSellKwh = 0;
   let totalBenefitYen = 0;
@@ -1439,10 +1487,23 @@ async function buildDashboard(
     const ym = d.jst_date.slice(0, 7);
     const sKwh = Math.max(0, d.solar_kwh ?? 0);
     const eKwh = Math.max(0, d.sell_kwh ?? 0);
+    const bKwh = Math.max(0, d.buy_kwh ?? 0);
+    const lKwh = Math.max(0, d.load_kwh ?? 0);
 
     if (Number(d.jst_date.slice(0, 4)) === jstYear) {
       const month = Number(d.jst_date.slice(5, 7));
       monthlyActualKwh[month] = (monthlyActualKwh[month] ?? 0) + sKwh;
+    }
+
+    if (d.jst_date >= cutoffDate365 && d.jst_date <= todayJst) {
+      const bucket = rollingMap.get(ym);
+      if (bucket) {
+        bucket.solar += sKwh;
+        bucket.use += lKwh;
+        bucket.buy += bKwh;
+        bucket.sell += eKwh;
+        bucket.days += 1;
+      }
     }
 
     const selfKwh = Math.max(0, sKwh - eKwh);
@@ -1477,6 +1538,34 @@ async function buildDashboard(
     const k = Number(m);
     monthlyActualKwh[k] = Math.round(monthlyActualKwh[k] * 10) / 10;
   }
+
+  const monthlyTotals = {
+    months: rollingMonths.map(({ ym, label }) => {
+      const src = rollingMap.get(ym);
+      if (!src || src.days <= 0) {
+        return {
+          ym,
+          label,
+          hasData: false,
+          solar: null,
+          use: null,
+          buy: null,
+          sell: null,
+          loss: null,
+        };
+      }
+      return {
+        ym,
+        label,
+        hasData: true,
+        solar: round2(src.solar),
+        use: round2(src.use),
+        buy: round2(src.buy),
+        sell: round2(src.sell),
+        loss: round2(Math.max(0, src.solar + src.buy - src.use - src.sell)),
+      };
+    }),
+  };
 
   const payback = {
     targetYen: cfg.paybackTargetYen,
@@ -1558,7 +1647,10 @@ async function buildDashboard(
     latest: latest || null,
     sellDayKwhComputed: sellDayKwhFromSeries,
     pvDayKwh,
+    todayBatteryChgKwh,
+    todayBatteryDischgKwh,
     monthlyAvgKwh,
+    monthlyTotals,
     monthlyActualKwh,
     payback,
     snapshot: latestSnap
