@@ -1435,8 +1435,11 @@ async function buildDashboard(
   };
 
   // 直近1年間 (365日・12か月分) の月別実績合計電力量 (横軸は JAN〜DEC 固定順) と、
-  // 当年(JST)の月別実績発電量 (kWh)、および全期間の投資回収実績
+  // 年別・月別の実績発電量 (kWh)、および全期間の投資回収実績
   const monthlyActualKwh: Record<number, number> = {};
+  const monthlyActualByYear: Record<number, Record<number, number>> = {
+    [jstYear]: {},
+  };
   const rollingMonths: Array<{ month: number; ym: string; label: string }> = [];
   const rollingMap = new Map<
     string,
@@ -1490,9 +1493,17 @@ async function buildDashboard(
     const bKwh = Math.max(0, d.buy_kwh ?? 0);
     const lKwh = Math.max(0, d.load_kwh ?? 0);
 
-    if (Number(d.jst_date.slice(0, 4)) === jstYear) {
-      const month = Number(d.jst_date.slice(5, 7));
-      monthlyActualKwh[month] = (monthlyActualKwh[month] ?? 0) + sKwh;
+    const rowYear = Number(d.jst_date.slice(0, 4));
+    const rowMonth = Number(d.jst_date.slice(5, 7));
+    if (rowYear > 0 && rowMonth >= 1 && rowMonth <= 12) {
+      if (!monthlyActualByYear[rowYear]) {
+        monthlyActualByYear[rowYear] = {};
+      }
+      monthlyActualByYear[rowYear][rowMonth] =
+        (monthlyActualByYear[rowYear][rowMonth] ?? 0) + sKwh;
+      if (rowYear === jstYear) {
+        monthlyActualKwh[rowMonth] = (monthlyActualKwh[rowMonth] ?? 0) + sKwh;
+      }
     }
 
     if (d.jst_date >= cutoffDate365 && d.jst_date <= todayJst) {
@@ -1537,6 +1548,14 @@ async function buildDashboard(
   for (const m of Object.keys(monthlyActualKwh)) {
     const k = Number(m);
     monthlyActualKwh[k] = Math.round(monthlyActualKwh[k] * 10) / 10;
+  }
+  for (const yrKey of Object.keys(monthlyActualByYear)) {
+    const yrMap = monthlyActualByYear[Number(yrKey)];
+    if (!yrMap) continue;
+    for (const mKey of Object.keys(yrMap)) {
+      const m = Number(mKey);
+      yrMap[m] = Math.round(yrMap[m] * 10) / 10;
+    }
   }
 
   const monthlyTotals = {
@@ -1631,12 +1650,28 @@ async function buildDashboard(
     weather = await fetchWeather(cfg.latitude, cfg.longitude);
   }
 
-  const monthlyAvgKwh = await queryCheckpointMonthlyAvg(
-    env.DB,
-    refTs,
-    tzSec,
-    todayJst,
+  const [monthlyAvgKwh, todayBuckets] = await Promise.all([
+    queryCheckpointMonthlyAvg(env.DB, refTs, tzSec, todayJst),
+    queryTodayFlowBuckets(env.DB, refTs, tzSec),
+  ]);
+
+  const solarTodayTarget = round2(
+    Math.max(0, Number(latest?.solar_day_kwh ?? today?.solar_kwh ?? 0)),
   );
+  const buyTodayTarget = round2(
+    Math.max(0, Number(latest?.buy_day_kwh ?? today?.buy_kwh ?? 0)),
+  );
+  const useTodayTarget = round2(
+    Math.max(0, Number(latest?.load_day_kwh ?? today?.load_kwh ?? 0)),
+  );
+  const todayFlows = computeTodayFlows(todayBuckets, {
+    solar: solarTodayTarget,
+    battIn: todayBatteryDischgKwh,
+    buy: buyTodayTarget,
+    use: useTodayTarget,
+    battOut: todayBatteryChgKwh,
+    sell: sellDayKwhFromSeries,
+  });
 
   const body = {
     hasData: Boolean(latest),
@@ -1649,9 +1684,11 @@ async function buildDashboard(
     pvDayKwh,
     todayBatteryChgKwh,
     todayBatteryDischgKwh,
+    todayFlows,
     monthlyAvgKwh,
     monthlyTotals,
     monthlyActualKwh,
+    monthlyActualByYear,
     payback,
     snapshot: latestSnap
       ? {
@@ -1662,6 +1699,217 @@ async function buildDashboard(
       : null,
   };
   return { body, ttlSec };
+}
+
+type FlowSource = "solar" | "battIn" | "buy" | "other";
+type FlowTarget = "use" | "battOut" | "sell" | "loss";
+
+interface TodayFlowBucket {
+  bkt: number;
+  cnt: number;
+  sol: number;
+  b_in: number;
+  buy: number;
+  use_w: number;
+  b_out: number;
+  sell: number;
+}
+
+interface DailyFlowEdge {
+  source: FlowSource;
+  target: FlowTarget;
+  kwh: number;
+}
+
+async function queryTodayFlowBuckets(
+  db: D1Database,
+  refTs: number,
+  tzSec: number,
+): Promise<TodayFlowBucket[]> {
+  const refDayStartSec = Math.floor((refTs + tzSec) / 86400) * 86400;
+  const startUtc = refDayStartSec - tzSec;
+  const endUtc = startUtc + 86400;
+  const sql =
+    "SELECT CAST((ts + ?) / 900 AS INTEGER) AS bkt, COUNT(*) AS cnt, " +
+    "SUM(MAX(0.0, COALESCE(solar_w, 0))) / 60000.0 AS sol, " +
+    "SUM(CASE WHEN COALESCE(batt_w, 0) >= 15 THEN batt_w ELSE 0.0 END) / 60000.0 AS b_in, " +
+    "SUM(CASE WHEN COALESCE(grid_w, 0) > 0 THEN grid_w ELSE 0.0 END) / 60000.0 AS buy, " +
+    "SUM(MAX(0.0, COALESCE(load_w, 0))) / 60000.0 AS use_w, " +
+    "SUM(CASE WHEN COALESCE(batt_w, 0) <= -15 THEN -batt_w ELSE 0.0 END) / 60000.0 AS b_out, " +
+    "SUM(CASE WHEN COALESCE(grid_w, 0) < 0 THEN -grid_w ELSE 0.0 END) / 60000.0 AS sell " +
+    "FROM minute_samples WHERE ts >= ? AND ts < ? GROUP BY bkt ORDER BY bkt";
+  try {
+    const res = await db
+      .prepare(sql)
+      .bind(tzSec, startUtc, endUtc)
+      .all<TodayFlowBucket>();
+    return res.results || [];
+  } catch (err) {
+    if (err instanceof Error && /no such table/i.test(err.message)) {
+      return [];
+    }
+    throw err;
+  }
+}
+
+function computeTodayFlows(
+  buckets: TodayFlowBucket[],
+  targets: {
+    solar: number;
+    battIn: number;
+    buy: number;
+    use: number;
+    battOut: number;
+    sell: number;
+  },
+): DailyFlowEdge[] {
+  const round2 = (v: number) => Math.round(v * 100) / 100;
+  const round3 = (v: number) => Math.round(v * 1000) / 1000;
+  const rawIn = round2(targets.solar + targets.battIn + targets.buy);
+  const rawOut = round2(targets.use + targets.battOut + targets.sell);
+  const otherTarget = rawOut > rawIn + 0.005 ? round2(rawOut - rawIn) : 0;
+  const lossTarget = rawIn > rawOut + 0.005 ? round2(rawIn - rawOut) : 0;
+
+  if (Math.max(rawIn, rawOut) <= 0.005) return [];
+
+  const srcs: FlowSource[] = ["solar", "battIn", "buy", "other"];
+  const dsts: FlowTarget[] = ["use", "battOut", "sell", "loss"];
+  const srcTargets: Record<FlowSource, number> = {
+    solar: targets.solar,
+    battIn: targets.battIn,
+    buy: targets.buy,
+    other: otherTarget,
+  };
+  const dstTargets: Record<FlowTarget, number> = {
+    use: targets.use,
+    battOut: targets.battOut,
+    sell: targets.sell,
+    loss: lossTarget,
+  };
+
+  const mat: Record<FlowSource, Record<FlowTarget, number>> = {
+    solar: { use: 0, battOut: 0, sell: 0, loss: 0 },
+    battIn: { use: 0, battOut: 0, sell: 0, loss: 0 },
+    buy: { use: 0, battOut: 0, sell: 0, loss: 0 },
+    other: { use: 0, battOut: 0, sell: 0, loss: 0 },
+  };
+
+  // 15分バケット単位で同時刻の電力構成に基づき供給元→供給先を割り当てる
+  // 深夜買電による蓄電(grid_w >= 120W 平均かつ太陽光を上回る充電)はモード値に依存せずBUY→BATTERYとして自動検出
+  for (const b of buckets) {
+    let sol = Math.max(0, b.sol ?? 0);
+    let bin = Math.max(0, b.b_in ?? 0);
+    let buy = Math.max(0, b.buy ?? 0);
+    let use = Math.max(0, b.use_w ?? 0);
+    let bout = Math.max(0, b.b_out ?? 0);
+    const sell = Math.max(0, b.sell ?? 0);
+    const avgBuyW = b.cnt > 0 ? (buy * 60000) / b.cnt : 0;
+
+    // 1. SELL (太陽光余剰から売電へ)
+    const fSe = Math.min(sol, sell);
+    sol -= fSe;
+    mat.solar.sell += fSe;
+
+    // 2. BATTERY (CHARGING): 太陽光余剰を優先し、不足分は平均買電>=120W時のみ買電から充当
+    const fSb = Math.min(sol, bout);
+    sol -= fSb;
+    bout -= fSb;
+    mat.solar.battOut += fSb;
+
+    if (bout > 0 && avgBuyW >= 120) {
+      const fGb = Math.min(buy, bout);
+      buy -= fGb;
+      mat.buy.battOut += fGb;
+    }
+
+    // 3. USE: 太陽光残 -> 蓄電池放電 -> 買電 の順に家庭消費へ充当
+    const fSu = Math.min(sol, use);
+    sol -= fSu;
+    use -= fSu;
+    mat.solar.use += fSu;
+
+    const fBu = Math.min(bin, use);
+    bin -= fBu;
+    use -= fBu;
+    mat.battIn.use += fBu;
+
+    const fGu = Math.min(buy, use);
+    buy -= fGu;
+    mat.buy.use += fGu;
+
+    // 4. LOSS: バケット内の残余供給 (待機電力・変換ロス)
+    mat.solar.loss += sol;
+    mat.battIn.loss += bin;
+    mat.buy.loss += buy;
+  }
+
+  // 非ゼロの行・列で重みが0になってしまった場合のみ、物理的に妥当な経路へ最小シードを与える
+  const srcFallback: Record<FlowSource, FlowTarget[]> = {
+    solar: ["use", "battOut", "sell", "loss"],
+    battIn: ["use", "loss", "sell", "battOut"],
+    buy: ["use", "loss", "battOut", "sell"],
+    other: ["use", "battOut", "sell", "loss"],
+  };
+  const dstFallback: Record<FlowTarget, FlowSource[]> = {
+    use: ["solar", "battIn", "buy", "other"],
+    battOut: ["solar", "buy", "other", "battIn"],
+    sell: ["solar", "other", "buy", "battIn"],
+    loss: ["solar", "battIn", "buy", "other"],
+  };
+
+  for (const s of srcs) {
+    if (srcTargets[s] <= 0) {
+      for (const t of dsts) mat[s][t] = 0;
+      continue;
+    }
+    const rowSum = dsts.reduce((acc, t) => acc + mat[s][t], 0);
+    if (rowSum <= 1e-9) {
+      const target = srcFallback[s].find((t) => dstTargets[t] > 0);
+      if (target) mat[s][target] = srcTargets[s];
+    }
+  }
+  for (const t of dsts) {
+    if (dstTargets[t] <= 0) {
+      for (const s of srcs) mat[s][t] = 0;
+      continue;
+    }
+    const colSum = srcs.reduce((acc, s) => acc + mat[s][t], 0);
+    if (colSum <= 1e-9) {
+      const src = dstFallback[t].find((s) => srcTargets[s] > 0);
+      if (src) mat[src][t] = dstTargets[t];
+    }
+  }
+
+  // IPF (反復比例適合) で積算レジスタ由来の当日合計値(sources / sinks)へ厳密整合させる
+  for (let iter = 0; iter < 24; iter++) {
+    for (const s of srcs) {
+      if (srcTargets[s] <= 0) continue;
+      const sum = dsts.reduce((acc, t) => acc + mat[s][t], 0);
+      if (sum > 0) {
+        const k = srcTargets[s] / sum;
+        for (const t of dsts) mat[s][t] *= k;
+      }
+    }
+    for (const t of dsts) {
+      if (dstTargets[t] <= 0) continue;
+      const sum = srcs.reduce((acc, s) => acc + mat[s][t], 0);
+      if (sum > 0) {
+        const k = dstTargets[t] / sum;
+        for (const s of srcs) mat[s][t] *= k;
+      }
+    }
+  }
+
+  const edges: DailyFlowEdge[] = [];
+  for (const s of srcs) {
+    for (const t of dsts) {
+      const val = round3(mat[s][t]);
+      if (val >= 0.005) {
+        edges.push({ source: s, target: t, kwh: val });
+      }
+    }
+  }
+  return edges;
 }
 
 async function queryCheckpointMonthlyAvg(

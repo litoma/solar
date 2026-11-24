@@ -2,6 +2,7 @@ import { mountOrUpdatePaybackChart, type PaybackData } from "./PaybackChart";
 import { mountOrUpdateSimulationChart } from "./SimulationChart";
 import {
   mountOrUpdateSummaryCharts,
+  type DailyFlowEdge,
   type MonthlyTotalsData,
 } from "./SummaryCharts";
 
@@ -39,6 +40,7 @@ interface DashboardResponse {
   sellDayKwhComputed: number;
   todayBatteryChgKwh?: number | null;
   todayBatteryDischgKwh?: number | null;
+  todayFlows?: DailyFlowEdge[];
   pvDayKwh?: {
     pv1: number;
     pv2: number;
@@ -53,6 +55,7 @@ interface DashboardResponse {
   };
   monthlyTotals?: MonthlyTotalsData;
   monthlyActualKwh?: Record<number, number>;
+  monthlyActualByYear?: Record<string, Record<string, number>>;
   payback?: PaybackData;
   snapshot: {
     ts: number;
@@ -67,6 +70,79 @@ const STANDBY_BUY_MAX_KW = 0.08;
 let refreshTimerId: number | null = null;
 let currentRefreshSec = 60;
 let refreshInFlight = false;
+let selectedSimYear: number | null = null;
+let latestSimYearMap: Record<number, Record<number, number>> = {};
+let latestSimCurrentYear = new Date().getFullYear();
+let latestSimCurrentMonth = new Date().getMonth() + 1;
+
+function extractMonthlyActualByYear(
+  data: DashboardResponse,
+  currentYear: number,
+): Record<number, Record<number, number>> {
+  const result: Record<number, Record<number, number>> = {};
+  if (data.monthlyActualByYear) {
+    for (const [yStr, months] of Object.entries(data.monthlyActualByYear)) {
+      const y = Number(yStr);
+      if (!Number.isInteger(y) || y <= 0 || !months) continue;
+      result[y] = {};
+      for (const [mStr, kwh] of Object.entries(months)) {
+        const m = Number(mStr);
+        if (m >= 1 && m <= 12 && typeof kwh === "number" && Number.isFinite(kwh)) {
+          result[y][m] = kwh;
+        }
+      }
+    }
+  } else if (data.payback?.byYearMonth) {
+    for (const [ym, stat] of Object.entries(data.payback.byYearMonth)) {
+      const mMatch = /^(\d{4})-(\d{2})$/.exec(ym);
+      if (!mMatch) continue;
+      const y = Number(mMatch[1]);
+      const m = Number(mMatch[2]);
+      if (!result[y]) result[y] = {};
+      result[y][m] = stat.solarKwh;
+    }
+  }
+  if (!result[currentYear]) {
+    result[currentYear] = {};
+  }
+  if (
+    Object.keys(result[currentYear]).length === 0 &&
+    data.monthlyActualKwh
+  ) {
+    result[currentYear] = { ...data.monthlyActualKwh };
+  }
+  return result;
+}
+
+function syncSimYearSelector(
+  yearMap: Record<number, Record<number, number>>,
+  currentYear: number,
+): number {
+  const yearSet = new Set<number>([currentYear]);
+  for (const k of Object.keys(yearMap)) {
+    const y = Number(k);
+    if (Number.isInteger(y) && y > 0) yearSet.add(y);
+  }
+  const years = Array.from(yearSet).sort((a, b) => b - a);
+  if (selectedSimYear === null || !yearSet.has(selectedSimYear)) {
+    selectedSimYear = currentYear;
+  }
+
+  const select = document.getElementById("pv-gen-year") as HTMLSelectElement | null;
+  if (select) {
+    const curOptions = Array.from(select.options).map((o) => Number(o.value));
+    const sameOptions =
+      curOptions.length === years.length &&
+      curOptions.every((v, i) => v === years[i]);
+    if (!sameOptions) {
+      select.innerHTML = years
+        .map((y) => `<option value="${y}">${y}</option>`)
+        .join("");
+    }
+    select.value = String(selectedSimYear);
+  }
+  return selectedSimYear;
+}
 
 function el<T extends HTMLElement | SVGElement>(id: string): T {
   return document.getElementById(id) as unknown as T;
@@ -479,11 +555,22 @@ function renderDashboard(data: DashboardResponse): void {
         sellToday: 0,
         batteryChgKwh: 0,
         batteryDischgKwh: 0,
+        flows: [],
       },
       data.monthlyTotals || { months: [] },
       month,
     );
-    mountOrUpdateSimulationChart(month, data.monthlyActualKwh || {});
+    const byYear = extractMonthlyActualByYear(data, year);
+    latestSimYearMap = byYear;
+    latestSimCurrentYear = year;
+    latestSimCurrentMonth = month;
+    const activeSimYear = syncSimYearSelector(byYear, year);
+    mountOrUpdateSimulationChart(
+      activeSimYear,
+      year,
+      month,
+      byYear[activeSimYear] || {},
+    );
     mountOrUpdatePaybackChart(
       fallbackPayback,
       cfg.buyPriceYenPerKwh,
@@ -509,7 +596,17 @@ function renderDashboard(data: DashboardResponse): void {
     tzMin,
   );
   el("ef-time").textContent = `${timeText} UPDATE`;
-  mountOrUpdateSimulationChart(month, data.monthlyActualKwh || {});
+  const byYear = extractMonthlyActualByYear(data, year);
+  latestSimYearMap = byYear;
+  latestSimCurrentYear = year;
+  latestSimCurrentMonth = month;
+  const activeSimYear = syncSimYearSelector(byYear, year);
+  mountOrUpdateSimulationChart(
+    activeSimYear,
+    year,
+    month,
+    byYear[activeSimYear] || {},
+  );
   mountOrUpdatePaybackChart(
     fallbackPayback,
     cfg.buyPriceYenPerKwh,
@@ -599,6 +696,7 @@ function renderDashboard(data: DashboardResponse): void {
       sellToday,
       batteryChgKwh: data.todayBatteryChgKwh ?? 0,
       batteryDischgKwh: data.todayBatteryDischgKwh ?? 0,
+      flows: data.todayFlows,
     },
     data.monthlyTotals || { months: [] },
     month,
@@ -1042,6 +1140,22 @@ function setupControls(): void {
   setupSnapPager("summary-pager", "#summary-dots .pv-dot");
   setupSnapPager("pv-pager", "#pv-dots .pv-dot");
 
+  const simYearSelect = document.getElementById("pv-gen-year") as HTMLSelectElement | null;
+  if (simYearSelect) {
+    simYearSelect.addEventListener("change", () => {
+      const picked = Number(simYearSelect.value);
+      if (Number.isInteger(picked) && picked > 0) {
+        selectedSimYear = picked;
+        mountOrUpdateSimulationChart(
+          picked,
+          latestSimCurrentYear,
+          latestSimCurrentMonth,
+          latestSimYearMap[picked] || {},
+        );
+      }
+    });
+  }
+
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
       stopRefresh();
@@ -1054,6 +1168,9 @@ function setupControls(): void {
 
 setupControls();
 const initTime = formatTimeJst(Math.floor(Date.now() / 1000));
+latestSimCurrentYear = initTime.year;
+latestSimCurrentMonth = initTime.month;
+const initSimYear = syncSimYearSelector({ [initTime.year]: {} }, initTime.year);
 mountOrUpdateSummaryCharts(
   {
     solarToday: 0,
@@ -1062,11 +1179,12 @@ mountOrUpdateSummaryCharts(
     sellToday: 0,
     batteryChgKwh: 0,
     batteryDischgKwh: 0,
+    flows: [],
   },
   { months: [] },
   initTime.month,
 );
-mountOrUpdateSimulationChart(initTime.month);
+mountOrUpdateSimulationChart(initSimYear, initTime.year, initTime.month, {});
 mountOrUpdatePaybackChart(
   {
     targetYen: 1100000,

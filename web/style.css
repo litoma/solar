@@ -122,21 +122,27 @@ body {
 .top-bar-about-links {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-top: 8px;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 7px;
 }
 
 .top-bar-about-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  gap: 5px;
+  height: 23px;
+  padding: 0 9px;
   border-radius: 999px;
   background-color: #19191b;
   border: 1px solid #2b2c32;
-  color: #c8cad4;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: #e2e4ec;
   text-decoration: none;
+  white-space: nowrap;
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
@@ -146,11 +152,18 @@ body {
   color: #ffffff;
 }
 
-.top-bar-about-link img {
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
+.top-bar-about-icon {
   display: block;
+  flex-shrink: 0;
+}
+
+.top-bar-about-sep {
+  color: #606472;
+  font-weight: 400;
+}
+
+.top-bar-about-label {
+  letter-spacing: 0.01em;
 }
 
 /* 外枠コンテナ (枠線なし、背景色はもう1段暗い #0f1012) */
@@ -235,6 +248,40 @@ body {
   background-color: rgba(24, 22, 18, 0.78);
   border: 1px solid rgba(215, 189, 114, 0.4);
   color: #f3e4b2;
+}
+
+.pv-year-select-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  color: #f3e4b2;
+}
+
+.pv-year-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 4px 28px 4px 13px;
+  cursor: pointer;
+  outline: none;
+  line-height: 1.3;
+}
+
+.pv-year-select:hover,
+.pv-year-select:focus-visible {
+  border-color: rgba(251, 221, 132, 0.72);
+  background-color: rgba(34, 31, 24, 0.9);
+}
+
+.pv-year-select option {
+  background-color: #19191b;
+  color: #f3e4b2;
+}
+
+.pv-year-chevron {
+  position: absolute;
+  right: 10px;
+  pointer-events: none;
+  color: #d7bd72;
 }
 
 .ef-pill-battery {
@@ -743,7 +790,7 @@ body {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  column-gap: 6px;
+  column-gap: 11px;
   row-gap: 2px;
 }
 
@@ -760,9 +807,7 @@ body {
 }
 
 .ef-avg-delta {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
+  display: block;
   font-size: inherit;
   font-weight: 400;
   letter-spacing: 0.01em;
@@ -774,9 +819,11 @@ body {
 }
 
 .ef-avg-arrow {
+  display: inline-block;
+  vertical-align: -0.06em;
   width: 0.85em;
   height: 0.85em;
-  flex-shrink: 0;
+  margin-right: 2px;
 }
 
 .ef-avg-delta.is-pos {
@@ -1159,7 +1206,32 @@ body {
 }
 
 .summary-chart-box {
-  padding-top: 2px;
+  padding: 10px 10px 8px;
+}
+
+.summary-sankey-wrap {
+  position: relative;
+  width: 100%;
+  user-select: none;
+}
+
+.summary-sankey-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  touch-action: manipulation;
+}
+
+.summary-sankey-tooltip {
+  position: absolute;
+  pointer-events: none;
+  z-index: 15;
+  max-width: calc(100% - 8px);
+}
+
+.summary-sankey-tooltip .sim-tooltip {
+  min-width: 0;
 }
 
 .summary-chart-legend {
@@ -1520,7 +1592,7 @@ body {
 
 .sim-summary-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 10px;
 }
 
@@ -1579,6 +1651,28 @@ body {
   border: 1px solid #3c3e47;
   border-radius: 16px;
   padding: 12px 12px 6px;
+}
+
+.sim-chart-legend {
+  padding-bottom: 6px;
+  gap: 6px 16px;
+}
+
+.sim-legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.sim-legend-swatch-actual {
+  background-color: #57f293;
+  border: 1px solid #4bc77c;
+}
+
+.sim-legend-swatch-est {
+  background-color: rgba(215, 189, 114, 0.35);
+  border: 1px solid #d7bd72;
 }
 
 .sim-tooltip {
@@ -1916,7 +2010,7 @@ body {
   .ef-card-sub {
     font-size: 14px;
     letter-spacing: 0;
-    column-gap: 3px;
+    column-gap: 8px;
     margin-top: 4px;
     margin-bottom: 2px;
   }
@@ -1986,7 +2080,23 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .sim-months-grid,
+  .sim-months-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .sim-months-grid .sim-month-cell {
+    padding: 5px 1px;
+  }
+
+  .sim-months-grid .sim-month-val {
+    font-size: 10px;
+  }
+
+  .sim-months-grid .sim-month-val small {
+    font-size: 8.5px;
+  }
+
   .payback-milestones-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }

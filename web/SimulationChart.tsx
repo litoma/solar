@@ -4,7 +4,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -17,6 +16,7 @@ export interface MonthlySimItem {
   shortLabel: string;
   estimatedKwh: number;
   actualKwh: number;
+  barMaxKwh: number;
   pct: number;
 }
 
@@ -45,46 +45,161 @@ interface TooltipPayloadItem {
 function CustomTooltip({
   active,
   payload,
+  isCurrentYear,
   currentMonth,
 }: {
   active?: boolean;
   payload?: TooltipPayloadItem[];
+  isCurrentYear: boolean;
   currentMonth: number;
 }) {
   if (!active || !payload || !payload.length || !payload[0].payload) {
     return null;
   }
   const item = payload[0].payload;
-  const isCurrent = item.month === currentMonth;
+  const isCurrent = isCurrentYear && item.month === currentMonth;
   return (
     <div className="sim-tooltip">
       <div className="sim-tooltip-title">
         {item.label}
-        {isCurrent ? <span className="sim-tooltip-tag">今月</span> : null}
+        {isCurrent ? <span className="sim-tooltip-tag">CURRENT</span> : null}
       </div>
       <div className="sim-tooltip-row">
-        <span className="sim-tooltip-label">実績発電量:</span>
+        <span className="sim-tooltip-label">ACTUAL:</span>
         <span className="sim-tooltip-actual">{Math.round(item.actualKwh)} kWh</span>
       </div>
       <div className="sim-tooltip-row">
-        <span className="sim-tooltip-label">推定発電量:</span>
+        <span className="sim-tooltip-label">ESTIMATED:</span>
         <span className="sim-tooltip-est">{item.estimatedKwh} kWh</span>
       </div>
       <div className="sim-tooltip-row">
-        <span className="sim-tooltip-label">達成率 (実績/推定):</span>
+        <span className="sim-tooltip-label">ACHIEVEMENT:</span>
         <span className="sim-tooltip-pct">{item.pct.toFixed(1)}%</span>
       </div>
     </div>
   );
 }
 
+function topRoundedBarPath(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r = 4,
+): string {
+  if (w <= 0 || h <= 0) return "";
+  const rad = Math.min(r, w / 2, h);
+  const x2 = x + w;
+  const y2 = y + h;
+  return (
+    `M ${x} ${y2} ` +
+    `L ${x} ${y + rad} ` +
+    `Q ${x} ${y} ${x + rad} ${y} ` +
+    `L ${x2 - rad} ${y} ` +
+    `Q ${x2} ${y} ${x2} ${y + rad} ` +
+    `L ${x2} ${y2} Z`
+  );
+}
+
+interface CustomBarShapeProps {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  payload?: MonthlySimItem;
+}
+
+function renderGenerationBar(rawProps: unknown): React.ReactElement {
+  const props = (rawProps ?? {}) as CustomBarShapeProps;
+  const x = Number(props.x ?? 0);
+  const y = Number(props.y ?? 0);
+  const width = Number(props.width ?? 0);
+  const height = Number(props.height ?? 0);
+  const item = props.payload;
+  if (!item || width <= 0 || height <= 0) {
+    return <g />;
+  }
+
+  const est = Math.max(0, item.estimatedKwh);
+  const act = Math.max(0, item.actualKwh);
+  const maxVal = Math.max(item.barMaxKwh, est, act, 1);
+  const baseY = y + height;
+  const estH = (est / maxVal) * height;
+  const actH = (act / maxVal) * height;
+  const estY = baseY - estH;
+  const actY = baseY - actH;
+
+  const estPath = topRoundedBarPath(x, estY, width, estH, 4);
+  const actPath = topRoundedBarPath(x, actY, width, actH, 4);
+  const clipId = `sim-est-clip-${item.month}`;
+
+  // 実績 <= 推定: 推定を背面枠にし、下から実績を塗りつぶす
+  if (act <= est) {
+    return (
+      <g>
+        {estPath ? (
+          <defs>
+            <clipPath id={clipId}>
+              <path d={estPath} />
+            </clipPath>
+          </defs>
+        ) : null}
+        {estPath ? (
+          <path
+            d={estPath}
+            fill="rgba(215, 189, 114, 0.28)"
+            stroke="#d7bd72"
+            strokeWidth={1.15}
+          />
+        ) : null}
+        {actPath ? (
+          <path
+            d={actPath}
+            fill="#57f293"
+            stroke="#4bc77c"
+            strokeWidth={1}
+            clipPath={estPath ? `url(#${clipId})` : undefined}
+          />
+        ) : null}
+      </g>
+    );
+  }
+
+  // 実績 > 推定: 前面・背面を逆転し、実績を背面・推定を前面にして両方を視認可能にする
+  return (
+    <g>
+      {actPath ? (
+        <path
+          d={actPath}
+          fill="#57f293"
+          stroke="#4bc77c"
+          strokeWidth={1.15}
+        />
+      ) : null}
+      {estPath ? (
+        <path
+          d={estPath}
+          fill="rgba(52, 46, 29, 0.72)"
+          stroke="#fbdd84"
+          strokeWidth={1.45}
+        />
+      ) : null}
+    </g>
+  );
+}
+
 function SimulationChartView({
+  selectedYear,
+  currentYear,
   currentMonth,
   monthlyActualKwh,
 }: {
+  selectedYear: number;
+  currentYear: number;
   currentMonth: number;
   monthlyActualKwh: Record<number, number>;
 }) {
+  const isCurrentYear = selectedYear === currentYear;
   const data: MonthlySimItem[] = BASE_SIMULATION.map((b) => {
     const actualRaw = Math.max(0, monthlyActualKwh[b.month] ?? 0);
     const actualRounded = Math.round(actualRaw);
@@ -95,6 +210,7 @@ function SimulationChartView({
       shortLabel: b.label,
       estimatedKwh: b.estimatedKwh,
       actualKwh: actualRounded,
+      barMaxKwh: Math.max(b.estimatedKwh, actualRounded),
       pct,
     };
   });
@@ -106,35 +222,21 @@ function SimulationChartView({
   const totalActualKwh = Math.round(totalActualRaw);
   const totalPct = (totalActualRaw / ANNUAL_TOTAL_KWH) * 100;
 
-  const currentItem =
-    data.find((d) => d.month === currentMonth) || data[10];
+  const maxBar = data.reduce((mx, d) => Math.max(mx, d.barMaxKwh), 0);
+  const yMax = maxBar > 900 ? Math.ceil(maxBar / 100) * 100 : 900;
+  const yTicks: number[] = [];
+  for (let t = 0; t <= yMax; t += 100) {
+    yTicks.push(t);
+  }
 
   return (
     <div className="sim-container">
-      {/* 上段: 今月と年間の 実績 / 推定 & パーセンテージ サマリ */}
+      {/* 上段: 対象年の年間トータル 実績 / 推定 */}
       <div className="sim-summary-grid">
         <div className="sim-summary-card">
           <div className="sim-summary-head">
             <span className="sim-summary-title">
-              今月 ({currentItem.label}) 実績 / 推定
-            </span>
-            <span className="ef-outline-badge sim-pct-badge">
-              {currentItem.pct.toFixed(1)}%
-            </span>
-          </div>
-          <div className="sim-summary-val">
-            {currentItem.actualKwh.toLocaleString("ja-JP")}
-            <span className="sim-summary-sep">/</span>
-            <span className="sim-summary-target">
-              {currentItem.estimatedKwh} kWh
-            </span>
-          </div>
-        </div>
-
-        <div className="sim-summary-card">
-          <div className="sim-summary-head">
-            <span className="sim-summary-title">
-              年間トータル 実績 / 推定
+              ANNUAL TOTAL (ACTUAL / EST)
             </span>
             <span className="ef-outline-badge sim-pct-badge">
               {totalPct.toFixed(1)}%
@@ -150,81 +252,81 @@ function SimulationChartView({
         </div>
       </div>
 
-      {/* 中段: 推定発電量と現時点までのトータル実績発電量を同一グラフに描写 (Recharts) */}
-      <div className="sim-chart-box">
-        <ResponsiveContainer width="100%" height={250}>
-          <BarChart
-            data={data}
-            margin={{ top: 14, right: 8, left: -16, bottom: 2 }}
-            barGap={2}
-          >
-            <CartesianGrid
-              stroke="#383942"
-              strokeDasharray="3 3"
-              vertical={false}
-            />
-            <XAxis
-              dataKey="shortLabel"
-              tick={{
-                fill: "#b8bbc6",
-                fontSize: 11.5,
-                fontFamily: "JetBrains Mono, monospace",
-              }}
-              axisLine={{ stroke: "#484a54" }}
-              tickLine={false}
-            />
-            <YAxis
-              domain={[0, 900]}
-              ticks={[0, 100, 200, 300, 400, 500, 600, 700, 800, 900]}
-              tick={{
-                fill: "#9a9ea6",
-                fontSize: 11,
-                fontFamily: "JetBrains Mono, monospace",
-              }}
-              axisLine={false}
-              tickLine={false}
-            />
-            <Tooltip
-              cursor={{ fill: "rgba(251, 221, 132, 0.08)" }}
-              content={<CustomTooltip currentMonth={currentMonth} />}
-            />
-            <Legend
-              verticalAlign="top"
-              height={28}
-              wrapperStyle={{
-                fontFamily: "JetBrains Mono, monospace",
-                fontSize: "12px",
-                color: "#d6d2c4",
-              }}
-            />
-            <Bar
-              name="推定発電量 (kWh)"
-              dataKey="estimatedKwh"
-              fill="rgba(215, 189, 114, 0.35)"
-              stroke="#d7bd72"
-              strokeWidth={1}
-              radius={[4, 4, 0, 0]}
-              maxBarSize={20}
-              isAnimationActive={false}
-            />
-            <Bar
-              name="実績発電量 (kWh)"
-              dataKey="actualKwh"
-              fill="#57f293"
-              stroke="#4bc77c"
-              strokeWidth={1}
-              radius={[4, 4, 0, 0]}
-              maxBarSize={20}
-              isAnimationActive={false}
-            />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+      {/* 中段: 月別発電量グラフ (1本重ね棒 + 上部タイトル + 中央凡例) */}
+      <section className="summary-graph-block" aria-label="Monthly Generation">
+        <div className="summary-subpage-head">
+          <span className="summary-subpage-title">MONTHLY GENERATION (kWh)</span>
+        </div>
+
+        <div className="sim-chart-box">
+          <div className="summary-chart-legend sim-chart-legend" aria-label="Generation Legend">
+            <span className="summary-legend-item">
+              <span className="sim-legend-swatch sim-legend-swatch-actual" />
+              <span style={{ color: "#57f293" }}>ACTUAL</span>
+            </span>
+            <span className="summary-legend-item">
+              <span className="sim-legend-swatch sim-legend-swatch-est" />
+              <span style={{ color: "#fbdd84" }}>ESTIMATED</span>
+            </span>
+          </div>
+
+          <ResponsiveContainer width="100%" height={224}>
+            <BarChart
+              data={data}
+              margin={{ top: 8, right: 8, left: -12, bottom: 2 }}
+            >
+              <CartesianGrid
+                stroke="#383942"
+                strokeDasharray="3 3"
+                vertical={false}
+              />
+              <XAxis
+                dataKey="shortLabel"
+                interval={0}
+                tick={{
+                  fill: "#b8bbc6",
+                  fontSize: 10.5,
+                  fontFamily: "JetBrains Mono, monospace",
+                }}
+                axisLine={{ stroke: "#484a54" }}
+                tickLine={false}
+              />
+              <YAxis
+                domain={[0, yMax]}
+                ticks={yTicks}
+                width={46}
+                tick={{
+                  fill: "#9a9ea6",
+                  fontSize: 11,
+                  fontFamily: "JetBrains Mono, monospace",
+                }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <Tooltip
+                cursor={{ fill: "rgba(251, 221, 132, 0.08)" }}
+                content={
+                  <CustomTooltip
+                    isCurrentYear={isCurrentYear}
+                    currentMonth={currentMonth}
+                  />
+                }
+              />
+              <Bar
+                dataKey="barMaxKwh"
+                maxBarSize={24}
+                shape={renderGenerationBar}
+                isAnimationActive={false}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
 
       {/* 下段: 1月〜12月の 実績/推定 & 達成率(%) 一覧 */}
       <div className="sim-months-grid">
         {data.map((m) => {
-          const isCurrent = m.month === currentMonth;
+          const isCurrent = isCurrentYear && m.month === currentMonth;
           return (
             <div
               key={m.month}
@@ -247,6 +349,8 @@ function SimulationChartView({
 let chartRoot: Root | null = null;
 
 export function mountOrUpdateSimulationChart(
+  selectedYear: number,
+  currentYear: number,
   currentMonth: number,
   monthlyActualKwh: Record<number, number> = {},
 ): void {
@@ -257,6 +361,8 @@ export function mountOrUpdateSimulationChart(
   }
   chartRoot.render(
     <SimulationChartView
+      selectedYear={selectedYear}
+      currentYear={currentYear}
       currentMonth={currentMonth}
       monthlyActualKwh={monthlyActualKwh}
     />,
