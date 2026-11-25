@@ -1440,17 +1440,21 @@ async function buildDashboard(
   const monthlyActualByYear: Record<number, Record<number, number>> = {
     [jstYear]: {},
   };
-  const pvDaily: Array<{
-    date: string;
-    pv1: number;
-    pv2: number;
-    pv3: number;
-    pv4: number;
-  }> = [];
   const rollingMonths: Array<{ month: number; ym: string; label: string }> = [];
   const rollingMap = new Map<
     string,
-    { solar: number; use: number; buy: number; sell: number; days: number }
+    {
+      solar: number;
+      use: number;
+      buy: number;
+      sell: number;
+      days: number;
+      pv1: number;
+      pv2: number;
+      pv3: number;
+      pv4: number;
+      pvDays: number;
+    }
   >();
   const MONTH_LABELS = [
     "JAN",
@@ -1477,7 +1481,18 @@ async function buildDashboard(
     const m = (totalMonths % 12) + 1;
     const ym = `${y}-${String(m).padStart(2, "0")}`;
     rollingMonths.push({ month: m, ym, label: MONTH_LABELS[m - 1] });
-    rollingMap.set(ym, { solar: 0, use: 0, buy: 0, sell: 0, days: 0 });
+    rollingMap.set(ym, {
+      solar: 0,
+      use: 0,
+      buy: 0,
+      sell: 0,
+      days: 0,
+      pv1: 0,
+      pv2: 0,
+      pv3: 0,
+      pv4: 0,
+      pvDays: 0,
+    });
   }
   rollingMonths.sort((a, b) => a.month - b.month);
 
@@ -1521,20 +1536,18 @@ async function buildDashboard(
         bucket.buy += bKwh;
         bucket.sell += eKwh;
         bucket.days += 1;
-      }
-      if (
-        d.pv1_kwh !== null &&
-        d.pv2_kwh !== null &&
-        d.pv3_kwh !== null &&
-        d.pv4_kwh !== null
-      ) {
-        pvDaily.push({
-          date: d.jst_date,
-          pv1: round2(Math.max(0, d.pv1_kwh)),
-          pv2: round2(Math.max(0, d.pv2_kwh)),
-          pv3: round2(Math.max(0, d.pv3_kwh)),
-          pv4: round2(Math.max(0, d.pv4_kwh)),
-        });
+        if (
+          d.pv1_kwh !== null &&
+          d.pv2_kwh !== null &&
+          d.pv3_kwh !== null &&
+          d.pv4_kwh !== null
+        ) {
+          bucket.pv1 += Math.max(0, d.pv1_kwh);
+          bucket.pv2 += Math.max(0, d.pv2_kwh);
+          bucket.pv3 += Math.max(0, d.pv3_kwh);
+          bucket.pv4 += Math.max(0, d.pv4_kwh);
+          bucket.pvDays += 1;
+        }
       }
     }
 
@@ -1579,7 +1592,31 @@ async function buildDashboard(
     }
   }
 
-  pvDaily.sort((a, b) => a.date.localeCompare(b.date));
+  const pvMonthly = rollingMonths.map(({ ym, month, label }) => {
+    const src = rollingMap.get(ym);
+    if (!src || src.pvDays <= 0) {
+      return {
+        ym,
+        month,
+        label,
+        hasData: false,
+        pv1: null,
+        pv2: null,
+        pv3: null,
+        pv4: null,
+      };
+    }
+    return {
+      ym,
+      month,
+      label,
+      hasData: true,
+      pv1: round2(src.pv1),
+      pv2: round2(src.pv2),
+      pv3: round2(src.pv3),
+      pv4: round2(src.pv4),
+    };
+  });
 
   const monthlyTotals = {
     months: rollingMonths.map(({ ym, label }) => {
@@ -1705,7 +1742,7 @@ async function buildDashboard(
     latest: latest || null,
     sellDayKwhComputed: sellDayKwhFromSeries,
     pvDayKwh,
-    pvDaily,
+    pvMonthly,
     todayBatteryChgKwh,
     todayBatteryDischgKwh,
     todayFlows,

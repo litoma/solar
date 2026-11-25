@@ -1,5 +1,5 @@
 import { mountOrUpdatePaybackChart, type PaybackData } from "./PaybackChart";
-import { mountOrUpdatePvCharts, type PvDailyRecord } from "./PvCharts";
+import { mountOrUpdatePvCharts, type PvMonthlyRecord } from "./PvCharts";
 import { mountOrUpdateSimulationChart } from "./SimulationChart";
 import {
   mountOrUpdateSummaryCharts,
@@ -48,7 +48,7 @@ interface DashboardResponse {
     pv3: number;
     pv4: number;
   };
-  pvDaily?: PvDailyRecord[];
+  pvMonthly?: PvMonthlyRecord[];
   monthlyAvgKwh?: {
     solar: number | null;
     use: number | null;
@@ -552,7 +552,7 @@ function renderDashboard(data: DashboardResponse): void {
   const latest = data.latest;
   if (!latest) {
     const nowSec = Math.floor(Date.now() / 1000);
-    const { text: timeText, minutesOfDay, day, month, year } = formatTimeJst(
+    const { text: timeText, minutesOfDay, month, year } = formatTimeJst(
       nowSec,
       tzMin,
     );
@@ -570,7 +570,7 @@ function renderDashboard(data: DashboardResponse): void {
       data.monthlyTotals || { months: [] },
       month,
     );
-    mountOrUpdatePvCharts(data.pvDaily || [], month, day);
+    mountOrUpdatePvCharts(data.pvMonthly || [], month);
     const byYear = extractMonthlyActualByYear(data, year);
     latestSimYearMap = byYear;
     latestSimCurrentYear = year;
@@ -602,12 +602,12 @@ function renderDashboard(data: DashboardResponse): void {
 
   const ts =
     typeof latest.ts === "number" ? latest.ts : Math.floor(Date.now() / 1000);
-  const { text: timeText, minutesOfDay, day, month, year } = formatTimeJst(
+  const { text: timeText, minutesOfDay, month, year } = formatTimeJst(
     ts,
     tzMin,
   );
   el("ef-time").textContent = `${timeText} UPDATE`;
-  mountOrUpdatePvCharts(data.pvDaily || [], month, day);
+  mountOrUpdatePvCharts(data.pvMonthly || [], month);
   const byYear = extractMonthlyActualByYear(data, year);
   latestSimYearMap = byYear;
   latestSimCurrentYear = year;
@@ -1196,7 +1196,7 @@ mountOrUpdateSummaryCharts(
   { months: [] },
   initTime.month,
 );
-mountOrUpdatePvCharts([], initTime.month, initTime.day);
+mountOrUpdatePvCharts([], initTime.month);
 mountOrUpdateSimulationChart(initSimYear, initTime.year, initTime.month, {});
 mountOrUpdatePaybackChart(
   {

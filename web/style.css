@@ -995,33 +995,41 @@ body {
 .pv-xmap {
   position: relative;
   width: 100%;
-  min-height: 416px;
+  min-height: 400px;
 }
 
-/* 中央の ROOF 見出し + 15 PANELS · 6.065 kW + 屋根枠SVG (SOUTHとの余白を確保) */
+/* 中央の ROOF 見出し + 周囲方位付き屋根枠SVG */
 .pv-roof-center {
   position: absolute;
   left: 50%;
-  top: 52%;
+  top: 56%;
   transform: translate(-50%, -50%);
-  width: 244px;
+  width: 274px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: 6px;
 }
 
 .pv-roof-heading {
   margin: 0;
 }
 
-.pv-roof-spec {
+.pv-roof-dir {
+  fill: #fbdd84;
   font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 500;
-  color: #c2b99f;
-  letter-spacing: 0.05em;
-  margin-bottom: 3px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-anchor: middle;
+}
+
+.pv-roof-nothing {
+  fill: #6e7382;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-anchor: middle;
 }
 
 /* PV STRINGS ページ送り + 2ページ目詳細 */
@@ -1155,10 +1163,10 @@ body {
   color: #9da1ae;
 }
 
-.pv-spec-dir-badge {
-  color: #e4e4ec;
-  background-color: rgba(34, 36, 44, 0.85);
-  border: 1px solid #545866;
+.pv-spec-qty-dir {
+  color: #9da1ae;
+  font-size: 10.5px;
+  margin-left: 2px;
 }
 
 .pv-spec-kw {
@@ -1379,32 +1387,16 @@ body {
 
 .pv-quad-west {
   left: 10px;
-  top: 54%;
+  top: 56%;
   transform: translateY(-50%);
   align-items: flex-start;
 }
 
 .pv-quad-east {
   right: 10px;
-  top: 54%;
+  top: 56%;
   transform: translateY(-50%);
   align-items: flex-start;
-}
-
-.pv-quad-south {
-  bottom: 4px;
-  left: 50%;
-  transform: translateX(-50%);
-  align-items: center;
-  text-align: center;
-}
-
-.pv-quad-dir {
-  font-family: var(--font-mono);
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  color: #fbdd84;
 }
 
 .pv-quad-item {
@@ -2112,7 +2104,7 @@ body {
   .pv-roof-center {
     position: static;
     transform: none;
-    width: min(286px, 82vw);
+    width: min(312px, 88vw);
     margin: 0 auto 4px;
   }
 
@@ -2167,22 +2159,14 @@ body {
     flex-wrap: wrap;
   }
 
-  .pv-spec-table tbody td.col-array {
-    margin-left: auto;
-  }
-
   .pv-spec-table tbody td.col-qty {
+    margin-left: auto;
     color: #e4e6ef;
-    font-weight: 500;
-  }
-
-  .pv-spec-table tbody td.col-qty::after {
-    content: "panels";
-    color: #9da1ae;
-    font-weight: 400;
+    font-weight: 600;
   }
 
   .pv-spec-table tbody td.col-output {
+    flex-basis: 100%;
     gap: 5px;
     color: #d6d9e4;
   }
