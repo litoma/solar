@@ -1440,6 +1440,15 @@ async function buildDashboard(
   const monthlyActualByYear: Record<number, Record<number, number>> = {
     [jstYear]: {},
   };
+  const pvByYearMonthAcc: Record<
+    number,
+    Record<
+      number,
+      { pv1: number; pv2: number; pv3: number; pv4: number; pvDays: number }
+    >
+  > = {
+    [jstYear]: {},
+  };
   const rollingMonths: Array<{ month: number; ym: string; label: string }> = [];
   const rollingMap = new Map<
     string,
@@ -1449,11 +1458,6 @@ async function buildDashboard(
       buy: number;
       sell: number;
       days: number;
-      pv1: number;
-      pv2: number;
-      pv3: number;
-      pv4: number;
-      pvDays: number;
     }
   >();
   const MONTH_LABELS = [
@@ -1487,11 +1491,6 @@ async function buildDashboard(
       buy: 0,
       sell: 0,
       days: 0,
-      pv1: 0,
-      pv2: 0,
-      pv3: 0,
-      pv4: 0,
-      pvDays: 0,
     });
   }
   rollingMonths.sort((a, b) => a.month - b.month);
@@ -1526,6 +1525,29 @@ async function buildDashboard(
       if (rowYear === jstYear) {
         monthlyActualKwh[rowMonth] = (monthlyActualKwh[rowMonth] ?? 0) + sKwh;
       }
+      if (
+        d.pv1_kwh !== null &&
+        d.pv2_kwh !== null &&
+        d.pv3_kwh !== null &&
+        d.pv4_kwh !== null
+      ) {
+        if (!pvByYearMonthAcc[rowYear]) {
+          pvByYearMonthAcc[rowYear] = {};
+        }
+        const pvBucket = pvByYearMonthAcc[rowYear][rowMonth] ?? {
+          pv1: 0,
+          pv2: 0,
+          pv3: 0,
+          pv4: 0,
+          pvDays: 0,
+        };
+        pvBucket.pv1 += Math.max(0, d.pv1_kwh);
+        pvBucket.pv2 += Math.max(0, d.pv2_kwh);
+        pvBucket.pv3 += Math.max(0, d.pv3_kwh);
+        pvBucket.pv4 += Math.max(0, d.pv4_kwh);
+        pvBucket.pvDays += 1;
+        pvByYearMonthAcc[rowYear][rowMonth] = pvBucket;
+      }
     }
 
     if (d.jst_date >= cutoffDate365 && d.jst_date <= todayJst) {
@@ -1536,18 +1558,6 @@ async function buildDashboard(
         bucket.buy += bKwh;
         bucket.sell += eKwh;
         bucket.days += 1;
-        if (
-          d.pv1_kwh !== null &&
-          d.pv2_kwh !== null &&
-          d.pv3_kwh !== null &&
-          d.pv4_kwh !== null
-        ) {
-          bucket.pv1 += Math.max(0, d.pv1_kwh);
-          bucket.pv2 += Math.max(0, d.pv2_kwh);
-          bucket.pv3 += Math.max(0, d.pv3_kwh);
-          bucket.pv4 += Math.max(0, d.pv4_kwh);
-          bucket.pvDays += 1;
-        }
       }
     }
 
@@ -1592,31 +1602,55 @@ async function buildDashboard(
     }
   }
 
-  const pvMonthly = rollingMonths.map(({ ym, month, label }) => {
-    const src = rollingMap.get(ym);
-    if (!src || src.pvDays <= 0) {
+  const allPvYears = new Set<number>([
+    jstYear,
+    ...Object.keys(monthlyActualByYear).map(Number),
+    ...Object.keys(pvByYearMonthAcc).map(Number),
+  ]);
+  const pvMonthlyByYear: Record<
+    number,
+    Array<{
+      ym: string;
+      month: number;
+      label: string;
+      hasData: boolean;
+      pv1: number | null;
+      pv2: number | null;
+      pv3: number | null;
+      pv4: number | null;
+    }>
+  > = {};
+  for (const yr of allPvYears) {
+    if (!Number.isInteger(yr) || yr <= 0) continue;
+    const yrAcc = pvByYearMonthAcc[yr] || {};
+    pvMonthlyByYear[yr] = MONTH_LABELS.map((label, idx) => {
+      const month = idx + 1;
+      const ym = `${yr}-${String(month).padStart(2, "0")}`;
+      const src = yrAcc[month];
+      if (!src || src.pvDays <= 0) {
+        return {
+          ym,
+          month,
+          label,
+          hasData: false,
+          pv1: null,
+          pv2: null,
+          pv3: null,
+          pv4: null,
+        };
+      }
       return {
         ym,
         month,
         label,
-        hasData: false,
-        pv1: null,
-        pv2: null,
-        pv3: null,
-        pv4: null,
+        hasData: true,
+        pv1: round2(src.pv1),
+        pv2: round2(src.pv2),
+        pv3: round2(src.pv3),
+        pv4: round2(src.pv4),
       };
-    }
-    return {
-      ym,
-      month,
-      label,
-      hasData: true,
-      pv1: round2(src.pv1),
-      pv2: round2(src.pv2),
-      pv3: round2(src.pv3),
-      pv4: round2(src.pv4),
-    };
-  });
+    });
+  }
 
   const monthlyTotals = {
     months: rollingMonths.map(({ ym, label }) => {
@@ -1742,7 +1776,7 @@ async function buildDashboard(
     latest: latest || null,
     sellDayKwhComputed: sellDayKwhFromSeries,
     pvDayKwh,
-    pvMonthly,
+    pvMonthlyByYear,
     todayBatteryChgKwh,
     todayBatteryDischgKwh,
     todayFlows,

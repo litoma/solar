@@ -48,6 +48,7 @@ interface DashboardResponse {
     pv3: number;
     pv4: number;
   };
+  pvMonthlyByYear?: Record<string, PvMonthlyRecord[]>;
   pvMonthly?: PvMonthlyRecord[];
   monthlyAvgKwh?: {
     solar: number | null;
@@ -74,6 +75,7 @@ let currentRefreshSec = 60;
 let refreshInFlight = false;
 let selectedSimYear: number | null = null;
 let latestSimYearMap: Record<number, Record<number, number>> = {};
+let latestPvYearMap: Record<number, PvMonthlyRecord[]> = {};
 let latestSimCurrentYear = new Date().getFullYear();
 let latestSimCurrentMonth = new Date().getMonth() + 1;
 
@@ -116,12 +118,42 @@ function extractMonthlyActualByYear(
   return result;
 }
 
+function extractPvMonthlyByYear(
+  data: DashboardResponse,
+  currentYear: number,
+): Record<number, PvMonthlyRecord[]> {
+  const result: Record<number, PvMonthlyRecord[]> = {};
+  if (data.pvMonthlyByYear) {
+    for (const [yStr, list] of Object.entries(data.pvMonthlyByYear)) {
+      const y = Number(yStr);
+      if (!Number.isInteger(y) || y <= 0 || !Array.isArray(list)) continue;
+      result[y] = list;
+    }
+  } else if (Array.isArray(data.pvMonthly)) {
+    for (const rec of data.pvMonthly) {
+      const m = /^(\d{4})-(\d{2})$/.exec(rec.ym || "");
+      const y = m ? Number(m[1]) : currentYear;
+      if (!result[y]) result[y] = [];
+      result[y].push(rec);
+    }
+  }
+  if (!result[currentYear]) {
+    result[currentYear] = [];
+  }
+  return result;
+}
+
 function syncSimYearSelector(
   yearMap: Record<number, Record<number, number>>,
+  pvYearMap: Record<number, PvMonthlyRecord[]>,
   currentYear: number,
 ): number {
   const yearSet = new Set<number>([currentYear]);
   for (const k of Object.keys(yearMap)) {
+    const y = Number(k);
+    if (Number.isInteger(y) && y > 0) yearSet.add(y);
+  }
+  for (const k of Object.keys(pvYearMap)) {
     const y = Number(k);
     if (Number.isInteger(y) && y > 0) yearSet.add(y);
   }
@@ -144,6 +176,21 @@ function syncSimYearSelector(
     select.value = String(selectedSimYear);
   }
   return selectedSimYear;
+}
+
+function renderPvGenerationForYear(year: number): void {
+  mountOrUpdateSimulationChart(
+    year,
+    latestSimCurrentYear,
+    latestSimCurrentMonth,
+    latestSimYearMap[year] || {},
+  );
+  mountOrUpdatePvCharts(
+    latestPvYearMap[year] || [],
+    year,
+    latestSimCurrentYear,
+    latestSimCurrentMonth,
+  );
 }
 
 function el<T extends HTMLElement | SVGElement>(id: string): T {
@@ -570,18 +617,14 @@ function renderDashboard(data: DashboardResponse): void {
       data.monthlyTotals || { months: [] },
       month,
     );
-    mountOrUpdatePvCharts(data.pvMonthly || [], month);
     const byYear = extractMonthlyActualByYear(data, year);
+    const pvByYear = extractPvMonthlyByYear(data, year);
     latestSimYearMap = byYear;
+    latestPvYearMap = pvByYear;
     latestSimCurrentYear = year;
     latestSimCurrentMonth = month;
-    const activeSimYear = syncSimYearSelector(byYear, year);
-    mountOrUpdateSimulationChart(
-      activeSimYear,
-      year,
-      month,
-      byYear[activeSimYear] || {},
-    );
+    const activeSimYear = syncSimYearSelector(byYear, pvByYear, year);
+    renderPvGenerationForYear(activeSimYear);
     mountOrUpdatePaybackChart(
       fallbackPayback,
       cfg.buyPriceYenPerKwh,
@@ -607,18 +650,14 @@ function renderDashboard(data: DashboardResponse): void {
     tzMin,
   );
   el("ef-time").textContent = `${timeText} UPDATE`;
-  mountOrUpdatePvCharts(data.pvMonthly || [], month);
   const byYear = extractMonthlyActualByYear(data, year);
+  const pvByYear = extractPvMonthlyByYear(data, year);
   latestSimYearMap = byYear;
+  latestPvYearMap = pvByYear;
   latestSimCurrentYear = year;
   latestSimCurrentMonth = month;
-  const activeSimYear = syncSimYearSelector(byYear, year);
-  mountOrUpdateSimulationChart(
-    activeSimYear,
-    year,
-    month,
-    byYear[activeSimYear] || {},
-  );
+  const activeSimYear = syncSimYearSelector(byYear, pvByYear, year);
+  renderPvGenerationForYear(activeSimYear);
   mountOrUpdatePaybackChart(
     fallbackPayback,
     cfg.buyPriceYenPerKwh,
@@ -1148,9 +1187,10 @@ function setupControls(): void {
     roof.addEventListener("mouseleave", leave);
   }
 
-  // SUMMARY / PV STRINGS ページ送り (横スクロールスナップ + ドットクリック連動)
+  // SUMMARY / PV STRINGS / PV GENERATION ページ送り (横スクロールスナップ + ドットクリック連動)
   setupSnapPager("summary-pager", "#summary-dots .pv-dot");
   setupSnapPager("pv-pager", "#pv-dots .pv-dot");
+  setupSnapPager("pv-gen-pager", "#pv-gen-dots .pv-dot");
 
   const simYearSelect = document.getElementById("pv-gen-year") as HTMLSelectElement | null;
   if (simYearSelect) {
@@ -1158,12 +1198,7 @@ function setupControls(): void {
       const picked = Number(simYearSelect.value);
       if (Number.isInteger(picked) && picked > 0) {
         selectedSimYear = picked;
-        mountOrUpdateSimulationChart(
-          picked,
-          latestSimCurrentYear,
-          latestSimCurrentMonth,
-          latestSimYearMap[picked] || {},
-        );
+        renderPvGenerationForYear(picked);
       }
     });
   }
@@ -1182,7 +1217,11 @@ setupControls();
 const initTime = formatTimeJst(Math.floor(Date.now() / 1000));
 latestSimCurrentYear = initTime.year;
 latestSimCurrentMonth = initTime.month;
-const initSimYear = syncSimYearSelector({ [initTime.year]: {} }, initTime.year);
+const initSimYear = syncSimYearSelector(
+  { [initTime.year]: {} },
+  { [initTime.year]: [] },
+  initTime.year,
+);
 mountOrUpdateSummaryCharts(
   {
     solarToday: 0,
@@ -1196,8 +1235,7 @@ mountOrUpdateSummaryCharts(
   { months: [] },
   initTime.month,
 );
-mountOrUpdatePvCharts([], initTime.month);
-mountOrUpdateSimulationChart(initSimYear, initTime.year, initTime.month, {});
+renderPvGenerationForYear(initSimYear);
 mountOrUpdatePaybackChart(
   {
     targetYen: 1100000,

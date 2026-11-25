@@ -1051,6 +1051,12 @@ body {
   scroll-snap-align: start;
 }
 
+.pv-pager > .pv-page:first-child {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
 .pv-charts-page {
   display: flex;
   flex-direction: column;
@@ -1181,6 +1187,82 @@ body {
   color: #9da1ae;
   font-size: 10px;
   font-weight: 400;
+}
+
+.pv-dim-card {
+  background-color: #26282e;
+  border: 1px solid #454852;
+  border-radius: 14px;
+  padding: 11px 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pv-dim-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pv-dim-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: #9397a5;
+}
+
+.pv-dim-unit {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: #8f94a2;
+}
+
+.pv-dim-svg {
+  display: block;
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  height: auto;
+  overflow: visible;
+}
+
+.pv-dim-num {
+  fill: #eceef4;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  text-anchor: middle;
+}
+
+.pv-dim-role {
+  fill: #9da1ae;
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-anchor: middle;
+}
+
+.pv-dim-role.is-main {
+  fill: #d7bd72;
+}
+
+.pv-dim-model {
+  fill: #fbdd84;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  text-anchor: middle;
+}
+
+.pv-dim-variant {
+  fill: #c2c5d0;
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  text-anchor: middle;
 }
 
 .pv-dots {
@@ -2177,39 +2259,20 @@ body {
     margin-top: 0;
   }
 
-  .pv-spec-table tbody td.col-eff {
-    flex-basis: 100%;
-    color: #9da1ae;
-    font-size: 10.5px;
-  }
-
   .pv-spec-table tbody td.col-eff,
-  .pv-spec-table tbody td.col-dim,
   .pv-spec-table tbody td.col-wt {
     color: #9da1ae;
     font-size: 10.5px;
-  }
-
-  .pv-spec-table tbody td.col-eff {
     flex-basis: auto;
-  }
-
-  .pv-spec-table tbody td.col-dim {
-    flex-basis: auto;
-  }
-
-  .pv-spec-table tbody td.col-dim::before {
-    content: "·";
-    color: #5a5e6b;
-  }
-
-  .pv-spec-table tbody td.col-dim::after {
-    content: " mm";
   }
 
   .pv-spec-table tbody td.col-wt::before {
     content: "·";
     color: #5a5e6b;
+  }
+
+  .pv-dim-card {
+    padding: 10px 10px 8px;
   }
 
   .pv-spec-feature {

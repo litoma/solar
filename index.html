@@ -334,7 +334,7 @@
       </div>
     </section>
 
-    <!-- 2. PV STRINGS ウィジェット (1ページ目: 屋根配置図 + 4方角 / 2ページ目: PV別・方位別 年間推移 / 3ページ目: パネル詳細) -->
+    <!-- 2. PV STRINGS ウィジェット (1ページ目: 屋根配置図 + 4方角 / 2ページ目: パネル詳細・寸法図) -->
     <section class="ef-shell ef-shell-solar" aria-label="PV Strings Monitor">
       <header class="ef-header">
         <div class="ef-header-left">
@@ -468,12 +468,7 @@
             </div>
           </div>
 
-          <!-- 2ページ目: PV毎・方位毎の月別発電量グラフ (直近1年間: JAN〜DEC) -->
-          <div class="pv-page pv-charts-page">
-            <div id="pv-charts-root"></div>
-          </div>
-
-          <!-- 3ページ目: 太陽光パネル・屋根仕様 (Canadian Solar TOPHiKu6) -->
+          <!-- 2ページ目: 太陽光パネル・屋根仕様 (Canadian Solar TOPHiKu6) -->
           <div class="pv-page pv-specs-page">
             <div class="pv-specs-summary">
               <div class="pv-spec-sum-item">
@@ -510,7 +505,6 @@
                     <th scope="col">QTY</th>
                     <th scope="col" class="is-num">OUTPUT</th>
                     <th scope="col" class="is-num">EFF.</th>
-                    <th scope="col" class="is-num">DIMENSIONS (mm)</th>
                     <th scope="col" class="is-num">WEIGHT</th>
                   </tr>
                 </thead>
@@ -522,10 +516,9 @@
                     <td class="col-qty">6<span class="pv-spec-qty-dir">(W4+E2)</span></td>
                     <td class="col-output is-num">
                       <span class="pv-spec-kw">2.790 kW</span>
-                      <span class="pv-spec-note">465 W</span>
+                      <span class="pv-spec-note">0.465 kW/panel</span>
                     </td>
                     <td class="col-eff is-num">23.3%</td>
-                    <td class="col-dim is-num" data-unit="mm">1,762 × 1,134 × 30</td>
                     <td class="col-wt is-num">21.3 kg</td>
                   </tr>
                   <tr>
@@ -535,10 +528,9 @@
                     <td class="col-qty">2<span class="pv-spec-qty-dir">(E2)</span></td>
                     <td class="col-output is-num">
                       <span class="pv-spec-kw">0.700 kW</span>
-                      <span class="pv-spec-note">350 W</span>
+                      <span class="pv-spec-note">0.350 kW/panel</span>
                     </td>
                     <td class="col-eff is-num">23.1%</td>
-                    <td class="col-dim is-num" data-unit="mm">1,334 × 1,134 × 30</td>
                     <td class="col-wt is-num">16.3 kg</td>
                   </tr>
                   <tr>
@@ -548,28 +540,170 @@
                     <td class="col-qty">4<span class="pv-spec-qty-dir">(W4)</span></td>
                     <td class="col-output is-num">
                       <span class="pv-spec-kw">1.240 kW</span>
-                      <span class="pv-spec-note">310 W</span>
+                      <span class="pv-spec-note">0.310 kW/panel</span>
                     </td>
                     <td class="col-eff is-num">22.9%</td>
-                    <td class="col-dim is-num" data-unit="mm">1,762 × 767 × 30</td>
                     <td class="col-wt is-num">14.7 kg</td>
                   </tr>
                   <tr>
                     <td class="col-model">
                       <span class="pv-spec-model">CS6.2-48TM-445</span>
-                      <span class="pv-spec-feature">防眩 (Anti-glare)</span>
+                      <span class="pv-spec-feature">(Anti-glare)</span>
                     </td>
                     <td class="col-qty">3<span class="pv-spec-qty-dir">(N3)</span></td>
                     <td class="col-output is-num">
                       <span class="pv-spec-kw">1.335 kW</span>
-                      <span class="pv-spec-note">445 W</span>
+                      <span class="pv-spec-note">0.445 kW/panel</span>
                     </td>
                     <td class="col-eff is-num">22.3%</td>
-                    <td class="col-dim is-num" data-unit="mm">1,762 × 1,134 × 30</td>
                     <td class="col-wt is-num">21.3 kg</td>
                   </tr>
                 </tbody>
               </table>
+            </div>
+
+            <!-- パネル寸法図 (CS6.2-32TM + CS6.2-48TM + CS6.2-36TM) -->
+            <div class="pv-dim-card">
+              <div class="pv-dim-head">
+                <span class="pv-dim-title">DIMENSIONS</span>
+                <span class="pv-dim-unit">UNIT: mm</span>
+              </div>
+              <svg class="pv-dim-svg" viewBox="0 0 430 242" preserveAspectRatio="xMidYMid meet" role="img"
+                aria-label="Solar Panel Dimensions Diagram">
+                <defs>
+                  <pattern id="pv-cell-grid" width="12" height="12" patternUnits="userSpaceOnUse">
+                    <path d="M 12 0 L 0 0 0 12" fill="none" stroke="#2c303b" stroke-width="0.7" />
+                  </pattern>
+                </defs>
+
+                <!-- 同一寸法辺を視覚化する破線ガイド -->
+                <line x1="64" y1="90" x2="64" y2="114" stroke="#494d5c" stroke-width="1" stroke-dasharray="2.5 2.5" />
+                <line x1="222" y1="90" x2="222" y2="114" stroke="#494d5c" stroke-width="1" stroke-dasharray="2.5 2.5" />
+                <line x1="222" y1="114" x2="246" y2="114" stroke="#494d5c" stroke-width="1"
+                  stroke-dasharray="2.5 2.5" />
+                <line x1="222" y1="216" x2="246" y2="216" stroke="#494d5c" stroke-width="1"
+                  stroke-dasharray="2.5 2.5" />
+
+                <!-- 上側幅寸法: CS6.2-32TM (1,762) -->
+                <g class="pv-dim-axis">
+                  <line x1="64" y1="7" x2="64" y2="17" stroke="#6d7282" stroke-width="1" />
+                  <line x1="222" y1="7" x2="222" y2="17" stroke="#6d7282" stroke-width="1" />
+                  <line x1="65" y1="12" x2="221" y2="12" stroke="#9397a5" stroke-width="1.1" />
+                  <polygon points="64,12 70,9.5 70,14.5" fill="#9397a5" />
+                  <polygon points="222,12 216,9.5 216,14.5" fill="#9397a5" />
+                  <rect x="122" y="5" width="42" height="13" rx="3" fill="#26282e" />
+                  <text x="143" y="12" class="pv-dim-num" dominant-baseline="central">1,762</text>
+                </g>
+
+                <!-- 左側高さ寸法: CS6.2-32TM (767) & CS6.2-48TM (1,134) -->
+                <g class="pv-dim-axis">
+                  <line x1="43" y1="21" x2="59" y2="21" stroke="#6d7282" stroke-width="1" />
+                  <line x1="43" y1="90" x2="59" y2="90" stroke="#6d7282" stroke-width="1" />
+                  <line x1="49" y1="22" x2="49" y2="89" stroke="#9397a5" stroke-width="1.1" />
+                  <polygon points="49,21 46.5,27 51.5,27" fill="#9397a5" />
+                  <polygon points="49,90 46.5,84 51.5,84" fill="#9397a5" />
+                  <text x="41" y="55.5" class="pv-dim-num" text-anchor="end" dominant-baseline="central">767</text>
+
+                  <line x1="43" y1="114" x2="59" y2="114" stroke="#6d7282" stroke-width="1" />
+                  <line x1="43" y1="216" x2="59" y2="216" stroke="#6d7282" stroke-width="1" />
+                  <line x1="49" y1="115" x2="49" y2="215" stroke="#9397a5" stroke-width="1.1" />
+                  <polygon points="49,114 46.5,120 51.5,120" fill="#9397a5" />
+                  <polygon points="49,216 46.5,210 51.5,210" fill="#9397a5" />
+                  <text x="41" y="165" class="pv-dim-num" text-anchor="end" dominant-baseline="central">1,134</text>
+                </g>
+
+                <!-- 下側幅寸法: CS6.2-48TM (1,762) & CS6.2-36TM (1,334) -->
+                <g class="pv-dim-axis">
+                  <line x1="64" y1="221" x2="64" y2="235" stroke="#6d7282" stroke-width="1" />
+                  <line x1="222" y1="221" x2="222" y2="235" stroke="#6d7282" stroke-width="1" />
+                  <line x1="65" y1="229" x2="221" y2="229" stroke="#9397a5" stroke-width="1.1" />
+                  <polygon points="64,229 70,226.5 70,231.5" fill="#9397a5" />
+                  <polygon points="222,229 216,226.5 216,231.5" fill="#9397a5" />
+                  <rect x="122" y="222" width="42" height="13" rx="3" fill="#26282e" />
+                  <text x="143" y="229" class="pv-dim-num" dominant-baseline="central">1,762</text>
+
+                  <line x1="246" y1="221" x2="246" y2="235" stroke="#6d7282" stroke-width="1" />
+                  <line x1="366" y1="221" x2="366" y2="235" stroke="#6d7282" stroke-width="1" />
+                  <line x1="247" y1="229" x2="365" y2="229" stroke="#9397a5" stroke-width="1.1" />
+                  <polygon points="246,229 252,226.5 252,231.5" fill="#9397a5" />
+                  <polygon points="366,229 360,226.5 360,231.5" fill="#9397a5" />
+                  <rect x="285" y="222" width="42" height="13" rx="3" fill="#26282e" />
+                  <text x="306" y="229" class="pv-dim-num" dominant-baseline="central">1,334</text>
+                </g>
+
+                <!-- 右側高さ寸法: CS6.2-36TM (1,134) -->
+                <g class="pv-dim-axis">
+                  <line x1="371" y1="114" x2="387" y2="114" stroke="#6d7282" stroke-width="1" />
+                  <line x1="371" y1="216" x2="387" y2="216" stroke="#6d7282" stroke-width="1" />
+                  <line x1="381" y1="115" x2="381" y2="215" stroke="#9397a5" stroke-width="1.1" />
+                  <polygon points="381,114 378.5,120 383.5,120" fill="#9397a5" />
+                  <polygon points="381,216 378.5,210 383.5,210" fill="#9397a5" />
+                  <text x="389" y="165" class="pv-dim-num" text-anchor="start" dominant-baseline="central">1,134</text>
+                </g>
+
+                <!-- 上左: コンビネーションモデル CS6.2-32TM-310 -->
+                <g>
+                  <rect x="64" y="21" width="158" height="69" rx="3.5" fill="#17191e" />
+                  <rect x="64" y="21" width="158" height="69" rx="3.5" fill="url(#pv-cell-grid)" stroke="#707687"
+                    stroke-width="1.35" />
+                  <line x1="143" y1="21.5" x2="143" y2="89.5" stroke="#535867" stroke-width="1.2" />
+                  <rect x="86" y="39" width="114" height="33" rx="6" fill="rgba(26, 27, 32, 0.92)"
+                    stroke="rgba(215, 189, 114, 0.48)" stroke-width="1" />
+                  <text x="143" y="49" class="pv-dim-role" dominant-baseline="central">COMBINATION</text>
+                  <text x="143" y="62.5" class="pv-dim-model" dominant-baseline="central">CS6.2-32TM-310</text>
+                </g>
+
+                <!-- 縦接続 (+) -->
+                <g stroke="#b8bbc6" stroke-width="1.8" stroke-linecap="round">
+                  <line x1="138" y1="102" x2="148" y2="102" />
+                  <line x1="143" y1="97" x2="143" y2="107" />
+                </g>
+
+                <!-- 下左: メインモデル CS6.2-48TM-465 / -445 -->
+                <g>
+                  <rect x="64" y="114" width="158" height="102" rx="3.5" fill="#17191e" />
+                  <rect x="64" y="114" width="158" height="102" rx="3.5" fill="url(#pv-cell-grid)" stroke="#d7bd72"
+                    stroke-width="1.4" />
+                  <line x1="143" y1="114.5" x2="143" y2="215.5" stroke="#535867" stroke-width="1.2" />
+                  <rect x="85" y="143" width="116" height="44" rx="6" fill="rgba(26, 27, 32, 0.94)"
+                    stroke="rgba(215, 189, 114, 0.65)" stroke-width="1" />
+                  <text x="143" y="153.5" class="pv-dim-role is-main" dominant-baseline="central">MAIN MODEL</text>
+                  <text x="143" y="166.5" class="pv-dim-model" dominant-baseline="central">CS6.2-48TM</text>
+                  <text x="143" y="179" class="pv-dim-variant" dominant-baseline="central">-465 / -445</text>
+                </g>
+
+                <!-- 横接続 (+) -->
+                <g stroke="#b8bbc6" stroke-width="1.8" stroke-linecap="round">
+                  <line x1="229" y1="165" x2="239" y2="165" />
+                  <line x1="234" y1="160" x2="234" y2="170" />
+                </g>
+
+                <!-- 下右: コンビネーションモデル CS6.2-36TM-350 -->
+                <g>
+                  <rect x="246" y="114" width="120" height="102" rx="3.5" fill="#17191e" />
+                  <rect x="246" y="114" width="120" height="102" rx="3.5" fill="url(#pv-cell-grid)" stroke="#707687"
+                    stroke-width="1.35" />
+                  <line x1="306" y1="114.5" x2="306" y2="215.5" stroke="#535867" stroke-width="1.2" />
+                  <rect x="255" y="147" width="102" height="36" rx="6" fill="rgba(26, 27, 32, 0.92)"
+                    stroke="rgba(215, 189, 114, 0.48)" stroke-width="1" />
+                  <text x="306" y="158" class="pv-dim-role" dominant-baseline="central">COMBINATION</text>
+                  <text x="306" y="172" class="pv-dim-model" dominant-baseline="central">CS6.2-36TM-350</text>
+                </g>
+
+                <!-- 右上: 厚み (30 mm) 共通表記 -->
+                <g>
+                  <rect x="246" y="21" width="120" height="69" rx="8" fill="#1e2026" stroke="#3c3f4a"
+                    stroke-dasharray="3 3" stroke-width="1" />
+                  <text x="306" y="34" class="pv-dim-role" dominant-baseline="central">FRAME PROFILE</text>
+                  <rect x="272" y="46" width="52" height="6" rx="1.5" fill="#2c303b" stroke="#858a99"
+                    stroke-width="1.1" />
+                  <line x1="328" y1="46" x2="338" y2="46" stroke="#6d7282" stroke-width="0.9" />
+                  <line x1="328" y1="52" x2="338" y2="52" stroke="#6d7282" stroke-width="0.9" />
+                  <line x1="334" y1="43" x2="334" y2="55" stroke="#9397a5" stroke-width="1" />
+                  <text x="306" y="68" class="pv-dim-num" dominant-baseline="central">Thickness 30 mm</text>
+                  <text x="306" y="80" class="pv-dim-variant" dominant-baseline="central">(All Models)</text>
+                </g>
+              </svg>
             </div>
           </div>
         </div>
@@ -579,13 +713,11 @@
             data-page="0"></button>
           <button type="button" role="tab" aria-selected="false" aria-label="ページ 2" class="pv-dot"
             data-page="1"></button>
-          <button type="button" role="tab" aria-selected="false" aria-label="ページ 3" class="pv-dot"
-            data-page="2"></button>
         </div>
       </div>
     </section>
 
-    <!-- 3. PV GENERATION ウィジェット (推定発電量と実績発電量の比較・Recharts) -->
+    <!-- 3. PV GENERATION ウィジェット (1ページ目: 推定vs実績比較 / 2ページ目: PV別・方位別月間実績) -->
     <section class="ef-shell ef-shell-solar" aria-label="PV Generation">
       <header class="ef-header">
         <div class="ef-header-left">
@@ -597,10 +729,36 @@
           </span>
           <h2 class="ef-title ef-title-solar">PV GENERATION</h2>
         </div>
+        <div class="pv-year-select-wrap">
+          <select id="pv-gen-year" class="ef-pill ef-pill-solar pv-year-select" aria-label="対象年を選択">
+            <option value="2026">2026</option>
+          </select>
+          <svg class="pv-year-chevron" width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+              stroke-linejoin="round" />
+          </svg>
+        </div>
       </header>
 
       <div class="ef-canvas ef-canvas-sim">
-        <div id="sim-chart-root"></div>
+        <div class="pv-pager pv-gen-pager" id="pv-gen-pager">
+          <!-- 1ページ目: 月別発電量シミュレーション比較 -->
+          <div class="pv-page">
+            <div id="sim-chart-root"></div>
+          </div>
+
+          <!-- 2ページ目: PV毎・方位毎の月別発電量グラフ (選択年: JAN〜DEC) -->
+          <div class="pv-page pv-charts-page">
+            <div id="pv-charts-root"></div>
+          </div>
+        </div>
+
+        <div class="pv-dots" id="pv-gen-dots" role="tablist" aria-label="PV Generation pages">
+          <button type="button" role="tab" aria-selected="true" aria-label="ページ 1" class="pv-dot is-active"
+            data-page="0"></button>
+          <button type="button" role="tab" aria-selected="false" aria-label="ページ 2" class="pv-dot"
+            data-page="1"></button>
+        </div>
       </div>
     </section>
 

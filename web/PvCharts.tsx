@@ -43,6 +43,7 @@ interface SeriesConfig {
   >;
   label: string;
   color: string;
+  fill: string;
 }
 
 const MONTH_LABELS = [
@@ -60,26 +61,29 @@ const MONTH_LABELS = [
   "DEC",
 ];
 
-// PV1〜4は1ページ目の屋根配色と統一
+// PV1〜4はPV STRINGS 1ページ目の半透明タイル (.mod-pv1〜4) と配色を統一
 const PV_SERIES: SeriesConfig[] = [
-  { key: "pv1", label: "PV1", color: "#f0a04b" },
-  { key: "pv2", label: "PV2", color: "#4cc3d9" },
-  { key: "pv3", label: "PV3", color: "#6fd08c" },
-  { key: "pv4", label: "PV4", color: "#ee7f6b" },
+  { key: "pv1", label: "PV1", color: "#f0a04b", fill: "rgba(240, 160, 75, 0.34)" },
+  { key: "pv2", label: "PV2", color: "#4cc3d9", fill: "rgba(76, 195, 217, 0.34)" },
+  { key: "pv3", label: "PV3", color: "#6fd08c", fill: "rgba(111, 208, 140, 0.34)" },
+  { key: "pv4", label: "PV4", color: "#ee7f6b", fill: "rgba(238, 127, 107, 0.34)" },
 ];
 
-// 方位別はPV1〜4と色が重複しない固有パレットを使用
+// 方位別はPV1〜4と色が重複しない固有の半透明パレットを使用
 const DIR_SERIES: SeriesConfig[] = [
-  { key: "west", label: "WEST", color: "#fbdd84" },
-  { key: "east", label: "EAST", color: "#b197fc" },
-  { key: "north", label: "NORTH", color: "#f080b8" },
+  { key: "west", label: "WEST", color: "#fbdd84", fill: "rgba(251, 221, 132, 0.34)" },
+  { key: "east", label: "EAST", color: "#b197fc", fill: "rgba(177, 151, 252, 0.34)" },
+  { key: "north", label: "NORTH", color: "#f080b8", fill: "rgba(240, 128, 184, 0.34)" },
 ];
 
 function round2(v: number): number {
   return Math.round(v * 100) / 100;
 }
 
-function buildMonthlyPoints(records: PvMonthlyRecord[]): MonthlyChartPoint[] {
+function buildMonthlyPoints(
+  records: PvMonthlyRecord[],
+  selectedYear: number,
+): MonthlyChartPoint[] {
   const byMonth = new Map<number, PvMonthlyRecord>();
   for (const r of records) {
     if (r.month >= 1 && r.month <= 12) {
@@ -89,6 +93,7 @@ function buildMonthlyPoints(records: PvMonthlyRecord[]): MonthlyChartPoint[] {
 
   return MONTH_LABELS.map((label, idx) => {
     const month = idx + 1;
+    const defaultYm = `${selectedYear}-${String(month).padStart(2, "0")}`;
     const rec = byMonth.get(month);
     if (
       !rec ||
@@ -99,7 +104,7 @@ function buildMonthlyPoints(records: PvMonthlyRecord[]): MonthlyChartPoint[] {
       rec.pv4 === null
     ) {
       return {
-        ym: rec?.ym || label,
+        ym: rec?.ym || defaultYm,
         month,
         label,
         hasData: false,
@@ -117,7 +122,7 @@ function buildMonthlyPoints(records: PvMonthlyRecord[]): MonthlyChartPoint[] {
     const pv3 = round2(Math.max(0, rec.pv3));
     const pv4 = round2(Math.max(0, rec.pv4));
     return {
-      ym: rec.ym,
+      ym: rec.ym || defaultYm,
       month,
       label,
       hasData: true,
@@ -161,11 +166,13 @@ function PvMonthlyTooltip({
   active,
   payload,
   series,
+  isCurrentYear,
   currentMonth,
 }: {
   active?: boolean;
   payload?: Array<{ payload?: MonthlyChartPoint }>;
   series: SeriesConfig[];
+  isCurrentYear: boolean;
   currentMonth: number;
 }) {
   if (!active || !payload || !payload.length || !payload[0].payload) {
@@ -176,7 +183,7 @@ function PvMonthlyTooltip({
     (sum, s) => sum + (typeof pt[s.key] === "number" ? Number(pt[s.key]) : 0),
     0,
   );
-  const isCurrent = pt.month === currentMonth;
+  const isCurrent = isCurrentYear && pt.month === currentMonth;
   return (
     <div className="sim-tooltip">
       <div className="sim-tooltip-title">
@@ -216,16 +223,21 @@ function MonthlyStackedBarBlock({
   ariaLabel,
   data,
   series,
+  isCurrentYear,
   currentMonth,
 }: {
   title: string;
   ariaLabel: string;
   data: MonthlyChartPoint[];
   series: SeriesConfig[];
+  isCurrentYear: boolean;
   currentMonth: number;
 }) {
-  const currentLabel = MONTH_LABELS[(currentMonth ?? 1) - 1] ?? "";
-  const hasCurrent = data.some((d) => d.label === currentLabel);
+  const currentLabel = isCurrentYear
+    ? MONTH_LABELS[(currentMonth ?? 1) - 1] ?? ""
+    : "";
+  const hasCurrent =
+    Boolean(currentLabel) && data.some((d) => d.label === currentLabel);
 
   const isTopNonZero = (pt: MonthlyChartPoint | undefined, key: SeriesConfig["key"]) => {
     if (!pt) return false;
@@ -249,14 +261,17 @@ function MonthlyStackedBarBlock({
             <span key={s.key} className="summary-legend-item">
               <span
                 className="summary-legend-swatch"
-                style={{ backgroundColor: s.color }}
+                style={{
+                  backgroundColor: s.fill,
+                  border: `1px solid ${s.color}`,
+                }}
               />
               <span style={{ color: s.color }}>{s.label}</span>
             </span>
           ))}
         </div>
 
-        <ResponsiveContainer width="100%" height={178}>
+        <ResponsiveContainer width="100%" height={182}>
           <BarChart
             data={data}
             margin={{ top: 20, right: 8, left: -10, bottom: 2 }}
@@ -282,7 +297,7 @@ function MonthlyStackedBarBlock({
                 const tx = Number(tickProps.x ?? 0);
                 const ty = Number(tickProps.y ?? 0);
                 const val = String(tickProps.payload?.value ?? "");
-                const isCur = val === currentLabel;
+                const isCur = Boolean(currentLabel) && val === currentLabel;
                 return (
                   <text
                     x={tx}
@@ -331,7 +346,13 @@ function MonthlyStackedBarBlock({
             />
             <Tooltip
               cursor={{ fill: "rgba(251, 221, 132, 0.08)" }}
-              content={<PvMonthlyTooltip series={series} currentMonth={currentMonth} />}
+              content={
+                <PvMonthlyTooltip
+                  series={series}
+                  isCurrentYear={isCurrentYear}
+                  currentMonth={currentMonth}
+                />
+              }
             />
             {series.map((s) => (
               <Bar
@@ -339,7 +360,7 @@ function MonthlyStackedBarBlock({
                 name={s.label}
                 dataKey={s.key}
                 stackId="monthly"
-                fill={s.color}
+                fill={s.fill}
                 maxBarSize={24}
                 isAnimationActive={false}
                 shape={(rawProps: unknown) => {
@@ -360,8 +381,9 @@ function MonthlyStackedBarBlock({
                   return (
                     <path
                       d={pathD}
-                      fill={s.color}
-                      fillOpacity={0.92}
+                      fill={s.fill}
+                      stroke={s.color}
+                      strokeWidth={1.15}
                     />
                   );
                 }}
@@ -376,27 +398,37 @@ function MonthlyStackedBarBlock({
 
 function PvChartsView({
   records,
+  selectedYear,
+  currentYear,
   currentMonth,
 }: {
   records: PvMonthlyRecord[];
+  selectedYear: number;
+  currentYear: number;
   currentMonth: number;
 }) {
-  const data = React.useMemo(() => buildMonthlyPoints(records), [records]);
+  const isCurrentYear = selectedYear === currentYear;
+  const data = React.useMemo(
+    () => buildMonthlyPoints(records, selectedYear),
+    [records, selectedYear],
+  );
 
   return (
     <div className="summary-subpage pv-charts-subpage">
       <MonthlyStackedBarBlock
-        title="MONTHLY BY PV (LAST 365D)"
+        title="MONTHLY BY PV"
         ariaLabel="Monthly Stacked Generation by PV String"
         data={data}
         series={PV_SERIES}
+        isCurrentYear={isCurrentYear}
         currentMonth={currentMonth}
       />
       <MonthlyStackedBarBlock
-        title="MONTHLY BY DIRECTION (LAST 365D)"
+        title="MONTHLY BY DIRECTION"
         ariaLabel="Monthly Stacked Generation by Roof Direction"
         data={data}
         series={DIR_SERIES}
+        isCurrentYear={isCurrentYear}
         currentMonth={currentMonth}
       />
     </div>
@@ -407,6 +439,8 @@ let pvChartsRoot: Root | null = null;
 
 export function mountOrUpdatePvCharts(
   records: PvMonthlyRecord[],
+  selectedYear: number,
+  currentYear: number,
   currentMonth: number,
 ): void {
   const container = document.getElementById("pv-charts-root");
@@ -415,6 +449,11 @@ export function mountOrUpdatePvCharts(
     pvChartsRoot = createRoot(container);
   }
   pvChartsRoot.render(
-    <PvChartsView records={records} currentMonth={currentMonth} />,
+    <PvChartsView
+      records={records}
+      selectedYear={selectedYear}
+      currentYear={currentYear}
+      currentMonth={currentMonth}
+    />,
   );
 }
