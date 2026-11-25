@@ -1,4 +1,5 @@
 import { mountOrUpdatePaybackChart, type PaybackData } from "./PaybackChart";
+import { mountOrUpdatePvCharts, type PvDailyRecord } from "./PvCharts";
 import { mountOrUpdateSimulationChart } from "./SimulationChart";
 import {
   mountOrUpdateSummaryCharts,
@@ -47,6 +48,7 @@ interface DashboardResponse {
     pv3: number;
     pv4: number;
   };
+  pvDaily?: PvDailyRecord[];
   monthlyAvgKwh?: {
     solar: number | null;
     use: number | null;
@@ -187,15 +189,23 @@ function kwhDayWithAvgHtml(
 function formatTimeJst(
   epochSec: number,
   tzOffsetMin = 540,
-): { text: string; minutesOfDay: number; month: number; year: number } {
+): {
+  text: string;
+  minutesOfDay: number;
+  day: number;
+  month: number;
+  year: number;
+} {
   const d = new Date((epochSec + tzOffsetMin * 60) * 1000);
   const hh = d.getUTCHours();
   const mm = d.getUTCMinutes();
+  const day = d.getUTCDate();
   const month = d.getUTCMonth() + 1;
   const year = d.getUTCFullYear();
   return {
     text: `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`,
     minutesOfDay: hh * 60 + mm,
+    day,
     month,
     year,
   };
@@ -542,7 +552,7 @@ function renderDashboard(data: DashboardResponse): void {
   const latest = data.latest;
   if (!latest) {
     const nowSec = Math.floor(Date.now() / 1000);
-    const { text: timeText, minutesOfDay, month, year } = formatTimeJst(
+    const { text: timeText, minutesOfDay, day, month, year } = formatTimeJst(
       nowSec,
       tzMin,
     );
@@ -560,6 +570,7 @@ function renderDashboard(data: DashboardResponse): void {
       data.monthlyTotals || { months: [] },
       month,
     );
+    mountOrUpdatePvCharts(data.pvDaily || [], month, day);
     const byYear = extractMonthlyActualByYear(data, year);
     latestSimYearMap = byYear;
     latestSimCurrentYear = year;
@@ -591,11 +602,12 @@ function renderDashboard(data: DashboardResponse): void {
 
   const ts =
     typeof latest.ts === "number" ? latest.ts : Math.floor(Date.now() / 1000);
-  const { text: timeText, minutesOfDay, month, year } = formatTimeJst(
+  const { text: timeText, minutesOfDay, day, month, year } = formatTimeJst(
     ts,
     tzMin,
   );
   el("ef-time").textContent = `${timeText} UPDATE`;
+  mountOrUpdatePvCharts(data.pvDaily || [], month, day);
   const byYear = extractMonthlyActualByYear(data, year);
   latestSimYearMap = byYear;
   latestSimCurrentYear = year;
@@ -1184,6 +1196,7 @@ mountOrUpdateSummaryCharts(
   { months: [] },
   initTime.month,
 );
+mountOrUpdatePvCharts([], initTime.month, initTime.day);
 mountOrUpdateSimulationChart(initSimYear, initTime.year, initTime.month, {});
 mountOrUpdatePaybackChart(
   {

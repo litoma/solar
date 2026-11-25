@@ -340,7 +340,7 @@ type HoverTarget =
   | { kind: "node"; side: "left" | "right"; key: FlowSourceKey | FlowTargetKey }
   | { kind: "edge"; source: FlowSourceKey; target: FlowTargetKey };
 
-function useContainerWidth(
+export function useContainerWidth(
   ref: React.RefObject<HTMLDivElement | null>,
   fallback: number,
 ): number {

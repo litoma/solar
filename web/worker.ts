@@ -1440,6 +1440,13 @@ async function buildDashboard(
   const monthlyActualByYear: Record<number, Record<number, number>> = {
     [jstYear]: {},
   };
+  const pvDaily: Array<{
+    date: string;
+    pv1: number;
+    pv2: number;
+    pv3: number;
+    pv4: number;
+  }> = [];
   const rollingMonths: Array<{ month: number; ym: string; label: string }> = [];
   const rollingMap = new Map<
     string,
@@ -1515,6 +1522,20 @@ async function buildDashboard(
         bucket.sell += eKwh;
         bucket.days += 1;
       }
+      if (
+        d.pv1_kwh !== null &&
+        d.pv2_kwh !== null &&
+        d.pv3_kwh !== null &&
+        d.pv4_kwh !== null
+      ) {
+        pvDaily.push({
+          date: d.jst_date,
+          pv1: round2(Math.max(0, d.pv1_kwh)),
+          pv2: round2(Math.max(0, d.pv2_kwh)),
+          pv3: round2(Math.max(0, d.pv3_kwh)),
+          pv4: round2(Math.max(0, d.pv4_kwh)),
+        });
+      }
     }
 
     const selfKwh = Math.max(0, sKwh - eKwh);
@@ -1557,6 +1578,8 @@ async function buildDashboard(
       yrMap[m] = Math.round(yrMap[m] * 10) / 10;
     }
   }
+
+  pvDaily.sort((a, b) => a.date.localeCompare(b.date));
 
   const monthlyTotals = {
     months: rollingMonths.map(({ ym, label }) => {
@@ -1682,6 +1705,7 @@ async function buildDashboard(
     latest: latest || null,
     sellDayKwhComputed: sellDayKwhFromSeries,
     pvDayKwh,
+    pvDaily,
     todayBatteryChgKwh,
     todayBatteryDischgKwh,
     todayFlows,
