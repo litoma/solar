@@ -233,10 +233,10 @@ function SimulationChartView({
     <div className="sim-container">
       {/* 上段: 対象年の年間トータル 実績 / 推定 */}
       <div className="sim-summary-grid">
-        <div className="sim-summary-card">
+        <div className="sim-summary-card sim-annual-card">
           <div className="sim-summary-head">
             <span className="sim-summary-title">
-              ANNUAL TOTAL (ACTUAL / EST)
+              ANNUAL TOTAL (ACTUAL / ESTIMATED)
             </span>
             <span className="ef-outline-badge sim-pct-badge">
               {totalPct.toFixed(1)}%
@@ -255,7 +255,7 @@ function SimulationChartView({
       {/* 中段: 月別発電量グラフ (1本重ね棒 + 上部タイトル + 中央凡例) */}
       <section className="summary-graph-block" aria-label="Monthly Generation">
         <div className="summary-subpage-head">
-          <span className="summary-subpage-title">MONTHLY GENERATION (kWh)</span>
+          <span className="summary-subpage-title">MONTHLY GENERATION</span>
         </div>
 
         <div className="sim-chart-box">
@@ -270,10 +270,10 @@ function SimulationChartView({
             </span>
           </div>
 
-          <ResponsiveContainer width="100%" height={224}>
+          <ResponsiveContainer width="100%" height={232}>
             <BarChart
               data={data}
-              margin={{ top: 8, right: 8, left: -12, bottom: 2 }}
+              margin={{ top: 20, right: 8, left: -10, bottom: 2 }}
             >
               <CartesianGrid
                 stroke="#383942"
@@ -294,7 +294,7 @@ function SimulationChartView({
               <YAxis
                 domain={[0, yMax]}
                 ticks={yTicks}
-                width={46}
+                width={44}
                 tick={{
                   fill: "#9a9ea6",
                   fontSize: 11,
@@ -302,6 +302,25 @@ function SimulationChartView({
                 }}
                 axisLine={false}
                 tickLine={false}
+                label={(props: {
+                  viewBox?: { x?: number; y?: number; width?: number };
+                }) => {
+                  const vbX = Number(props.viewBox?.x ?? 0);
+                  const vbY = Number(props.viewBox?.y ?? 20);
+                  const vbW = Number(props.viewBox?.width ?? 44);
+                  return (
+                    <text
+                      x={vbX + vbW - 8}
+                      y={vbY - 9}
+                      textAnchor="end"
+                      fill="#9a9ea6"
+                      fontSize={10.5}
+                      fontFamily="JetBrains Mono, monospace"
+                    >
+                      kWh
+                    </text>
+                  );
+                }}
               />
               <Tooltip
                 cursor={{ fill: "rgba(251, 221, 132, 0.08)" }}

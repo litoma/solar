@@ -1646,6 +1646,18 @@ body {
   color: #c2b99f;
 }
 
+.sim-annual-card .sim-summary-val {
+  font-size: 28px;
+}
+
+.sim-annual-card .sim-summary-sep {
+  font-size: 19px;
+}
+
+.sim-annual-card .sim-summary-target {
+  font-size: 17px;
+}
+
 .sim-chart-box {
   background-color: #1d1e23;
   border: 1px solid #3c3e47;
