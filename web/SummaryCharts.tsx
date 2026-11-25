@@ -183,6 +183,40 @@ function round2(v: number): number {
 }
 
 /**
+ * INPUT列は左端のみ角丸・右端は直角、OUTPUT列は左端は直角・右端のみ角丸にするパスを生成する
+ */
+function sankeyNodePath(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  side: "left" | "right",
+  r = 8,
+): string {
+  if (w <= 0 || h <= 0) return "";
+  const rad = Math.min(r, w / 2, h / 2);
+  if (side === "left") {
+    return (
+      `M ${x + rad} ${y} ` +
+      `L ${x + w} ${y} ` +
+      `L ${x + w} ${y + h} ` +
+      `L ${x + rad} ${y + h} ` +
+      `Q ${x} ${y + h} ${x} ${y + h - rad} ` +
+      `L ${x} ${y + rad} ` +
+      `Q ${x} ${y} ${x + rad} ${y} Z`
+    );
+  }
+  return (
+    `M ${x} ${y} ` +
+    `L ${x + w - rad} ${y} ` +
+    `Q ${x + w} ${y} ${x + w} ${y + rad} ` +
+    `L ${x + w} ${y + h - rad} ` +
+    `Q ${x + w} ${y + h} ${x + w - rad} ${y + h} ` +
+    `L ${x} ${y + h} Z`
+  );
+}
+
+/**
  * サーバー側未提供時のみのシンプルなフォールバック経路生成
  */
 function buildFallbackFlows(balance: DailyBalanceInput): DailyFlowEdge[] {
@@ -776,12 +810,8 @@ function DailySankeyChart({
                       setAnchorPos({ x: n.x + n.w + 100, y: n.y + n.h / 2 });
                     }}
                   >
-                    <rect
-                      x={n.x}
-                      y={n.y}
-                      width={n.w}
-                      height={n.h}
-                      rx={8}
+                    <path
+                      d={sankeyNodePath(n.x, n.y, n.w, n.h, "left", 8)}
                       fill={hi ? theme.fillHover : theme.fill}
                       stroke={theme.stroke}
                       strokeWidth={1.5}
@@ -811,12 +841,8 @@ function DailySankeyChart({
                       setAnchorPos({ x: n.x - 100, y: n.y + n.h / 2 });
                     }}
                   >
-                    <rect
-                      x={n.x}
-                      y={n.y}
-                      width={n.w}
-                      height={n.h}
-                      rx={8}
+                    <path
+                      d={sankeyNodePath(n.x, n.y, n.w, n.h, "right", 8)}
                       fill={hi ? theme.fillHover : theme.fill}
                       stroke={theme.stroke}
                       strokeWidth={1.5}
@@ -903,7 +929,7 @@ function SummaryCombinedView({
     typeof window !== "undefined" ? window.innerWidth <= 680 : subpageW < 580;
   // 1ページ目 (太陽SVG + INPUT/OUTPUT見出し + フローグリッド) の高さに2ページ目を揃える
   const page1H = Math.round(
-    subpageW * (150 / 600) + 31 + (isMobile ? 444 : 500),
+    subpageW * (159 / 600) + 31 + (isMobile ? 444 : 500),
   );
   const availPlotH = Math.max(410, page1H - 130);
   const sankeyH = Math.round(availPlotH * 0.52);
@@ -1054,10 +1080,10 @@ function SummaryCombinedView({
                 name="SOLAR"
                 dataKey="solar"
                 stroke={COLOR_SOLAR_TEXT}
-                strokeWidth={2.2}
+                strokeWidth={1.5}
                 fill="url(#grad-summary-solar)"
                 dot={false}
-                activeDot={{ r: 5 }}
+                activeDot={{ r: 4 }}
                 connectNulls={false}
                 isAnimationActive={false}
               />
@@ -1066,10 +1092,10 @@ function SummaryCombinedView({
                 name="USE"
                 dataKey="use"
                 stroke={COLOR_USE_TEXT}
-                strokeWidth={2.2}
+                strokeWidth={1.5}
                 fill="url(#grad-summary-use)"
                 dot={false}
-                activeDot={{ r: 5 }}
+                activeDot={{ r: 4 }}
                 connectNulls={false}
                 isAnimationActive={false}
               />
@@ -1078,10 +1104,10 @@ function SummaryCombinedView({
                 name="BUY"
                 dataKey="buy"
                 stroke={COLOR_BUY}
-                strokeWidth={2.2}
+                strokeWidth={1.5}
                 fill="url(#grad-summary-buy)"
                 dot={false}
-                activeDot={{ r: 5 }}
+                activeDot={{ r: 4 }}
                 connectNulls={false}
                 isAnimationActive={false}
               />
@@ -1090,10 +1116,10 @@ function SummaryCombinedView({
                 name="SELL"
                 dataKey="sell"
                 stroke={COLOR_SELL_TEXT}
-                strokeWidth={2.2}
+                strokeWidth={1.5}
                 fill="url(#grad-summary-sell)"
                 dot={false}
-                activeDot={{ r: 5 }}
+                activeDot={{ r: 4 }}
                 connectNulls={false}
                 isAnimationActive={false}
               />
@@ -1102,10 +1128,10 @@ function SummaryCombinedView({
                 name="LOSS"
                 dataKey="loss"
                 stroke={COLOR_LOSS_TEXT}
-                strokeWidth={2.2}
+                strokeWidth={1.5}
                 fill="url(#grad-summary-loss)"
                 dot={false}
-                activeDot={{ r: 5 }}
+                activeDot={{ r: 4 }}
                 connectNulls={false}
                 isAnimationActive={false}
               />

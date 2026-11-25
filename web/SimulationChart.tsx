@@ -4,6 +4,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  ReferenceArea,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -228,6 +229,9 @@ function SimulationChartView({
   for (let t = 0; t <= yMax; t += 100) {
     yTicks.push(t);
   }
+  const currentMonthItem = isCurrentYear
+    ? data.find((d) => d.month === currentMonth)
+    : undefined;
 
   return (
     <div className="sim-container">
@@ -280,6 +284,15 @@ function SimulationChartView({
                 strokeDasharray="3 3"
                 vertical={false}
               />
+              {currentMonthItem ? (
+                <ReferenceArea
+                  x1={currentMonthItem.shortLabel}
+                  x2={currentMonthItem.shortLabel}
+                  fill="#fbdd84"
+                  fillOpacity={0.08}
+                  stroke="none"
+                />
+              ) : null}
               <XAxis
                 dataKey="shortLabel"
                 interval={0}
@@ -360,6 +373,10 @@ function SimulationChartView({
             </div>
           );
         })}
+      </div>
+
+      <div className="sim-note">
+        Generation estimates by CanaTARO Ver2.46.0
       </div>
     </div>
   );
