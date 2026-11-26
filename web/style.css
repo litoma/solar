@@ -1015,44 +1015,38 @@ model-viewer.pv-roof-viewer {
   touch-action: pan-y;
 }
 
-model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
-  display: none;
-}
-
-.pv-3d-dir {
-  pointer-events: none;
-  user-select: none;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  color: #fbdd84;
-  background-color: rgba(15, 16, 18, 0.78);
-  padding: 2px 6px;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-
 .pv-3d-legend-card {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 6px 12px;
+  gap: 6px;
   background-color: #1c1e23;
   border: 1px solid #3c3f4a;
   border-radius: 12px;
-  padding: 7px 12px;
+  padding: 8px 14px;
   font-family: var(--font-mono);
   font-size: 11px;
   color: #c2c5d0;
 }
 
 .pv-3d-legend-list {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  justify-content: center;
   flex-wrap: wrap;
-  gap: 6px 12px;
+  gap: 6px 14px;
+  width: 100%;
+}
+
+.pv-3d-legend-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  width: 100%;
+  padding-top: 6px;
+  border-top: 1px solid rgba(60, 63, 74, 0.65);
 }
 
 .pv-3d-leg-item {
@@ -1070,30 +1064,23 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
 }
 
 .pv-3d-leg-line.is-today {
-  background-color: #fbdd84;
+  background-color: rgba(251, 221, 132, 0.78);
 }
 
 .pv-3d-leg-line.is-summer {
-  background-color: #ee7f6b;
+  background-color: rgba(238, 127, 107, 0.68);
 }
 
 .pv-3d-leg-line.is-equinox {
-  background-color: #45b988;
+  background-color: rgba(69, 185, 136, 0.68);
 }
 
 .pv-3d-leg-line.is-winter {
-  background-color: #4ec3e6;
+  background-color: rgba(177, 151, 252, 0.72);
 }
 
 .pv-3d-sun-readout {
   color: #9397a5;
-}
-
-.pv-3d-meta {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 0 4px;
 }
 
 .pv-roof-pitch {
@@ -1168,6 +1155,9 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
 }
 
 .pv-spec-table-card {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
   background-color: #26282e;
   border: 1px solid #454852;
   border-radius: 14px;
@@ -1175,7 +1165,7 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
 }
 
 .pv-spec-table {
-  width: 100%;
+  width: auto;
   border-collapse: collapse;
   font-family: var(--font-mono);
 }
@@ -1186,7 +1176,7 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
   letter-spacing: 0.06em;
   color: #9397a5;
   text-align: left;
-  padding: 8px 10px;
+  padding: 8px 16px;
   border-bottom: 1px solid #3c3f4a;
   background-color: #202228;
   white-space: nowrap;
@@ -1197,7 +1187,7 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
 }
 
 .pv-spec-table tbody td {
-  padding: 8px 10px;
+  padding: 8px 16px;
   font-size: 11.5px;
   color: #eceef4;
   border-bottom: 1px solid rgba(69, 72, 82, 0.55);
@@ -1231,19 +1221,19 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
   display: table-cell;
 }
 
-.pv-spec-model {
-  display: inline;
-  font-size: 12px;
+.pv-model-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0.75px solid rgba(251, 221, 132, 0.78);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: var(--font-mono);
+  font-size: 11px;
   font-weight: 600;
+  line-height: 1.2;
   color: #fbdd84;
-  letter-spacing: 0.01em;
-}
-
-.pv-spec-feature {
-  display: inline-block;
-  margin-left: 5px;
-  font-size: 10px;
-  color: #9da1ae;
+  letter-spacing: 0.02em;
 }
 
 .pv-spec-qty-dir {
@@ -1301,12 +1291,23 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
   fill: #d7bd72;
 }
 
+.pv-dim-role.is-sub {
+  font-size: 6.5px;
+  fill: #a6aab8;
+}
+
 .pv-dim-model {
   fill: #fbdd84;
   font-family: var(--font-mono);
   font-size: 8.8px;
   font-weight: 600;
   text-anchor: middle;
+}
+
+.pv-dim-suffix-box {
+  fill: none;
+  stroke: rgba(251, 221, 132, 0.78);
+  stroke-width: 0.7;
 }
 
 .pv-dim-weight {
@@ -1486,24 +1487,43 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
   background-color: #26282e;
   border: 1px solid #454852;
   border-radius: 14px;
-  padding: 9px 12px;
+  padding: 9px 11px;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   cursor: pointer;
+  outline: none;
   transition: border-color 0.2s ease, transform 0.2s ease;
 }
 
-.pv-quad-item.is-hovered {
+.pv-quad-item.is-hovered,
+.pv-quad-item:focus-visible {
   border-color: #fbdd84;
   transform: translateY(-1px);
 }
 
 .pv-quad-head {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 7px;
+  justify-content: space-between;
+  gap: 6px;
   font-family: var(--font-mono);
   font-size: 13px;
   white-space: nowrap;
+}
+
+.pv-quad-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pv-quad-dir {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: #9397a5;
 }
 
 .pv-swatch {
@@ -1511,22 +1531,27 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
   height: 9px;
   border-radius: 2.5px;
   display: inline-block;
+  flex-shrink: 0;
 }
 
 .swatch-pv1 {
-  background-color: #f0a04b;
+  background-color: #ff7a18;
+  box-shadow: 0 0 6px rgba(255, 122, 24, 0.72);
 }
 
 .swatch-pv2 {
-  background-color: #4cc3d9;
+  background-color: #00e5ff;
+  box-shadow: 0 0 6px rgba(0, 229, 255, 0.72);
 }
 
 .swatch-pv3 {
-  background-color: #6fd08c;
+  background-color: #9eff14;
+  box-shadow: 0 0 6px rgba(158, 255, 20, 0.65);
 }
 
 .swatch-pv4 {
-  background-color: #ee7f6b;
+  background-color: #ff3ca6;
+  box-shadow: 0 0 6px rgba(255, 60, 166, 0.72);
 }
 
 .pv-quad-name {
@@ -1534,27 +1559,59 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
   color: #f0f0f4;
 }
 
+.pv-quad-submeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 1px;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
 .pv-quad-count {
   color: #b4b7c2;
-  font-size: 12px;
+  font-size: 11px;
+}
+
+.pv-quad-models {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pv-quad-models .pv-model-pill {
+  font-size: 9.5px;
+  padding: 0.5px 4px;
+  border-radius: 3.5px;
+  line-height: 1.15;
 }
 
 .pv-quad-kw {
   font-family: var(--font-sans);
-  font-size: 24px;
+  font-size: 30px;
   font-weight: 500;
   color: #e4e4e4;
-  line-height: 1.15;
-  margin: 2px 0;
+  line-height: 1.1;
+  margin: 2px 0 1px;
   white-space: nowrap;
+}
+
+.pv-cards-grid .ef-unit-sm {
+  font-size: 15px;
 }
 
 .pv-quad-day {
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: 11.5px;
   font-weight: 500;
   color: #c2c5d0;
-  white-space: nowrap;
+  line-height: 1.25;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: 6px;
+  row-gap: 2px;
 }
 
 /* ==========================================================================
@@ -2171,14 +2228,9 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
     height: 296px;
   }
 
-  .pv-3d-dir {
-    font-size: 10px;
-    padding: 1.5px 5px;
-  }
-
   .pv-3d-legend-card {
-    padding: 6px 10px;
-    gap: 5px 10px;
+    padding: 7px 10px;
+    gap: 5px;
     font-size: 10.5px;
   }
 
@@ -2186,8 +2238,9 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
     gap: 4px 10px;
   }
 
-  .pv-3d-meta {
-    justify-content: flex-end;
+  .pv-3d-legend-meta {
+    padding-top: 5px;
+    gap: 4px 8px;
   }
 
   .pv-roof-pitch {
@@ -2196,6 +2249,10 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
 
   .pv-dim-svg {
     width: 88%;
+  }
+
+  .pv-spec-table-card {
+    width: 100%;
   }
 
   .pv-spec-table thead {
@@ -2305,28 +2362,13 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
     justify-self: end;
   }
 
-  .pv-spec-feature {
-    margin-left: 0;
-    margin-top: 0;
-  }
-
-  .pv-specs-note {
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 2px;
-  }
-
-  .pv-specs-note-sep {
-    display: none;
-  }
-
   .pv-cards-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
   }
 
   .pv-quad-item {
-    padding: 8px 12px;
+    padding: 8px 11px;
   }
 
   .pv-quad-head {
@@ -2335,15 +2377,20 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
   }
 
   .pv-quad-count {
-    font-size: 11px;
+    font-size: 10.5px;
   }
 
   .pv-quad-kw {
-    font-size: 21px;
+    font-size: 26px;
+  }
+
+  .pv-cards-grid .ef-unit-sm {
+    font-size: 13.5px;
   }
 
   .pv-quad-day {
-    font-size: 12.5px;
+    font-size: 12px;
+    column-gap: 7px;
   }
 
   .sim-summary-grid,

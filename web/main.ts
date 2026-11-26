@@ -17,6 +17,7 @@ import {
 interface SolarMaterial {
   name: string;
   setEmissiveFactor(rgb: RGB | string): void;
+  setEmissiveStrength?(strength: number): void;
   pbrMetallicRoughness: {
     setBaseColorFactor(rgba: [number, number, number, number]): void;
   };
@@ -27,7 +28,7 @@ interface SolarModelViewerElement extends HTMLElement {
   model?: {
     getMaterialByName(name: string): SolarMaterial | null;
   };
-  getCameraOrbit?(): { toString(): string };
+  getCameraOrbit?(): { theta: number; phi: number; radius: number; toString(): string };
   getCameraTarget?(): { toString(): string };
   cameraOrbit: string;
   cameraTarget: string;
@@ -83,6 +84,10 @@ interface DashboardResponse {
     use: number | null;
     buy: number | null;
     sell: number | null;
+    pv1?: number | null;
+    pv2?: number | null;
+    pv3?: number | null;
+    pv4?: number | null;
   };
   monthlyTotals?: MonthlyTotalsData;
   monthlyActualKwh?: Record<number, number>;
@@ -128,13 +133,14 @@ function applyPv3dMaterials(mv: SolarModelViewerElement | null): void {
     const hovered = pvHoveredIdx === pv;
     const fillMat = model.getMaterialByName(`pv${pv}_fill`);
     const edgeMat = model.getMaterialByName(`pv${pv}_edge`);
-    const fillScale = hovered ? 0.92 : active ? 0.74 : 0.56;
-    const emissiveScale = hovered ? 0.92 : active ? 0.68 : 0.44;
-    const edgeScale = hovered ? 1.35 : active ? 1.15 : 1.0;
+    const fillScale = hovered ? 0.96 : active ? 0.85 : 0.72;
+    const emissiveScale = hovered ? 1.0 : active ? 0.95 : 0.84;
+    const fillStrength = hovered ? 2.1 : active ? 1.65 : 1.25;
+    const edgeStrength = hovered ? 2.75 : active ? 2.3 : 1.9;
 
     const linFill = srgbToLinear(base, fillScale);
     const linEmissive = srgbToLinear(base, emissiveScale);
-    const linEdge = srgbToLinear(base, edgeScale);
+    const linEdge = srgbToLinear(base, 1.0);
 
     fillMat?.pbrMetallicRoughness.setBaseColorFactor([
       linFill[0],
@@ -143,14 +149,38 @@ function applyPv3dMaterials(mv: SolarModelViewerElement | null): void {
       1,
     ]);
     fillMat?.setEmissiveFactor(linEmissive);
+    fillMat?.setEmissiveStrength?.(fillStrength);
     edgeMat?.pbrMetallicRoughness.setBaseColorFactor([
-      Math.min(1.5, linEdge[0]),
-      Math.min(1.5, linEdge[1]),
-      Math.min(1.5, linEdge[2]),
+      linEdge[0] * 0.18,
+      linEdge[1] * 0.18,
+      linEdge[2] * 0.18,
       1,
     ]);
     edgeMat?.setEmissiveFactor(linEdge);
+    edgeMat?.setEmissiveStrength?.(edgeStrength);
   }
+}
+
+const PV_FACE_AZIMUTH_DEG: Record<1 | 2 | 3 | 4, number> = {
+  1: -90, // WEST (-X)
+  2: 90,  // EAST (+X)
+  3: -90, // WEST (-X)
+  4: 180, // NORTH (-Z)
+};
+
+function focusPvRoofFace(pv: 1 | 2 | 3 | 4): void {
+  const mv = document.getElementById("pv-roof-viewer") as SolarModelViewerElement | null;
+  if (!mv) return;
+  const curOrbit = mv.getCameraOrbit?.();
+  const curDeg =
+    curOrbit && Number.isFinite(curOrbit.theta)
+      ? (curOrbit.theta * 180) / Math.PI
+      : 58;
+  const targetDeg = PV_FACE_AZIMUTH_DEG[pv];
+  const delta = (((targetDeg - curDeg) % 360) + 540) % 360 - 180;
+  const nextDeg = curDeg + delta;
+  mv.cameraOrbit = `${nextDeg.toFixed(1)}deg 58deg 92%`;
+  setPvHovered(pv);
 }
 
 function setPvHovered(idx: 1 | 2 | 3 | 4 | null): void {
@@ -1001,8 +1031,9 @@ function renderDashboard(data: DashboardResponse): void {
   for (const i of [1, 2, 3, 4] as const) {
     const p = latest[`pv${i}_p_avg_w`];
     const pKw = typeof p === "number" ? Math.max(0, p) / 1000 : 0;
+    const avgKwh = data.monthlyAvgKwh?.[`pv${i}` as const];
     el(`pv${i}-w`).innerHTML = kwHtml(pKw, "ef-unit-sm");
-    el(`pv${i}-day`).innerHTML = kwhDayHtml(pvDayMap[i] ?? 0);
+    el(`pv${i}-day`).innerHTML = kwhDayWithAvgHtml(pvDayMap[i] ?? 0, avgKwh);
     pvActiveState[i] = typeof p === "number" && p >= 10;
   }
   const mv = document.getElementById("pv-roof-viewer") as SolarModelViewerElement | null;
@@ -1333,6 +1364,13 @@ function setupControls(): void {
     box.addEventListener("mouseenter", () => setPvHovered(i));
     box.addEventListener("mouseleave", () => {
       if (pvHoveredIdx === i) setPvHovered(null);
+    });
+    box.addEventListener("click", () => focusPvRoofFace(i));
+    box.addEventListener("keydown", (ev: KeyboardEvent) => {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        focusPvRoofFace(i);
+      }
     });
   }
 

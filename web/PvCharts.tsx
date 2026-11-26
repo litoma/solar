@@ -61,19 +61,19 @@ const MONTH_LABELS = [
   "DEC",
 ];
 
-// PV1〜4はPV STRINGS 1ページ目の半透明タイル (.mod-pv1〜4) と配色を統一
+// PV1〜4は3D屋根の蛍光ネオン配色と統一 (オレンジ・水色・黄緑・ピンク)
 const PV_SERIES: SeriesConfig[] = [
-  { key: "pv1", label: "PV1", color: "#f0a04b", fill: "rgba(240, 160, 75, 0.34)" },
-  { key: "pv2", label: "PV2", color: "#4cc3d9", fill: "rgba(76, 195, 217, 0.34)" },
-  { key: "pv3", label: "PV3", color: "#6fd08c", fill: "rgba(111, 208, 140, 0.34)" },
-  { key: "pv4", label: "PV4", color: "#ee7f6b", fill: "rgba(238, 127, 107, 0.34)" },
+  { key: "pv1", label: "PV1", color: "#ff7a18", fill: "rgba(255, 122, 24, 0.34)" },
+  { key: "pv2", label: "PV2", color: "#00e5ff", fill: "rgba(0, 229, 255, 0.34)" },
+  { key: "pv3", label: "PV3", color: "#9eff14", fill: "rgba(158, 255, 20, 0.34)" },
+  { key: "pv4", label: "PV4", color: "#ff3ca6", fill: "rgba(255, 60, 166, 0.34)" },
 ];
 
 // 方位別はPV1〜4と色が重複しない固有の半透明パレットを使用
 const DIR_SERIES: SeriesConfig[] = [
   { key: "west", label: "WEST", color: "#fbdd84", fill: "rgba(251, 221, 132, 0.34)" },
   { key: "east", label: "EAST", color: "#b197fc", fill: "rgba(177, 151, 252, 0.34)" },
-  { key: "north", label: "NORTH", color: "#f080b8", fill: "rgba(240, 128, 184, 0.34)" },
+  { key: "north", label: "NORTH", color: "#94a3b8", fill: "rgba(148, 163, 184, 0.34)" },
 ];
 
 function round2(v: number): number {

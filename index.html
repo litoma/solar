@@ -360,7 +360,7 @@
                 disable-pan
                 touch-action="pan-y"
                 interaction-prompt="none"
-                camera-orbit="58deg 65deg 94%"
+                camera-orbit="58deg 65deg 92%"
                 camera-target="0m 0.18m 0m"
                 min-camera-orbit="auto 6deg auto"
                 max-camera-orbit="auto 86deg auto"
@@ -370,12 +370,7 @@
                 shadow-intensity="0"
                 exposure="1.0"
                 tone-mapping="neutral"
-                aria-label="3D Roof & Solar Orbit Monitor">
-                <div slot="hotspot-north" class="pv-3d-dir" data-position="0m 0.015m -1.045m" data-normal="0m 1m 0m">NORTH</div>
-                <div slot="hotspot-east" class="pv-3d-dir" data-position="1.045m 0.015m 0m" data-normal="0m 1m 0m">EAST</div>
-                <div slot="hotspot-south" class="pv-3d-dir" data-position="0m 0.015m 1.045m" data-normal="0m 1m 0m">SOUTH</div>
-                <div slot="hotspot-west" class="pv-3d-dir" data-position="-1.045m 0.015m 0m" data-normal="0m 1m 0m">WEST</div>
-              </model-viewer>
+                aria-label="3D Roof & Solar Orbit Monitor"></model-viewer>
 
               <div class="pv-3d-legend-card" aria-label="Solar Orbit Legend">
                 <div class="pv-3d-legend-list">
@@ -384,51 +379,88 @@
                   <span class="pv-3d-leg-item"><span class="pv-3d-leg-line is-equinox"></span>EQUINOX</span>
                   <span class="pv-3d-leg-item"><span class="pv-3d-leg-line is-winter"></span>WINTER</span>
                 </div>
-                <span class="pv-3d-leg-item pv-3d-sun-readout" id="pv-3d-sun-readout">ALT --° · AZ --°</span>
-              </div>
-
-              <div class="pv-3d-meta">
-                <div class="pv-roof-pitch">
-                  <span class="pv-roof-pitch-label">ROOF PITCH</span>
-                  <span class="pv-roof-pitch-val">30.5° (5.9/10 pitch)</span>
+                <div class="pv-3d-legend-meta">
+                  <span class="pv-3d-leg-item pv-3d-sun-readout" id="pv-3d-sun-readout">ALT --° · AZ --°</span>
+                  <span class="pv-roof-pitch">
+                    <span class="pv-roof-pitch-label">ROOF PITCH</span>
+                    <span class="pv-roof-pitch-val">30.5° (5.9/10 pitch)</span>
+                  </span>
                 </div>
               </div>
             </div>
 
-            <!-- 3Dモデルの下に PV1〜4 を 1, 2, 3, 4 の順で配置 -->
+            <!-- 3Dモデルの下に PV1〜4 を 1, 2, 3, 4 の順で配置 (クリックで屋根面を正面へ回転) -->
             <div class="pv-cards-grid">
-              <div class="pv-quad-item" id="pv-box-1" data-pv="1">
+              <div class="pv-quad-item" id="pv-box-1" data-pv="1" tabindex="0" role="button"
+                aria-label="PV1 WEST を正面に表示">
                 <div class="pv-quad-head">
-                  <span class="pv-swatch swatch-pv1"></span>
-                  <span class="pv-quad-name">PV1</span>
+                  <span class="pv-quad-title">
+                    <span class="pv-swatch swatch-pv1"></span>
+                    <span class="pv-quad-name">PV1</span>
+                  </span>
+                  <span class="pv-quad-dir">WEST</span>
+                </div>
+                <div class="pv-quad-submeta">
                   <span class="pv-quad-count">5 panels</span>
+                  <span class="pv-quad-models">
+                    <span class="pv-model-pill">465</span>
+                    <span class="pv-model-pill">310</span>
+                  </span>
                 </div>
                 <div class="pv-quad-kw" id="pv1-w">0.00<span class="ef-unit-sm">kW</span></div>
                 <div class="pv-quad-day" id="pv1-day">0.00 kWh/d</div>
               </div>
-              <div class="pv-quad-item" id="pv-box-2" data-pv="2">
+              <div class="pv-quad-item" id="pv-box-2" data-pv="2" tabindex="0" role="button"
+                aria-label="PV2 EAST を正面に表示">
                 <div class="pv-quad-head">
-                  <span class="pv-swatch swatch-pv2"></span>
-                  <span class="pv-quad-name">PV2</span>
+                  <span class="pv-quad-title">
+                    <span class="pv-swatch swatch-pv2"></span>
+                    <span class="pv-quad-name">PV2</span>
+                  </span>
+                  <span class="pv-quad-dir">EAST</span>
+                </div>
+                <div class="pv-quad-submeta">
                   <span class="pv-quad-count">4 panels</span>
+                  <span class="pv-quad-models">
+                    <span class="pv-model-pill">465</span>
+                    <span class="pv-model-pill">350</span>
+                  </span>
                 </div>
                 <div class="pv-quad-kw" id="pv2-w">0.00<span class="ef-unit-sm">kW</span></div>
                 <div class="pv-quad-day" id="pv2-day">0.00 kWh/d</div>
               </div>
-              <div class="pv-quad-item" id="pv-box-3" data-pv="3">
+              <div class="pv-quad-item" id="pv-box-3" data-pv="3" tabindex="0" role="button"
+                aria-label="PV3 WEST を正面に表示">
                 <div class="pv-quad-head">
-                  <span class="pv-swatch swatch-pv3"></span>
-                  <span class="pv-quad-name">PV3</span>
+                  <span class="pv-quad-title">
+                    <span class="pv-swatch swatch-pv3"></span>
+                    <span class="pv-quad-name">PV3</span>
+                  </span>
+                  <span class="pv-quad-dir">WEST</span>
+                </div>
+                <div class="pv-quad-submeta">
                   <span class="pv-quad-count">3 panels</span>
+                  <span class="pv-quad-models">
+                    <span class="pv-model-pill">465</span>
+                  </span>
                 </div>
                 <div class="pv-quad-kw" id="pv3-w">0.00<span class="ef-unit-sm">kW</span></div>
                 <div class="pv-quad-day" id="pv3-day">0.00 kWh/d</div>
               </div>
-              <div class="pv-quad-item" id="pv-box-4" data-pv="4">
+              <div class="pv-quad-item" id="pv-box-4" data-pv="4" tabindex="0" role="button"
+                aria-label="PV4 NORTH を正面に表示">
                 <div class="pv-quad-head">
-                  <span class="pv-swatch swatch-pv4"></span>
-                  <span class="pv-quad-name">PV4</span>
+                  <span class="pv-quad-title">
+                    <span class="pv-swatch swatch-pv4"></span>
+                    <span class="pv-quad-name">PV4</span>
+                  </span>
+                  <span class="pv-quad-dir">NORTH</span>
+                </div>
+                <div class="pv-quad-submeta">
                   <span class="pv-quad-count">3 panels</span>
+                  <span class="pv-quad-models">
+                    <span class="pv-model-pill">445</span>
+                  </span>
                 </div>
                 <div class="pv-quad-kw" id="pv4-w">0.00<span class="ef-unit-sm">kW</span></div>
                 <div class="pv-quad-day" id="pv4-day">0.00 kWh/d</div>
@@ -492,43 +524,52 @@
                     <text x="302.5" y="243" class="pv-dim-num" dominant-baseline="central">1,334 mm</text>
                   </g>
 
-                  <!-- 上左: コンビネーションモデル CS6.2-32TM-310 -->
+                  <!-- 上左: コンビネーションモデル CS6.2-32TM-[310] -->
                   <g>
                     <rect x="24" y="6" width="186" height="81" rx="4" fill="#17191e" />
                     <rect x="24" y="6" width="186" height="81" rx="4" fill="url(#pv-cell-grid)" stroke="#707687"
                       stroke-width="1.35" />
                     <line x1="117" y1="6.5" x2="117" y2="86.5" stroke="#535867" stroke-width="1.2" />
-                    <rect x="55" y="22" width="124" height="49" rx="6" fill="rgba(22, 23, 28, 0.92)"
+                    <rect x="52" y="21" width="130" height="51" rx="6" fill="rgba(22, 23, 28, 0.92)"
                       stroke="rgba(215, 189, 114, 0.48)" stroke-width="1" />
-                    <text x="117" y="33" class="pv-dim-role" dominant-baseline="central">COMBINATION</text>
-                    <text x="117" y="46.5" class="pv-dim-model" dominant-baseline="central">CS6.2-32TM-310</text>
-                    <text x="117" y="60" class="pv-dim-weight" dominant-baseline="central">14.7 kg</text>
+                    <text x="117" y="32" class="pv-dim-role" dominant-baseline="central">COMBINATION</text>
+                    <text x="135" y="46.5" class="pv-dim-model" text-anchor="end" dominant-baseline="central">CS6.2-32TM-</text>
+                    <rect x="136.5" y="40" width="21.5" height="13" rx="2.5" class="pv-dim-suffix-box" />
+                    <text x="147.25" y="46.5" class="pv-dim-model" dominant-baseline="central">310</text>
+                    <text x="117" y="61" class="pv-dim-weight" dominant-baseline="central">14.7 kg</text>
                   </g>
 
-                  <!-- 下左: メインモデル CS6.2-48TM-465 / CS6.2-48TM-445 -->
+                  <!-- 下左: メインモデル CS6.2-48TM-[465] / ANTI-GLARE MODEL CS6.2-48TM-[445] -->
                   <g>
                     <rect x="24" y="110" width="186" height="120" rx="4" fill="#17191e" />
                     <rect x="24" y="110" width="186" height="120" rx="4" fill="url(#pv-cell-grid)" stroke="#707687"
                       stroke-width="1.35" />
                     <line x1="117" y1="110.5" x2="117" y2="229.5" stroke="#535867" stroke-width="1.2" />
-                    <rect x="53" y="135" width="128" height="70" rx="6" fill="rgba(22, 23, 28, 0.94)"
+                    <rect x="50" y="128" width="134" height="84" rx="6" fill="rgba(22, 23, 28, 0.94)"
                       stroke="rgba(215, 189, 114, 0.48)" stroke-width="1" />
-                    <text x="117" y="147" class="pv-dim-role is-main" dominant-baseline="central">MAIN MODEL</text>
-                    <text x="117" y="161" class="pv-dim-model" dominant-baseline="central">CS6.2-48TM-465</text>
-                    <text x="117" y="175" class="pv-dim-model" dominant-baseline="central">CS6.2-48TM-445</text>
-                    <text x="117" y="191" class="pv-dim-weight" dominant-baseline="central">21.3 kg</text>
+                    <text x="117" y="139" class="pv-dim-role is-main" dominant-baseline="central">MAIN MODEL</text>
+                    <text x="135" y="153" class="pv-dim-model" text-anchor="end" dominant-baseline="central">CS6.2-48TM-</text>
+                    <rect x="136.5" y="146.5" width="21.5" height="13" rx="2.5" class="pv-dim-suffix-box" />
+                    <text x="147.25" y="153" class="pv-dim-model" dominant-baseline="central">465</text>
+                    <text x="117" y="169" class="pv-dim-role is-sub" dominant-baseline="central">ANTI-GLARE MODEL</text>
+                    <text x="135" y="182" class="pv-dim-model" text-anchor="end" dominant-baseline="central">CS6.2-48TM-</text>
+                    <rect x="136.5" y="175.5" width="21.5" height="13" rx="2.5" class="pv-dim-suffix-box" />
+                    <text x="147.25" y="182" class="pv-dim-model" dominant-baseline="central">445</text>
+                    <text x="117" y="199" class="pv-dim-weight" dominant-baseline="central">21.3 kg</text>
                   </g>
 
-                  <!-- 下右: コンビネーションモデル CS6.2-36TM-350 -->
+                  <!-- 下右: コンビネーションモデル CS6.2-36TM-[350] -->
                   <g>
                     <rect x="232" y="110" width="141" height="120" rx="4" fill="#17191e" />
                     <rect x="232" y="110" width="141" height="120" rx="4" fill="url(#pv-cell-grid)" stroke="#707687"
                       stroke-width="1.35" />
                     <line x1="302.5" y1="110.5" x2="302.5" y2="229.5" stroke="#535867" stroke-width="1.2" />
-                    <rect x="246.5" y="142" width="112" height="56" rx="6" fill="rgba(22, 23, 28, 0.92)"
+                    <rect x="242.5" y="142" width="120" height="56" rx="6" fill="rgba(22, 23, 28, 0.92)"
                       stroke="rgba(215, 189, 114, 0.48)" stroke-width="1" />
                     <text x="302.5" y="154" class="pv-dim-role" dominant-baseline="central">COMBINATION</text>
-                    <text x="302.5" y="168.5" class="pv-dim-model" dominant-baseline="central">CS6.2-36TM-350</text>
+                    <text x="320.5" y="168.5" class="pv-dim-model" text-anchor="end" dominant-baseline="central">CS6.2-36TM-</text>
+                    <rect x="322" y="162" width="21.5" height="13" rx="2.5" class="pv-dim-suffix-box" />
+                    <text x="332.75" y="168.5" class="pv-dim-model" dominant-baseline="central">350</text>
                     <text x="302.5" y="184" class="pv-dim-weight" dominant-baseline="central">16.3 kg</text>
                   </g>
 
@@ -563,7 +604,7 @@
                 <tbody>
                   <tr>
                     <td class="col-model">
-                      <span class="pv-spec-model">CS6.2-48TM-465</span>
+                      <span class="pv-model-pill">465</span>
                     </td>
                     <td class="col-qty">6<span class="pv-spec-qty-dir">(W4+E2)</span></td>
                     <td class="col-unit is-num">0.465 kW</td>
@@ -572,7 +613,7 @@
                   </tr>
                   <tr>
                     <td class="col-model">
-                      <span class="pv-spec-model">CS6.2-36TM-350</span>
+                      <span class="pv-model-pill">350</span>
                     </td>
                     <td class="col-qty">2<span class="pv-spec-qty-dir">(E2)</span></td>
                     <td class="col-unit is-num">0.350 kW</td>
@@ -581,7 +622,7 @@
                   </tr>
                   <tr>
                     <td class="col-model">
-                      <span class="pv-spec-model">CS6.2-32TM-310</span>
+                      <span class="pv-model-pill">310</span>
                     </td>
                     <td class="col-qty">4<span class="pv-spec-qty-dir">(W4)</span></td>
                     <td class="col-unit is-num">0.310 kW</td>
@@ -590,8 +631,7 @@
                   </tr>
                   <tr>
                     <td class="col-model">
-                      <span class="pv-spec-model">CS6.2-48TM-445</span>
-                      <span class="pv-spec-feature">(Anti-glare)</span>
+                      <span class="pv-model-pill">445</span>
                     </td>
                     <td class="col-qty">3<span class="pv-spec-qty-dir">(N3)</span></td>
                     <td class="col-unit is-num">0.445 kW</td>
@@ -612,8 +652,6 @@
             </div>
 
             <div class="sim-note pv-specs-note">
-              <span>Temp Coeff -0.29%/°C</span>
-              <span class="pv-specs-note-sep" aria-hidden="true">·</span>
               <span>Warranty: 30-yr Output / 25-yr Product</span>
             </div>
           </div>

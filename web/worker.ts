@@ -183,6 +183,10 @@ const CREATE_TABLES_SQL = [
     sell_kwh REAL,
     buy_kwh REAL,
     load_kwh REAL,
+    pv1_kwh REAL,
+    pv2_kwh REAL,
+    pv3_kwh REAL,
+    pv4_kwh REAL,
     PRIMARY KEY (slot_min, jst_date)
   )`,
 ];
@@ -190,13 +194,17 @@ const CREATE_TABLES_SQL = [
 const CHECKPOINT_SLOT_MINUTES = 15;
 
 const UPSERT_CHECKPOINT_SQL =
-  `INSERT INTO daily_checkpoints (slot_min, jst_date, solar_kwh, sell_kwh, buy_kwh, load_kwh) ` +
-  `VALUES (?, ?, ?, ?, ?, ?) ` +
+  `INSERT INTO daily_checkpoints (slot_min, jst_date, solar_kwh, sell_kwh, buy_kwh, load_kwh, pv1_kwh, pv2_kwh, pv3_kwh, pv4_kwh) ` +
+  `VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ` +
   `ON CONFLICT(slot_min, jst_date) DO UPDATE SET ` +
   `solar_kwh = MAX(COALESCE(daily_checkpoints.solar_kwh, 0), excluded.solar_kwh), ` +
   `sell_kwh  = MAX(COALESCE(daily_checkpoints.sell_kwh, 0), excluded.sell_kwh), ` +
   `buy_kwh   = MAX(COALESCE(daily_checkpoints.buy_kwh, 0), excluded.buy_kwh), ` +
-  `load_kwh  = MAX(COALESCE(daily_checkpoints.load_kwh, 0), excluded.load_kwh)`;
+  `load_kwh  = MAX(COALESCE(daily_checkpoints.load_kwh, 0), excluded.load_kwh), ` +
+  `pv1_kwh   = MAX(COALESCE(daily_checkpoints.pv1_kwh, 0), excluded.pv1_kwh), ` +
+  `pv2_kwh   = MAX(COALESCE(daily_checkpoints.pv2_kwh, 0), excluded.pv2_kwh), ` +
+  `pv3_kwh   = MAX(COALESCE(daily_checkpoints.pv3_kwh, 0), excluded.pv3_kwh), ` +
+  `pv4_kwh   = MAX(COALESCE(daily_checkpoints.pv4_kwh, 0), excluded.pv4_kwh)`;
 
 interface CheckpointRow {
   slot_min: number;
@@ -205,6 +213,10 @@ interface CheckpointRow {
   sell_kwh: number | null;
   buy_kwh: number | null;
   load_kwh: number | null;
+  pv1_kwh?: number | null;
+  pv2_kwh?: number | null;
+  pv3_kwh?: number | null;
+  pv4_kwh?: number | null;
 }
 
 function getLocalMinuteOfDay(epochSec: number, tzSec: number): number {
@@ -888,7 +900,16 @@ async function buildDailyUpsertStmts(
         : null;
     const slotSnapshots = new Map<
       number,
-      { solar: number; sell: number; buy: number; load: number }
+      {
+        solar: number;
+        sell: number;
+        buy: number;
+        load: number;
+        pv1: number;
+        pv2: number;
+        pv3: number;
+        pv4: number;
+      }
     >();
     let updated = false;
 
@@ -900,6 +921,10 @@ async function buildDailyUpsertStmts(
         sell: round4(sellKwh),
         buy: round4(buyKwh),
         load: round4(loadKwh),
+        pv1: round4(pv1Kwh),
+        pv2: round4(pv2Kwh),
+        pv3: round4(pv3Kwh),
+        pv4: round4(pv4Kwh),
       };
       const curSlot =
         Math.floor(
@@ -949,6 +974,10 @@ async function buildDailyUpsertStmts(
         sell: round4(sellKwh),
         buy: round4(buyKwh),
         load: round4(loadKwh),
+        pv1: round4(pv1Kwh),
+        pv2: round4(pv2Kwh),
+        pv3: round4(pv3Kwh),
+        pv4: round4(pv4Kwh),
       });
       prevSlot = curSlot;
     }
@@ -977,7 +1006,18 @@ async function buildDailyUpsertStmts(
       stmts.push(
         db
           .prepare(UPSERT_CHECKPOINT_SQL)
-          .bind(slotMin, jstDate, snap.solar, snap.sell, snap.buy, snap.load),
+          .bind(
+            slotMin,
+            jstDate,
+            snap.solar,
+            snap.sell,
+            snap.buy,
+            snap.load,
+            snap.pv1,
+            snap.pv2,
+            snap.pv3,
+            snap.pv4,
+          ),
       );
     }
   }
@@ -2017,6 +2057,10 @@ async function queryCheckpointMonthlyAvg(
   use: number | null;
   buy: number | null;
   sell: number | null;
+  pv1: number | null;
+  pv2: number | null;
+  pv3: number | null;
+  pv4: number | null;
 }> {
   const targetMonth = todayJst.slice(5, 7);
   const curMin = getLocalMinuteOfDay(refTs, tzSec);
@@ -2028,10 +2072,12 @@ async function queryCheckpointMonthlyAvg(
       : null;
   const alpha = (curMin - curSlot + 1) / CHECKPOINT_SLOT_MINUTES;
 
+  const cols =
+    "slot_min, jst_date, solar_kwh, sell_kwh, buy_kwh, load_kwh, pv1_kwh, pv2_kwh, pv3_kwh, pv4_kwh";
   const sql =
     prevSlot !== null
-      ? "SELECT slot_min, jst_date, solar_kwh, sell_kwh, buy_kwh, load_kwh FROM daily_checkpoints WHERE slot_min IN (?, ?) AND substr(jst_date, 6, 2) = ? AND jst_date < ?"
-      : "SELECT slot_min, jst_date, solar_kwh, sell_kwh, buy_kwh, load_kwh FROM daily_checkpoints WHERE slot_min = ? AND substr(jst_date, 6, 2) = ? AND jst_date < ?";
+      ? `SELECT ${cols} FROM daily_checkpoints WHERE slot_min IN (?, ?) AND substr(jst_date, 6, 2) = ? AND jst_date < ?`
+      : `SELECT ${cols} FROM daily_checkpoints WHERE slot_min = ? AND substr(jst_date, 6, 2) = ? AND jst_date < ?`;
   const params: (number | string)[] =
     prevSlot !== null
       ? [prevSlot, curSlot, targetMonth, todayJst]
@@ -2045,6 +2091,13 @@ async function queryCheckpointMonthlyAvg(
     if (err instanceof Error && /no such table/i.test(err.message)) {
       await ensureSchema(db);
       const res = await db.prepare(sql).bind(...params).all<CheckpointRow>();
+      rows = res.results || [];
+    } else if (err instanceof Error && /no such column/i.test(err.message)) {
+      const legacySql =
+        prevSlot !== null
+          ? "SELECT slot_min, jst_date, solar_kwh, sell_kwh, buy_kwh, load_kwh FROM daily_checkpoints WHERE slot_min IN (?, ?) AND substr(jst_date, 6, 2) = ? AND jst_date < ?"
+          : "SELECT slot_min, jst_date, solar_kwh, sell_kwh, buy_kwh, load_kwh FROM daily_checkpoints WHERE slot_min = ? AND substr(jst_date, 6, 2) = ? AND jst_date < ?";
+      const res = await db.prepare(legacySql).bind(...params).all<CheckpointRow>();
       rows = res.results || [];
     } else {
       throw err;
@@ -2067,31 +2120,56 @@ async function queryCheckpointMonthlyAvg(
   let buySum = 0;
   let sellSum = 0;
   let count = 0;
+  let pv1Sum = 0;
+  let pv2Sum = 0;
+  let pv3Sum = 0;
+  let pv4Sum = 0;
+  let pvCount = 0;
   for (const entry of byDate.values()) {
     if (!entry.cur) continue;
     if (prevSlot !== null && !entry.prev) continue;
-    const interp = (prevVal: number | null, curVal: number | null) => {
+    const interp = (prevVal: number | null | undefined, curVal: number | null | undefined) => {
       const p = Math.max(0, prevVal ?? 0);
       const c = Math.max(p, curVal ?? 0);
       return p + (c - p) * alpha;
     };
     const pRow = entry.prev;
-    solarSum += interp(pRow?.solar_kwh ?? 0, entry.cur.solar_kwh);
-    useSum += interp(pRow?.load_kwh ?? 0, entry.cur.load_kwh);
-    buySum += interp(pRow?.buy_kwh ?? 0, entry.cur.buy_kwh);
-    sellSum += interp(pRow?.sell_kwh ?? 0, entry.cur.sell_kwh);
+    solarSum += interp(pRow?.solar_kwh, entry.cur.solar_kwh);
+    useSum += interp(pRow?.load_kwh, entry.cur.load_kwh);
+    buySum += interp(pRow?.buy_kwh, entry.cur.buy_kwh);
+    sellSum += interp(pRow?.sell_kwh, entry.cur.sell_kwh);
     count += 1;
+
+    if (
+      typeof entry.cur.pv1_kwh === "number" &&
+      typeof entry.cur.pv2_kwh === "number" &&
+      typeof entry.cur.pv3_kwh === "number" &&
+      typeof entry.cur.pv4_kwh === "number" &&
+      (prevSlot === null ||
+        (typeof pRow?.pv1_kwh === "number" &&
+          typeof pRow?.pv2_kwh === "number" &&
+          typeof pRow?.pv3_kwh === "number" &&
+          typeof pRow?.pv4_kwh === "number"))
+    ) {
+      pv1Sum += interp(pRow?.pv1_kwh, entry.cur.pv1_kwh);
+      pv2Sum += interp(pRow?.pv2_kwh, entry.cur.pv2_kwh);
+      pv3Sum += interp(pRow?.pv3_kwh, entry.cur.pv3_kwh);
+      pv4Sum += interp(pRow?.pv4_kwh, entry.cur.pv4_kwh);
+      pvCount += 1;
+    }
   }
 
   const round3 = (v: number) => Math.round(v * 1000) / 1000;
-  return count > 0
-    ? {
-        solar: round3(solarSum / count),
-        use: round3(useSum / count),
-        buy: round3(buySum / count),
-        sell: round3(sellSum / count),
-      }
-    : { solar: null, use: null, buy: null, sell: null };
+  return {
+    solar: count > 0 ? round3(solarSum / count) : null,
+    use: count > 0 ? round3(useSum / count) : null,
+    buy: count > 0 ? round3(buySum / count) : null,
+    sell: count > 0 ? round3(sellSum / count) : null,
+    pv1: pvCount > 0 ? round3(pv1Sum / pvCount) : null,
+    pv2: pvCount > 0 ? round3(pv2Sum / pvCount) : null,
+    pv3: pvCount > 0 ? round3(pv3Sum / pvCount) : null,
+    pv4: pvCount > 0 ? round3(pv4Sum / pvCount) : null,
+  };
 }
 
 function safeJsonArray(raw: string | null | undefined): number[] {

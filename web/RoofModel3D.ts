@@ -12,10 +12,10 @@ export interface SolarSnapshot {
 }
 
 export const PV_BASE_COLORS: Record<1 | 2 | 3 | 4, RGB> = {
-  1: [240 / 255, 160 / 255, 75 / 255], // #f0a04b
-  2: [76 / 255, 195 / 255, 217 / 255], // #4cc3d9
-  3: [111 / 255, 208 / 255, 140 / 255], // #6fd08c
-  4: [238 / 255, 127 / 255, 107 / 255], // #ee7f6b
+  1: [255 / 255, 122 / 255, 24 / 255],  // Neon Orange (#ff7a18)
+  2: [0 / 255, 229 / 255, 255 / 255],   // Neon Cyan (#00e5ff)
+  3: [158 / 255, 255 / 255, 20 / 255],  // Neon Yellow-Green (#9eff14)
+  4: [255 / 255, 60 / 255, 166 / 255],  // Neon Pink (#ff3ca6)
 };
 
 function srgbChanToLinear(c: number): number {
@@ -187,10 +187,13 @@ interface MaterialDef {
   name: string;
   baseColorFactor: RGBA;
   emissiveFactor?: RGB;
+  emissiveStrength?: number;
+  baseColorTextureIndex?: number;
   metallicFactor?: number;
   roughnessFactor?: number;
   unlit?: boolean;
-  alphaMode?: "OPAQUE" | "BLEND";
+  alphaMode?: "OPAQUE" | "BLEND" | "MASK";
+  alphaCutoff?: number;
   doubleSided?: boolean;
   useVertexColors?: boolean;
 }
@@ -199,6 +202,7 @@ interface PrimitiveBucket {
   materialIndex: number;
   positions: number[];
   normals: number[];
+  texcoords: number[];
   colors: number[];
   indices: number[];
 }
@@ -207,6 +211,11 @@ class GlbBuilder {
   private materials: MaterialDef[] = [];
   private materialMap = new Map<string, number>();
   private buckets: PrimitiveBucket[] = [];
+  private pngImageBytes: Uint8Array | null = null;
+
+  setTexturePng(bytes: Uint8Array): void {
+    this.pngImageBytes = bytes;
+  }
 
   defineMaterial(def: MaterialDef): number {
     const idx = this.materials.length;
@@ -216,6 +225,7 @@ class GlbBuilder {
       materialIndex: idx,
       positions: [],
       normals: [],
+      texcoords: [],
       colors: [],
       indices: [],
     });
@@ -243,6 +253,36 @@ class GlbBuilder {
     const n = explicitNormal ?? normVec(crossVec(subVec(p1, p0), subVec(p2, p0)));
     this.addTriangle(mat, p0, p1, p2, n);
     this.addTriangle(mat, p0, p2, p3, n);
+  }
+
+  addTexturedQuad(
+    mat: string,
+    pTL: Vec3,
+    pBL: Vec3,
+    pBR: Vec3,
+    pTR: Vec3,
+    u0: number,
+    v0: number,
+    u1: number,
+    v1: number,
+    normal: Vec3 = [0, 1, 0],
+  ): void {
+    const b = this.bucket(mat);
+    const base = b.positions.length / 3;
+    b.positions.push(
+      pTL[0], pTL[1], pTL[2],
+      pBL[0], pBL[1], pBL[2],
+      pBR[0], pBR[1], pBR[2],
+      pTR[0], pTR[1], pTR[2],
+    );
+    b.normals.push(
+      normal[0], normal[1], normal[2],
+      normal[0], normal[1], normal[2],
+      normal[0], normal[1], normal[2],
+      normal[0], normal[1], normal[2],
+    );
+    b.texcoords.push(u0, v0, u0, v1, u1, v1, u1, v0);
+    b.indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
 
   addDisc(mat: string, radius: number, y: number, segs = 64): void {
@@ -401,7 +441,7 @@ class GlbBuilder {
       buffer: number;
       byteOffset: number;
       byteLength: number;
-      target: number;
+      target?: number;
     }> = [];
     const accessors: Array<{
       bufferView: number;
@@ -413,7 +453,12 @@ class GlbBuilder {
       max?: number[];
     }> = [];
     const primitives: Array<{
-      attributes: { POSITION: number; NORMAL: number; COLOR_0?: number };
+      attributes: {
+        POSITION: number;
+        NORMAL: number;
+        TEXCOORD_0?: number;
+        COLOR_0?: number;
+      };
       indices: number;
       material: number;
     }> = [];
@@ -421,14 +466,20 @@ class GlbBuilder {
     const chunks: Uint8Array[] = [];
     let byteCursor = 0;
 
-    const appendAligned = (bytes: Uint8Array, target: number): number => {
+    const appendAligned = (bytes: Uint8Array, target?: number): number => {
       const viewIndex = bufferViews.length;
-      bufferViews.push({
+      const view: {
+        buffer: number;
+        byteOffset: number;
+        byteLength: number;
+        target?: number;
+      } = {
         buffer: 0,
         byteOffset: byteCursor,
         byteLength: bytes.byteLength,
-        target,
-      });
+      };
+      if (target !== undefined) view.target = target;
+      bufferViews.push(view);
       chunks.push(bytes);
       byteCursor += bytes.byteLength;
       const rem = byteCursor % 4;
@@ -458,6 +509,20 @@ class GlbBuilder {
 
       const posView = appendAligned(new Uint8Array(posArr.buffer), 34962);
       const normView = appendAligned(new Uint8Array(normArr.buffer), 34962);
+
+      let texcoordAcc: number | undefined;
+      if (bk.texcoords.length > 0) {
+        const uvArr = new Float32Array(bk.texcoords);
+        const uvView = appendAligned(new Uint8Array(uvArr.buffer), 34962);
+        texcoordAcc = accessors.length;
+        accessors.push({
+          bufferView: uvView,
+          byteOffset: 0,
+          componentType: 5126,
+          count: uvArr.length / 2,
+          type: "VEC2",
+        });
+      }
 
       let colorAcc: number | undefined;
       if (bk.colors.length > 0) {
@@ -504,10 +569,16 @@ class GlbBuilder {
         type: "SCALAR",
       });
 
-      const attrs: { POSITION: number; NORMAL: number; COLOR_0?: number } = {
+      const attrs: {
+        POSITION: number;
+        NORMAL: number;
+        TEXCOORD_0?: number;
+        COLOR_0?: number;
+      } = {
         POSITION: posAcc,
         NORMAL: normAcc,
       };
+      if (texcoordAcc !== undefined) attrs.TEXCOORD_0 = texcoordAcc;
       if (colorAcc !== undefined) attrs.COLOR_0 = colorAcc;
 
       primitives.push({
@@ -517,25 +588,53 @@ class GlbBuilder {
       });
     }
 
+    let imageViewIdx: number | null = null;
+    if (this.pngImageBytes && this.pngImageBytes.byteLength > 0) {
+      imageViewIdx = appendAligned(this.pngImageBytes);
+    }
+
+    let usesEmissiveStrength = false;
     const gltfMaterials = this.materials.map((m) => {
+      const pbr: Record<string, unknown> = {
+        baseColorFactor: m.baseColorFactor,
+        metallicFactor: m.metallicFactor ?? (m.unlit ? 0 : 0.08),
+        roughnessFactor: m.roughnessFactor ?? (m.unlit ? 1 : 0.72),
+      };
+      if (m.baseColorTextureIndex !== undefined) {
+        pbr.baseColorTexture = { index: m.baseColorTextureIndex };
+      }
       const matObj: Record<string, unknown> = {
         name: m.name,
-        pbrMetallicRoughness: {
-          baseColorFactor: m.baseColorFactor,
-          metallicFactor: m.metallicFactor ?? (m.unlit ? 0 : 0.08),
-          roughnessFactor: m.roughnessFactor ?? (m.unlit ? 1 : 0.72),
-        },
+        pbrMetallicRoughness: pbr,
       };
       if (m.emissiveFactor) matObj.emissiveFactor = m.emissiveFactor;
       if (m.alphaMode && m.alphaMode !== "OPAQUE") matObj.alphaMode = m.alphaMode;
+      if (m.alphaMode === "MASK" && m.alphaCutoff !== undefined) {
+        matObj.alphaCutoff = m.alphaCutoff;
+      }
       if (m.doubleSided) matObj.doubleSided = true;
-      if (m.unlit) matObj.extensions = { KHR_materials_unlit: {} };
+      const exts: Record<string, unknown> = {};
+      if (m.unlit) exts.KHR_materials_unlit = {};
+      if (m.emissiveStrength !== undefined && m.emissiveStrength !== 1) {
+        exts.KHR_materials_emissive_strength = {
+          emissiveStrength: m.emissiveStrength,
+        };
+        usesEmissiveStrength = true;
+      }
+      if (Object.keys(exts).length > 0) {
+        matObj.extensions = exts;
+      }
       return matObj;
     });
 
-    const gltf = {
+    const extensionsUsed = ["KHR_materials_unlit"];
+    if (usesEmissiveStrength) {
+      extensionsUsed.push("KHR_materials_emissive_strength");
+    }
+
+    const gltf: Record<string, unknown> = {
       asset: { version: "2.0", generator: "EP-VIEW-3D" },
-      extensionsUsed: ["KHR_materials_unlit"],
+      extensionsUsed,
       scene: 0,
       scenes: [{ nodes: [0] }],
       nodes: [{ mesh: 0, name: "SolarHemisphereRoot" }],
@@ -545,6 +644,14 @@ class GlbBuilder {
       bufferViews,
       accessors,
     };
+
+    if (imageViewIdx !== null) {
+      gltf.images = [{ bufferView: imageViewIdx, mimeType: "image/png" }];
+      gltf.samplers = [
+        { magFilter: 9729, minFilter: 9729, wrapS: 33071, wrapT: 33071 },
+      ];
+      gltf.textures = [{ sampler: 0, source: 0 }];
+    }
 
     const jsonRaw = new TextEncoder().encode(JSON.stringify(gltf));
     const jsonPadLen = Math.ceil(jsonRaw.length / 4) * 4;
@@ -693,55 +800,118 @@ function addSolarPanelMesh(g: GlbBuilder, panel: PanelRect): void {
   g.addQuad(edgeMat, p10, p00, o00, o10);
 }
 
+let cachedCompassAtlasPng: Uint8Array | null = null;
+
+/** N / E / S / W 方位ラベル用 1024×512 PNG アトラスをオフスクリーン Canvas で同期生成 */
+function getCompassAtlasPng(): Uint8Array | null {
+  if (cachedCompassAtlasPng) return cachedCompassAtlasPng;
+  if (typeof document === "undefined") return null;
+
+  const width = 1024;
+  const height = 512;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+
+  ctx.clearRect(0, 0, width, height);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = '700 68px "JetBrains Mono", ui-monospace, SFMono-Regular, monospace';
+
+  const drawSpacedLabel = (label: string, cy: number) => {
+    const chars = Array.from(label);
+    const tracking = 14;
+    const widths = chars.map((ch) => ctx.measureText(ch).width);
+    const totalW =
+      widths.reduce((a, b) => a + b, 0) + tracking * Math.max(0, chars.length - 1);
+    let cursor = (width - totalW) / 2;
+    for (let i = 0; i < chars.length; i++) {
+      const ch = chars[i];
+      const cx = cursor + widths[i] / 2;
+      ctx.fillStyle = "#fbdd84";
+      ctx.fillText(ch, cx, cy);
+      cursor += widths[i] + tracking;
+    }
+  };
+
+  const labels = ["NORTH", "EAST", "SOUTH", "WEST"];
+  for (let i = 0; i < labels.length; i++) {
+    drawSpacedLabel(labels[i], i * 128 + 64);
+  }
+
+  const dataUrl = canvas.toDataURL("image/png");
+  const b64 = dataUrl.split(",")[1];
+  if (!b64) return null;
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) {
+    bytes[i] = bin.charCodeAt(i);
+  }
+  cachedCompassAtlasPng = bytes;
+  return bytes;
+}
+
 /**
- * 5.9寸(30.54°)寄棟屋根＋パネル15枚＋天球半球＋季節/当日軌道＋太陽照射光線を含む .glb を生成
+ * 5.9寸(30.54°)半透明寄棟屋根＋蛍光ネオンパネル15枚＋天球半球＋半透明軌道＋発光太陽＋地平3D方位ラベルを含む .glb を生成
  */
 export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Array {
   const g = new GlbBuilder();
+  const compassPng = getCompassAtlasPng();
+  if (compassPng) {
+    g.setTexturePng(compassPng);
+  }
 
-  // 屋根本体: 底面円盤よりしっかり暗いダークチャコール (Linear色空間で指定)
+  // 半透明ダークガラス調の寄棟屋根 (約14三角形のため負荷増なし)
   g.defineMaterial({
     name: "roof_surface",
-    baseColorFactor: [0.005, 0.0055, 0.007, 1],
-    metallicFactor: 0.0,
-    roughnessFactor: 0.98,
+    baseColorFactor: [0.025, 0.029, 0.039, 0.48],
+    metallicFactor: 0.04,
+    roughnessFactor: 0.84,
+    alphaMode: "BLEND",
+    doubleSided: true,
   });
   g.defineMaterial({
     name: "roof_trim",
-    baseColorFactor: [0.032, 0.035, 0.044, 1],
+    baseColorFactor: [0.045, 0.05, 0.062, 0.82],
     metallicFactor: 0.05,
-    roughnessFactor: 0.85,
+    roughnessFactor: 0.82,
+    alphaMode: "BLEND",
   });
   g.defineMaterial({
     name: "roof_ridge",
-    baseColorFactor: [0.04, 0.044, 0.055, 1],
+    baseColorFactor: [0.055, 0.06, 0.074, 1],
     unlit: true,
   });
 
-  // PV1〜4 マテリアル: 下部カードスウォッチと同じ鮮やかな sRGB->Linear 発色
+  // PV1〜4 マテリアル: 蛍光ネオン発色 + emissiveStrength ブースト
   for (const pv of [1, 2, 3, 4] as const) {
-    const linFill = srgbToLinear(PV_BASE_COLORS[pv], 0.56);
-    const linEmissive = srgbToLinear(PV_BASE_COLORS[pv], 0.44);
+    const linFill = srgbToLinear(PV_BASE_COLORS[pv], 0.72);
+    const linEmissive = srgbToLinear(PV_BASE_COLORS[pv], 0.88);
     const linEdge = srgbToLinear(PV_BASE_COLORS[pv], 1.0);
     g.defineMaterial({
       name: `pv${pv}_fill`,
       baseColorFactor: [linFill[0], linFill[1], linFill[2], 1],
       emissiveFactor: linEmissive,
-      metallicFactor: 0.08,
-      roughnessFactor: 0.65,
+      emissiveStrength: 1.25,
+      metallicFactor: 0.05,
+      roughnessFactor: 0.55,
     });
     g.defineMaterial({
       name: `pv${pv}_edge`,
-      baseColorFactor: [linEdge[0], linEdge[1], linEdge[2], 1],
+      baseColorFactor: [linEdge[0] * 0.18, linEdge[1] * 0.18, linEdge[2] * 0.18, 1],
       emissiveFactor: linEdge,
-      unlit: true,
+      emissiveStrength: 1.9,
+      metallicFactor: 0.0,
+      roughnessFactor: 1.0,
     });
   }
 
-  // 天球・軌道・光線マテリアル (Linear色空間)
+  // 天球・半透明軌道・発光太陽・光線マテリアル (Linear色空間)
   g.defineMaterial({
     name: "horizon_disc",
-    baseColorFactor: [0.055, 0.062, 0.082, 0.72],
+    baseColorFactor: [0.055, 0.062, 0.082, 0.7],
     unlit: true,
     alphaMode: "BLEND",
     doubleSided: true,
@@ -753,8 +923,9 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
   });
   g.defineMaterial({
     name: "dome_arch",
-    baseColorFactor: [...srgbToLinear([0.42, 0.45, 0.54]), 1],
+    baseColorFactor: [...srgbToLinear([0.52, 0.56, 0.66]), 0.34],
     unlit: true,
+    alphaMode: "BLEND",
   });
   g.defineMaterial({
     name: "horizon_cross",
@@ -763,28 +934,53 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
   });
   g.defineMaterial({
     name: "orbit_summer",
-    baseColorFactor: [...srgbToLinear([238 / 255, 127 / 255, 107 / 255]), 1],
+    baseColorFactor: [...srgbToLinear([238 / 255, 127 / 255, 107 / 255]), 0.52],
     unlit: true,
+    alphaMode: "BLEND",
   });
   g.defineMaterial({
     name: "orbit_equinox",
-    baseColorFactor: [...srgbToLinear([69 / 255, 185 / 255, 136 / 255]), 1],
+    baseColorFactor: [...srgbToLinear([69 / 255, 185 / 255, 136 / 255]), 0.52],
     unlit: true,
+    alphaMode: "BLEND",
   });
   g.defineMaterial({
     name: "orbit_winter",
-    baseColorFactor: [...srgbToLinear([78 / 255, 195 / 255, 230 / 255]), 1],
+    baseColorFactor: [...srgbToLinear([177 / 255, 151 / 255, 252 / 255]), 0.54],
     unlit: true,
+    alphaMode: "BLEND",
   });
   g.defineMaterial({
     name: "orbit_today",
-    baseColorFactor: [...srgbToLinear([251 / 255, 221 / 255, 132 / 255]), 1],
+    baseColorFactor: [...srgbToLinear([251 / 255, 221 / 255, 132 / 255]), 0.72],
     unlit: true,
+    alphaMode: "BLEND",
   });
   g.defineMaterial({
     name: "sun_sphere",
-    baseColorFactor: [...srgbToLinear([1, 0.92, 0.56]), 1],
+    baseColorFactor: [...srgbToLinear([1, 0.97, 0.78]), 1],
+    emissiveFactor: srgbToLinear([1, 0.92, 0.55]),
+    emissiveStrength: 2.2,
+    metallicFactor: 0.0,
+    roughnessFactor: 1.0,
+  });
+  g.defineMaterial({
+    name: "sun_halo_inner",
+    baseColorFactor: [...srgbToLinear([1, 0.91, 0.48]), 0.34],
     unlit: true,
+    alphaMode: "BLEND",
+  });
+  g.defineMaterial({
+    name: "sun_halo_mid",
+    baseColorFactor: [...srgbToLinear([1, 0.86, 0.38]), 0.14],
+    unlit: true,
+    alphaMode: "BLEND",
+  });
+  g.defineMaterial({
+    name: "sun_halo_outer",
+    baseColorFactor: [...srgbToLinear([1, 0.82, 0.34]), 0.05],
+    unlit: true,
+    alphaMode: "BLEND",
   });
   g.defineMaterial({
     name: "sun_beam",
@@ -794,8 +990,19 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
     doubleSided: true,
     useVertexColors: true,
   });
+  if (compassPng) {
+    g.defineMaterial({
+      name: "compass_label",
+      baseColorFactor: [1, 1, 1, 1],
+      baseColorTextureIndex: 0,
+      unlit: true,
+      alphaMode: "MASK",
+      alphaCutoff: 0.45,
+      doubleSided: true,
+    });
+  }
 
-  // 1. 寄棟屋根 (全4面 正確な 5.9/10 = 30.54° 勾配, 屋根本体のみ)
+  // 1. 寄棟屋根 (全4面 正確な 5.9/10 = 30.54° 勾配, 半透明のため下面閉塞クワッドは省略)
   const apexW: Vec3 = [-ROOF_RIDGE_HX, ROOF_APEX_Y, 0];
   const apexE: Vec3 = [ROOF_RIDGE_HX, ROOF_APEX_Y, 0];
   const nwTop: Vec3 = [-ROOF_HX, ROOF_EAVE_Y, -ROOF_HZ];
@@ -814,27 +1021,26 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
   g.addQuad("roof_surface", apexE, apexW, swTop, seTop);
   g.addTriangle("roof_surface", apexW, nwTop, swTop);
 
-  // 軒先スラブ縁・下面
+  // 軒先スラブ縁
   g.addQuad("roof_trim", nwTop, neTop, neBot, nwBot);
   g.addQuad("roof_trim", neTop, seTop, seBot, neBot);
   g.addQuad("roof_trim", seTop, swTop, swBot, seBot);
   g.addQuad("roof_trim", swTop, nwTop, nwBot, swBot);
-  g.addQuad("roof_surface", nwBot, neBot, seBot, swBot);
 
   // 軒外周・大棟・隅棟ライン
   g.addTubeCurve("roof_trim", [nwTop, neTop, seTop, swTop], 0.005, true, 6);
-  g.addTubeCurve("roof_ridge", [apexW, apexE], 0.0042, false, 6);
-  g.addTubeCurve("roof_ridge", [apexW, nwTop], 0.004, false, 6);
-  g.addTubeCurve("roof_ridge", [apexW, swTop], 0.004, false, 6);
-  g.addTubeCurve("roof_ridge", [apexE, neTop], 0.004, false, 6);
-  g.addTubeCurve("roof_ridge", [apexE, seTop], 0.004, false, 6);
+  g.addTubeCurve("roof_ridge", [apexW, apexE], 0.0044, false, 6);
+  g.addTubeCurve("roof_ridge", [apexW, nwTop], 0.0042, false, 6);
+  g.addTubeCurve("roof_ridge", [apexW, swTop], 0.0042, false, 6);
+  g.addTubeCurve("roof_ridge", [apexE, neTop], 0.0042, false, 6);
+  g.addTubeCurve("roof_ridge", [apexE, seTop], 0.0042, false, 6);
 
   // 2. 太陽光パネル 15枚 (PV1〜4)
   for (const panel of PV_PANELS) {
     addSolarPanelMesh(g, panel);
   }
 
-  // 3. 地平円盤 & 外周リング & 方位目盛り & N-S/E-W 点線
+  // 3. 地平円盤 & 外周リング & 方位目盛り & N-S/E-W 点線 & 3D地平方位ラベル
   g.addDisc("horizon_disc", DOME_RADIUS, -0.003, 64);
 
   const ringPts: Vec3[] = [];
@@ -865,7 +1071,34 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
   addDashedSegment(g, "horizon_cross", [ROOF_HX + 0.025, 0.0015, 0], [0.96, 0.0015, 0], 0.0032, 0.03, 0.028);
   addDashedSegment(g, "horizon_cross", [-ROOF_HX - 0.025, 0.0015, 0], [-0.96, 0.0015, 0], 0.0032, 0.03, 0.028);
 
-  // 4. 天の子午線アーチ (南 -> 天頂 -> 北 ※東西円弧はなし)
+  if (compassPng) {
+    const placeLabel = (
+      rowIdx: number,
+      center: Vec3,
+      rightDir: Vec3,
+      upDir: Vec3,
+    ) => {
+      const halfW = 0.22;
+      const halfH = 0.055;
+      const pTL = addVec(subVec(center, scaleVec(rightDir, halfW)), scaleVec(upDir, halfH));
+      const pBL = subVec(subVec(center, scaleVec(rightDir, halfW)), scaleVec(upDir, halfH));
+      const pBR = subVec(addVec(center, scaleVec(rightDir, halfW)), scaleVec(upDir, halfH));
+      const pTR = addVec(addVec(center, scaleVec(rightDir, halfW)), scaleVec(upDir, halfH));
+      const u0 = 0.18;
+      const u1 = 0.82;
+      const v0 = (rowIdx * 128 + 14) / 512;
+      const v1 = (rowIdx * 128 + 114) / 512;
+      g.addTexturedQuad("compass_label", pTL, pBL, pBR, pTR, u0, v0, u1, v1, [0, 1, 0]);
+    };
+    const rLbl = DOME_RADIUS + 0.095;
+    // y=0.001 の地平平面上に不透明マスク描画し、常に全ての太陽軌道より背面(下)へ奥行配置
+    placeLabel(0, [0, 0.001, -rLbl], [1, 0, 0], [0, 0, -1]); // NORTH
+    placeLabel(1, [rLbl, 0.001, 0], [0, 0, -1], [-1, 0, 0]); // EAST
+    placeLabel(2, [0, 0.001, rLbl], [1, 0, 0], [0, 0, -1]); // SOUTH
+    placeLabel(3, [-rLbl, 0.001, 0], [0, 0, -1], [-1, 0, 0]); // WEST
+  }
+
+  // 4. 天の子午線アーチ (南 -> 天頂 -> 北)
   const meridianPts: Vec3[] = [];
   for (let i = 0; i <= 56; i++) {
     const a = (i / 56) * Math.PI;
@@ -880,14 +1113,14 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
   g.addTubeCurve("orbit_equinox", sampleDaylightArc(latRad, 0, DOME_RADIUS), 0.005, false, 6);
   g.addTubeCurve("orbit_winter", sampleDaylightArc(latRad, -obliqRad, DOME_RADIUS), 0.005, false, 6);
 
-  // 6. 本日の実太陽軌道 & 現在の太陽位置 + 屋根へ注ぐ半透明の光円錐
+  // 6. 本日の実太陽軌道 (太め半透明) & 大きな発光太陽球 + コロナ + 屋根へ注ぐ光円錐
   const todayRadius = DOME_RADIUS * 1.006;
   g.addTubeCurve(
     "orbit_today",
     sampleDaylightArc(latRad, snapshot.declinationRad, todayRadius),
-    0.0076,
+    0.0135,
     false,
-    6,
+    8,
   );
 
   if (snapshot.isDaylight) {
@@ -896,22 +1129,25 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
       Math.max(0, snapshot.sunVec[1]) * todayRadius,
       snapshot.sunVec[2] * todayRadius,
     ];
-    g.addSphere("sun_sphere", sunPos, 0.038, 12, 18);
+    g.addSphere("sun_sphere", sunPos, 0.062, 16, 24);
+    g.addSphere("sun_halo_inner", sunPos, 0.09, 14, 22);
+    g.addSphere("sun_halo_mid", sunPos, 0.132, 14, 22);
+    g.addSphere("sun_halo_outer", sunPos, 0.175, 12, 20);
 
     const beamTarget: Vec3 = [0, ROOF_EAVE_Y + ROOF_APEX_H * 0.45, 0];
     // 外側の淡い光の広がり
     g.addLightCone("sun_beam", sunPos, beamTarget, [
-      { t: 0.02, radius: 0.028, alpha: 0.14 },
-      { t: 0.35, radius: 0.15, alpha: 0.08 },
-      { t: 0.72, radius: 0.29, alpha: 0.03 },
-      { t: 0.96, radius: 0.38, alpha: 0.0 },
+      { t: 0.05, radius: 0.048, alpha: 0.15 },
+      { t: 0.38, radius: 0.16, alpha: 0.085 },
+      { t: 0.74, radius: 0.3, alpha: 0.032 },
+      { t: 0.96, radius: 0.39, alpha: 0.0 },
     ]);
     // 内側の少し明るい光軸
     g.addLightCone("sun_beam", sunPos, beamTarget, [
-      { t: 0.01, radius: 0.014, alpha: 0.2 },
-      { t: 0.35, radius: 0.085, alpha: 0.11 },
-      { t: 0.7, radius: 0.17, alpha: 0.04 },
-      { t: 0.93, radius: 0.23, alpha: 0.0 },
+      { t: 0.03, radius: 0.026, alpha: 0.22 },
+      { t: 0.36, radius: 0.095, alpha: 0.12 },
+      { t: 0.72, radius: 0.18, alpha: 0.045 },
+      { t: 0.93, radius: 0.24, alpha: 0.0 },
     ]);
   }
 
