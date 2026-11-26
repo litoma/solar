@@ -12,13 +12,26 @@ export interface SolarSnapshot {
 }
 
 export const PV_BASE_COLORS: Record<1 | 2 | 3 | 4, RGB> = {
-  1: [240 / 255, 160 / 255, 75 / 255],
-  2: [76 / 255, 195 / 255, 217 / 255],
-  3: [111 / 255, 208 / 255, 140 / 255],
-  4: [238 / 255, 127 / 255, 107 / 255],
+  1: [240 / 255, 160 / 255, 75 / 255], // #f0a04b
+  2: [76 / 255, 195 / 255, 217 / 255], // #4cc3d9
+  3: [111 / 255, 208 / 255, 140 / 255], // #6fd08c
+  4: [238 / 255, 127 / 255, 107 / 255], // #ee7f6b
 };
 
-// 2D SVG (190..450 x 106..334, center 320,220) を 30.5° 寄棟屋根として3D空間へマッピング (1.5倍サイズ)
+function srgbChanToLinear(c: number): number {
+  return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+
+/** sRGB色 (CSS hex相当) を glTF Linear 色空間へ変換 */
+export function srgbToLinear(rgb: RGB, scale = 1): RGB {
+  return [
+    srgbChanToLinear(rgb[0]) * scale,
+    srgbChanToLinear(rgb[1]) * scale,
+    srgbChanToLinear(rgb[2]) * scale,
+  ];
+}
+
+// 2D SVG (190..450 x 106..334, center 320,220) を 実際の 5.9寸 (30.54°) 寄棟屋根として3D空間へマッピング
 const SVG_CX = 320;
 const SVG_CY = 220;
 const SVG_HALF_W = 130;
@@ -27,9 +40,11 @@ const SVG_HALF_H = 114;
 const DOME_RADIUS = 1.0;
 const ROOF_HX = 0.415;
 const ROOF_HZ = ROOF_HX * (SVG_HALF_H / SVG_HALF_W); // ~0.3639
+const ROOF_SLOPE = 0.59; // 正確な 5.9/10 勾配 (atan(0.59) = 30.54°)
 const ROOF_EAVE_Y = 0.022;
-const ROOF_APEX_H = 0.232; // ~30.5° 勾配 (5.9/10勾配に対応)
+const ROOF_APEX_H = ROOF_HZ * ROOF_SLOPE; // 全4面同一の 5.9寸 勾配
 const ROOF_APEX_Y = ROOF_EAVE_Y + ROOF_APEX_H;
+const ROOF_RIDGE_HX = ROOF_HX - ROOF_HZ; // ~0.0511 (東西方向の大棟半長)
 
 interface PanelRect {
   pv: 1 | 2 | 3 | 4;
@@ -177,12 +192,14 @@ interface MaterialDef {
   unlit?: boolean;
   alphaMode?: "OPAQUE" | "BLEND";
   doubleSided?: boolean;
+  useVertexColors?: boolean;
 }
 
 interface PrimitiveBucket {
   materialIndex: number;
   positions: number[];
   normals: number[];
+  colors: number[];
   indices: number[];
 }
 
@@ -199,6 +216,7 @@ class GlbBuilder {
       materialIndex: idx,
       positions: [],
       normals: [],
+      colors: [],
       indices: [],
     });
     return idx;
@@ -302,6 +320,51 @@ class GlbBuilder {
     }
   }
 
+  /** 頂点アルファ減衰付きの柔らかい円錐光線メッシュ (太陽 -> 屋根) */
+  addLightCone(
+    mat: string,
+    from: Vec3,
+    to: Vec3,
+    stops: Array<{ t: number; radius: number; alpha: number }>,
+    radialSegs = 24,
+  ): void {
+    const b = this.bucket(mat);
+    const axis = subVec(to, from);
+    const axisNorm = normVec(axis);
+    const upGuess: Vec3 = Math.abs(axisNorm[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+    const uVec = normVec(crossVec(upGuess, axisNorm));
+    const vVec = normVec(crossVec(axisNorm, uVec));
+
+    const ringStart = b.positions.length / 3;
+    for (const stop of stops) {
+      const center = addVec(from, scaleVec(axis, stop.t));
+      for (let j = 0; j < radialSegs; j++) {
+        const ang = (j / radialSegs) * Math.PI * 2;
+        const radial = addVec(
+          scaleVec(uVec, Math.cos(ang)),
+          scaleVec(vVec, Math.sin(ang)),
+        );
+        const pos = addVec(center, scaleVec(radial, stop.radius));
+        b.positions.push(pos[0], pos[1], pos[2]);
+        b.normals.push(radial[0], radial[1], radial[2]);
+        b.colors.push(1, 1, 1, stop.alpha);
+      }
+    }
+
+    for (let i = 0; i < stops.length - 1; i++) {
+      const r0 = ringStart + i * radialSegs;
+      const r1 = ringStart + (i + 1) * radialSegs;
+      for (let j = 0; j < radialSegs; j++) {
+        const jNext = (j + 1) % radialSegs;
+        const i00 = r0 + j;
+        const i01 = r0 + jNext;
+        const i10 = r1 + j;
+        const i11 = r1 + jNext;
+        b.indices.push(i00, i01, i11, i00, i11, i10);
+      }
+    }
+  }
+
   addSphere(mat: string, center: Vec3, radius: number, latSegs = 12, lonSegs = 20): void {
     const b = this.bucket(mat);
     const startIdx = b.positions.length / 3;
@@ -350,7 +413,7 @@ class GlbBuilder {
       max?: number[];
     }> = [];
     const primitives: Array<{
-      attributes: { POSITION: number; NORMAL: number };
+      attributes: { POSITION: number; NORMAL: number; COLOR_0?: number };
       indices: number;
       material: number;
     }> = [];
@@ -395,6 +458,21 @@ class GlbBuilder {
 
       const posView = appendAligned(new Uint8Array(posArr.buffer), 34962);
       const normView = appendAligned(new Uint8Array(normArr.buffer), 34962);
+
+      let colorAcc: number | undefined;
+      if (bk.colors.length > 0) {
+        const colArr = new Float32Array(bk.colors);
+        const colView = appendAligned(new Uint8Array(colArr.buffer), 34962);
+        colorAcc = accessors.length;
+        accessors.push({
+          bufferView: colView,
+          byteOffset: 0,
+          componentType: 5126,
+          count: colArr.length / 4,
+          type: "VEC4",
+        });
+      }
+
       const idxView = appendAligned(new Uint8Array(idxArr.buffer), 34963);
 
       const posAcc = accessors.length;
@@ -426,8 +504,14 @@ class GlbBuilder {
         type: "SCALAR",
       });
 
+      const attrs: { POSITION: number; NORMAL: number; COLOR_0?: number } = {
+        POSITION: posAcc,
+        NORMAL: normAcc,
+      };
+      if (colorAcc !== undefined) attrs.COLOR_0 = colorAcc;
+
       primitives.push({
-        attributes: { POSITION: posAcc, NORMAL: normAcc },
+        attributes: attrs,
         indices: idxAcc,
         material: bk.materialIndex,
       });
@@ -438,7 +522,7 @@ class GlbBuilder {
         name: m.name,
         pbrMetallicRoughness: {
           baseColorFactor: m.baseColorFactor,
-          metallicFactor: m.metallicFactor ?? (m.unlit ? 0 : 0.12),
+          metallicFactor: m.metallicFactor ?? (m.unlit ? 0 : 0.08),
           roughnessFactor: m.roughnessFactor ?? (m.unlit ? 1 : 0.72),
         },
       };
@@ -495,8 +579,11 @@ class GlbBuilder {
 function roofPointFromSvg(sx: number, sy: number): Vec3 {
   const u = (sx - SVG_CX) / SVG_HALF_W;
   const v = (sy - SVG_CY) / SVG_HALF_H;
-  const y = ROOF_EAVE_Y + ROOF_APEX_H * (1 - Math.max(Math.abs(u), Math.abs(v)));
-  return [u * ROOF_HX, y, v * ROOF_HZ];
+  const x = u * ROOF_HX;
+  const z = v * ROOF_HZ;
+  const distFromEave = Math.min(ROOF_HX - Math.abs(x), ROOF_HZ - Math.abs(z));
+  const y = ROOF_EAVE_Y + Math.max(0, distFromEave) * ROOF_SLOPE;
+  return [x, y, z];
 }
 
 function addDashedSegment(
@@ -555,10 +642,9 @@ function addSolarPanelMesh(g: GlbBuilder, panel: PanelRect): void {
   const p11 = roofPointFromSvg(panel.x + panel.w, panel.y + panel.h);
   const p01 = roofPointFromSvg(panel.x, panel.y + panel.h);
 
-  // 外向き法線 (+N): CCW (p00 -> p01 -> p11 -> p10)
   const n = normVec(crossVec(subVec(p01, p00), subVec(p11, p00)));
   const glassLift = scaleVec(n, 0.005);
-  const frameLift = scaleVec(n, 0.0082);
+  const frameLift = scaleVec(n, 0.0085);
 
   const cx = (p00[0] + p10[0] + p11[0] + p01[0]) / 4;
   const cy = (p00[1] + p10[1] + p11[1] + p01[1]) / 4;
@@ -608,101 +694,110 @@ function addSolarPanelMesh(g: GlbBuilder, panel: PanelRect): void {
 }
 
 /**
- * 屋根＋太陽光パネル15枚＋天球半球＋本日の実太陽軌道を含む glTF Binary (.glb) を生成
+ * 5.9寸(30.54°)寄棟屋根＋パネル15枚＋天球半球＋季節/当日軌道＋太陽照射光線を含む .glb を生成
  */
 export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Array {
   const g = new GlbBuilder();
 
-  // 屋根本体: 底面円盤よりしっかり濃い(暗い)チャコール
+  // 屋根本体: 底面円盤よりしっかり暗いダークチャコール (Linear色空間で指定)
   g.defineMaterial({
     name: "roof_surface",
-    baseColorFactor: [0.042, 0.045, 0.056, 1],
-    metallicFactor: 0.04,
-    roughnessFactor: 0.9,
+    baseColorFactor: [0.005, 0.0055, 0.007, 1],
+    metallicFactor: 0.0,
+    roughnessFactor: 0.98,
   });
   g.defineMaterial({
     name: "roof_trim",
-    baseColorFactor: [0.22, 0.24, 0.29, 1],
-    metallicFactor: 0.15,
-    roughnessFactor: 0.72,
+    baseColorFactor: [0.032, 0.035, 0.044, 1],
+    metallicFactor: 0.05,
+    roughnessFactor: 0.85,
   });
   g.defineMaterial({
     name: "roof_ridge",
-    baseColorFactor: [0.23, 0.25, 0.3, 1],
-    unlit: true,
-  });
-  g.defineMaterial({
-    name: "roof_apex_dot",
-    baseColorFactor: [142 / 255, 147 / 255, 164 / 255, 1],
+    baseColorFactor: [0.04, 0.044, 0.055, 1],
     unlit: true,
   });
 
-  // PV1〜4 マテリアル: 発色をより濃く鮮やかに
+  // PV1〜4 マテリアル: 下部カードスウォッチと同じ鮮やかな sRGB->Linear 発色
   for (const pv of [1, 2, 3, 4] as const) {
-    const [r, gr, b] = PV_BASE_COLORS[pv];
+    const linFill = srgbToLinear(PV_BASE_COLORS[pv], 0.56);
+    const linEmissive = srgbToLinear(PV_BASE_COLORS[pv], 0.44);
+    const linEdge = srgbToLinear(PV_BASE_COLORS[pv], 1.0);
     g.defineMaterial({
       name: `pv${pv}_fill`,
-      baseColorFactor: [0.05 + r * 0.48, 0.05 + gr * 0.48, 0.06 + b * 0.48, 1],
-      emissiveFactor: [r * 0.18, gr * 0.18, b * 0.18],
-      metallicFactor: 0.22,
-      roughnessFactor: 0.32,
+      baseColorFactor: [linFill[0], linFill[1], linFill[2], 1],
+      emissiveFactor: linEmissive,
+      metallicFactor: 0.08,
+      roughnessFactor: 0.65,
     });
     g.defineMaterial({
       name: `pv${pv}_edge`,
-      baseColorFactor: [r, gr, b, 1],
-      emissiveFactor: [r * 0.65, gr * 0.65, b * 0.65],
-      metallicFactor: 0.12,
-      roughnessFactor: 0.4,
+      baseColorFactor: [linEdge[0], linEdge[1], linEdge[2], 1],
+      emissiveFactor: linEdge,
+      unlit: true,
     });
   }
 
-  // 天球・本日軌道用マテリアル (底面は屋根より明るいスレート)
+  // 天球・軌道・光線マテリアル (Linear色空間)
   g.defineMaterial({
     name: "horizon_disc",
-    baseColorFactor: [0.22, 0.24, 0.3, 0.44],
+    baseColorFactor: [0.055, 0.062, 0.082, 0.72],
     unlit: true,
     alphaMode: "BLEND",
     doubleSided: true,
   });
   g.defineMaterial({
     name: "horizon_ring",
-    baseColorFactor: [0.45, 0.48, 0.56, 1],
+    baseColorFactor: [...srgbToLinear([0.46, 0.5, 0.58]), 1],
     unlit: true,
   });
   g.defineMaterial({
     name: "dome_arch",
-    baseColorFactor: [0.36, 0.39, 0.48, 1],
-    unlit: true,
-  });
-  g.defineMaterial({
-    name: "dome_sub_arch",
-    baseColorFactor: [0.22, 0.24, 0.31, 1],
+    baseColorFactor: [...srgbToLinear([0.42, 0.45, 0.54]), 1],
     unlit: true,
   });
   g.defineMaterial({
     name: "horizon_cross",
-    baseColorFactor: [0.38, 0.41, 0.49, 1],
+    baseColorFactor: [...srgbToLinear([0.38, 0.41, 0.49]), 1],
+    unlit: true,
+  });
+  g.defineMaterial({
+    name: "orbit_summer",
+    baseColorFactor: [...srgbToLinear([238 / 255, 127 / 255, 107 / 255]), 1],
+    unlit: true,
+  });
+  g.defineMaterial({
+    name: "orbit_equinox",
+    baseColorFactor: [...srgbToLinear([69 / 255, 185 / 255, 136 / 255]), 1],
+    unlit: true,
+  });
+  g.defineMaterial({
+    name: "orbit_winter",
+    baseColorFactor: [...srgbToLinear([78 / 255, 195 / 255, 230 / 255]), 1],
     unlit: true,
   });
   g.defineMaterial({
     name: "orbit_today",
-    baseColorFactor: [251 / 255, 221 / 255, 132 / 255, 1],
+    baseColorFactor: [...srgbToLinear([251 / 255, 221 / 255, 132 / 255]), 1],
     unlit: true,
   });
   g.defineMaterial({
     name: "sun_sphere",
-    baseColorFactor: [1, 0.91, 0.52, 1],
+    baseColorFactor: [...srgbToLinear([1, 0.92, 0.56]), 1],
     unlit: true,
   });
   g.defineMaterial({
     name: "sun_beam",
-    baseColorFactor: [251 / 255, 221 / 255, 132 / 255, 0.38],
+    baseColorFactor: [...srgbToLinear([1.0, 0.87, 0.48]), 1],
     unlit: true,
     alphaMode: "BLEND",
+    doubleSided: true,
+    useVertexColors: true,
   });
 
-  // 1. 寄棟屋根 (屋根本体のみ、1.5倍サイズ)
-  const apex: Vec3 = [0, ROOF_APEX_Y, 0];
+  // 1. 寄棟屋根 (全4面 正確な 5.9/10 = 30.54° 勾配, 屋根本体のみ)
+  const apexW: Vec3 = [-ROOF_RIDGE_HX, ROOF_APEX_Y, 0];
+  const apexE: Vec3 = [ROOF_RIDGE_HX, ROOF_APEX_Y, 0];
   const nwTop: Vec3 = [-ROOF_HX, ROOF_EAVE_Y, -ROOF_HZ];
   const neTop: Vec3 = [ROOF_HX, ROOF_EAVE_Y, -ROOF_HZ];
   const seTop: Vec3 = [ROOF_HX, ROOF_EAVE_Y, ROOF_HZ];
@@ -713,22 +808,26 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
   const seBot: Vec3 = [ROOF_HX, 0, ROOF_HZ];
   const swBot: Vec3 = [-ROOF_HX, 0, ROOF_HZ];
 
-  g.addTriangle("roof_surface", apex, neTop, nwTop);
-  g.addTriangle("roof_surface", apex, seTop, neTop);
-  g.addTriangle("roof_surface", apex, swTop, seTop);
-  g.addTriangle("roof_surface", apex, nwTop, swTop);
+  // 北台形・東三角・南台形・西三角
+  g.addQuad("roof_surface", apexW, apexE, neTop, nwTop);
+  g.addTriangle("roof_surface", apexE, seTop, neTop);
+  g.addQuad("roof_surface", apexE, apexW, swTop, seTop);
+  g.addTriangle("roof_surface", apexW, nwTop, swTop);
 
+  // 軒先スラブ縁・下面
   g.addQuad("roof_trim", nwTop, neTop, neBot, nwBot);
   g.addQuad("roof_trim", neTop, seTop, seBot, neBot);
   g.addQuad("roof_trim", seTop, swTop, swBot, seBot);
   g.addQuad("roof_trim", swTop, nwTop, nwBot, swBot);
   g.addQuad("roof_surface", nwBot, neBot, seBot, swBot);
 
-  g.addTubeCurve("roof_trim", [nwTop, neTop, seTop, swTop], 0.0052, true, 6);
-  for (const corner of [nwTop, neTop, seTop, swTop]) {
-    g.addTubeCurve("roof_ridge", [apex, corner], 0.0042, false, 6);
-  }
-  g.addSphere("roof_apex_dot", apex, 0.012, 8, 12);
+  // 軒外周・大棟・隅棟ライン
+  g.addTubeCurve("roof_trim", [nwTop, neTop, seTop, swTop], 0.005, true, 6);
+  g.addTubeCurve("roof_ridge", [apexW, apexE], 0.0042, false, 6);
+  g.addTubeCurve("roof_ridge", [apexW, nwTop], 0.004, false, 6);
+  g.addTubeCurve("roof_ridge", [apexW, swTop], 0.004, false, 6);
+  g.addTubeCurve("roof_ridge", [apexE, neTop], 0.004, false, 6);
+  g.addTubeCurve("roof_ridge", [apexE, seTop], 0.004, false, 6);
 
   // 2. 太陽光パネル 15枚 (PV1〜4)
   for (const panel of PV_PANELS) {
@@ -766,24 +865,27 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
   addDashedSegment(g, "horizon_cross", [ROOF_HX + 0.025, 0.0015, 0], [0.96, 0.0015, 0], 0.0032, 0.03, 0.028);
   addDashedSegment(g, "horizon_cross", [-ROOF_HX - 0.025, 0.0015, 0], [-0.96, 0.0015, 0], 0.0032, 0.03, 0.028);
 
-  // 4. 天球ドーム枠 (南北アーチ + 東西アーチ)
+  // 4. 天の子午線アーチ (南 -> 天頂 -> 北 ※東西円弧はなし)
   const meridianPts: Vec3[] = [];
-  const primeVertPts: Vec3[] = [];
   for (let i = 0; i <= 56; i++) {
     const a = (i / 56) * Math.PI;
     meridianPts.push([0, Math.sin(a) * DOME_RADIUS, Math.cos(a) * DOME_RADIUS]);
-    primeVertPts.push([Math.cos(a) * DOME_RADIUS, Math.sin(a) * DOME_RADIUS, 0]);
   }
-  g.addTubeCurve("dome_arch", meridianPts, 0.0048, false, 6);
-  g.addTubeCurve("dome_sub_arch", primeVertPts, 0.003, false, 5);
+  g.addTubeCurve("dome_arch", meridianPts, 0.0052, false, 6);
 
-  // 5. 本日の実太陽軌道 & 現在の太陽位置
+  // 5. 季節の太陽軌道 (夏至 +23.44° / 春分・秋分 0° / 冬至 -23.44°)
   const latRad = (lat * Math.PI) / 180;
+  const obliqRad = (23.44 * Math.PI) / 180;
+  g.addTubeCurve("orbit_summer", sampleDaylightArc(latRad, obliqRad, DOME_RADIUS), 0.005, false, 6);
+  g.addTubeCurve("orbit_equinox", sampleDaylightArc(latRad, 0, DOME_RADIUS), 0.005, false, 6);
+  g.addTubeCurve("orbit_winter", sampleDaylightArc(latRad, -obliqRad, DOME_RADIUS), 0.005, false, 6);
+
+  // 6. 本日の実太陽軌道 & 現在の太陽位置 + 屋根へ注ぐ半透明の光円錐
   const todayRadius = DOME_RADIUS * 1.006;
   g.addTubeCurve(
     "orbit_today",
     sampleDaylightArc(latRad, snapshot.declinationRad, todayRadius),
-    0.008,
+    0.0076,
     false,
     6,
   );
@@ -794,8 +896,23 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
       Math.max(0, snapshot.sunVec[1]) * todayRadius,
       snapshot.sunVec[2] * todayRadius,
     ];
-    g.addSphere("sun_sphere", sunPos, 0.04, 12, 18);
-    g.addTubeCurve("sun_beam", [sunPos, apex], 0.0026, false, 5);
+    g.addSphere("sun_sphere", sunPos, 0.038, 12, 18);
+
+    const beamTarget: Vec3 = [0, ROOF_EAVE_Y + ROOF_APEX_H * 0.45, 0];
+    // 外側の淡い光の広がり
+    g.addLightCone("sun_beam", sunPos, beamTarget, [
+      { t: 0.02, radius: 0.028, alpha: 0.14 },
+      { t: 0.35, radius: 0.15, alpha: 0.08 },
+      { t: 0.72, radius: 0.29, alpha: 0.03 },
+      { t: 0.96, radius: 0.38, alpha: 0.0 },
+    ]);
+    // 内側の少し明るい光軸
+    g.addLightCone("sun_beam", sunPos, beamTarget, [
+      { t: 0.01, radius: 0.014, alpha: 0.2 },
+      { t: 0.35, radius: 0.085, alpha: 0.11 },
+      { t: 0.7, radius: 0.17, alpha: 0.04 },
+      { t: 0.93, radius: 0.23, alpha: 0.0 },
+    ]);
   }
 
   return g.buildGlb();

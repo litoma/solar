@@ -360,8 +360,8 @@
                 disable-pan
                 touch-action="pan-y"
                 interaction-prompt="none"
-                camera-orbit="58deg 66deg 84%"
-                camera-target="0m 0.34m 0m"
+                camera-orbit="58deg 65deg 94%"
+                camera-target="0m 0.18m 0m"
                 min-camera-orbit="auto 6deg auto"
                 max-camera-orbit="auto 86deg auto"
                 field-of-view="38deg"
@@ -377,11 +377,17 @@
                 <div slot="hotspot-west" class="pv-3d-dir" data-position="-1.045m 0.015m 0m" data-normal="0m 1m 0m">WEST</div>
               </model-viewer>
 
-              <div class="pv-3d-meta">
-                <div class="pv-3d-legend">
+              <div class="pv-3d-legend-card" aria-label="Solar Orbit Legend">
+                <div class="pv-3d-legend-list">
                   <span class="pv-3d-leg-item"><span class="pv-3d-leg-line is-today"></span>TODAY</span>
-                  <span class="pv-3d-leg-item pv-3d-sun-readout" id="pv-3d-sun-readout">ALT --° · AZ --°</span>
+                  <span class="pv-3d-leg-item"><span class="pv-3d-leg-line is-summer"></span>SUMMER</span>
+                  <span class="pv-3d-leg-item"><span class="pv-3d-leg-line is-equinox"></span>EQUINOX</span>
+                  <span class="pv-3d-leg-item"><span class="pv-3d-leg-line is-winter"></span>WINTER</span>
                 </div>
+                <span class="pv-3d-leg-item pv-3d-sun-readout" id="pv-3d-sun-readout">ALT --° · AZ --°</span>
+              </div>
+
+              <div class="pv-3d-meta">
                 <div class="pv-roof-pitch">
                   <span class="pv-roof-pitch-label">ROOF PITCH</span>
                   <span class="pv-roof-pitch-val">30.5° (5.9/10 pitch)</span>

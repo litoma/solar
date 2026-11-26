@@ -1033,22 +1033,26 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
   white-space: nowrap;
 }
 
-.pv-3d-meta {
+.pv-3d-legend-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 6px 12px;
-  padding: 0 4px;
-}
-
-.pv-3d-legend {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
+  background-color: #1c1e23;
+  border: 1px solid #3c3f4a;
+  border-radius: 12px;
+  padding: 7px 12px;
   font-family: var(--font-mono);
   font-size: 11px;
   color: #c2c5d0;
+}
+
+.pv-3d-legend-list {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
 }
 
 .pv-3d-leg-item {
@@ -1058,15 +1062,38 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
   white-space: nowrap;
 }
 
-.pv-3d-leg-line.is-today {
+.pv-3d-leg-line {
   width: 14px;
   height: 2.5px;
   border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.pv-3d-leg-line.is-today {
   background-color: #fbdd84;
+}
+
+.pv-3d-leg-line.is-summer {
+  background-color: #ee7f6b;
+}
+
+.pv-3d-leg-line.is-equinox {
+  background-color: #45b988;
+}
+
+.pv-3d-leg-line.is-winter {
+  background-color: #4ec3e6;
 }
 
 .pv-3d-sun-readout {
   color: #9397a5;
+}
+
+.pv-3d-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 4px;
 }
 
 .pv-roof-pitch {
@@ -2141,7 +2168,7 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
 
   /* スマホ表示では3Dビューの高さとメタ情報をコンパクトに調整 */
   model-viewer.pv-roof-viewer {
-    height: 290px;
+    height: 296px;
   }
 
   .pv-3d-dir {
@@ -2149,12 +2176,20 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
     padding: 1.5px 5px;
   }
 
-  .pv-3d-meta {
-    justify-content: space-between;
-    gap: 4px 8px;
+  .pv-3d-legend-card {
+    padding: 6px 10px;
+    gap: 5px 10px;
+    font-size: 10.5px;
   }
 
-  .pv-3d-legend,
+  .pv-3d-legend-list {
+    gap: 4px 10px;
+  }
+
+  .pv-3d-meta {
+    justify-content: flex-end;
+  }
+
   .pv-roof-pitch {
     font-size: 10.5px;
   }

@@ -4,6 +4,7 @@ import {
   PV_BASE_COLORS,
   buildRoofSolarGlb,
   computeSolarSnapshot,
+  srgbToLinear,
   type RGB,
 } from "./RoofModel3D";
 import { mountOrUpdateSimulationChart } from "./SimulationChart";
@@ -122,39 +123,33 @@ function applyPv3dMaterials(mv: SolarModelViewerElement | null): void {
   const model = mv?.model;
   if (!model) return;
   for (const pv of [1, 2, 3, 4] as const) {
-    const [r, g, b] = PV_BASE_COLORS[pv];
+    const base = PV_BASE_COLORS[pv];
     const active = pvActiveState[pv];
     const hovered = pvHoveredIdx === pv;
     const fillMat = model.getMaterialByName(`pv${pv}_fill`);
     const edgeMat = model.getMaterialByName(`pv${pv}_edge`);
-    if (hovered) {
-      fillMat?.pbrMetallicRoughness.setBaseColorFactor([
-        Math.min(1, 0.08 + r * 0.8),
-        Math.min(1, 0.08 + g * 0.8),
-        Math.min(1, 0.09 + b * 0.8),
-        1,
-      ]);
-      fillMat?.setEmissiveFactor([r * 0.55, g * 0.55, b * 0.55]);
-      edgeMat?.setEmissiveFactor([r * 1.0, g * 1.0, b * 1.0]);
-    } else if (active) {
-      fillMat?.pbrMetallicRoughness.setBaseColorFactor([
-        Math.min(1, 0.06 + r * 0.64),
-        Math.min(1, 0.06 + g * 0.64),
-        Math.min(1, 0.07 + b * 0.64),
-        1,
-      ]);
-      fillMat?.setEmissiveFactor([r * 0.36, g * 0.36, b * 0.36]);
-      edgeMat?.setEmissiveFactor([r * 0.88, g * 0.88, b * 0.88]);
-    } else {
-      fillMat?.pbrMetallicRoughness.setBaseColorFactor([
-        0.05 + r * 0.48,
-        0.05 + g * 0.48,
-        0.06 + b * 0.48,
-        1,
-      ]);
-      fillMat?.setEmissiveFactor([r * 0.18, g * 0.18, b * 0.18]);
-      edgeMat?.setEmissiveFactor([r * 0.65, g * 0.65, b * 0.65]);
-    }
+    const fillScale = hovered ? 0.92 : active ? 0.74 : 0.56;
+    const emissiveScale = hovered ? 0.92 : active ? 0.68 : 0.44;
+    const edgeScale = hovered ? 1.35 : active ? 1.15 : 1.0;
+
+    const linFill = srgbToLinear(base, fillScale);
+    const linEmissive = srgbToLinear(base, emissiveScale);
+    const linEdge = srgbToLinear(base, edgeScale);
+
+    fillMat?.pbrMetallicRoughness.setBaseColorFactor([
+      linFill[0],
+      linFill[1],
+      linFill[2],
+      1,
+    ]);
+    fillMat?.setEmissiveFactor(linEmissive);
+    edgeMat?.pbrMetallicRoughness.setBaseColorFactor([
+      Math.min(1.5, linEdge[0]),
+      Math.min(1.5, linEdge[1]),
+      Math.min(1.5, linEdge[2]),
+      1,
+    ]);
+    edgeMat?.setEmissiveFactor(linEdge);
   }
 }
 
@@ -346,6 +341,10 @@ const AVG_ARROW_DOWN_LEFT =
   `<svg class="ef-avg-arrow" viewBox="0 0 12 12" fill="none" aria-hidden="true">` +
   `<path d="M9.5 2.5L2.5 9.5M7.5 9.5H2.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>` +
   `</svg>`;
+const AVG_ARROW_FLAT_RIGHT =
+  `<svg class="ef-avg-arrow" viewBox="0 0 12 12" fill="none" aria-hidden="true">` +
+  `<path d="M2 6H10M6.8 2.8L10 6L6.8 9.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>` +
+  `</svg>`;
 
 function kwhDayWithAvgHtml(
   kwh: number,
@@ -361,7 +360,11 @@ function kwhDayWithAvgHtml(
   }
   const pct = Math.round(((kwh - monthlyAvg) / monthlyAvg) * 100);
   const arrow =
-    pct > 0 ? AVG_ARROW_UP_RIGHT : pct < 0 ? AVG_ARROW_DOWN_LEFT : "";
+    pct > 0
+      ? AVG_ARROW_UP_RIGHT
+      : pct < 0
+        ? AVG_ARROW_DOWN_LEFT
+        : AVG_ARROW_FLAT_RIGHT;
   const cls = pct > 0 ? "is-pos" : pct < 0 ? "is-neg" : "is-flat";
   return `${base}<span class="ef-avg-delta ${cls}">${arrow}${Math.abs(pct)}%<span class="ef-avg-label">Avg.</span></span>`;
 }
