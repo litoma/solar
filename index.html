@@ -360,7 +360,7 @@
                 disable-pan
                 touch-action="pan-y"
                 interaction-prompt="none"
-                camera-orbit="58deg 65deg 92%"
+                camera-orbit="58deg 65deg 94%"
                 camera-target="0m 0.18m 0m"
                 min-camera-orbit="auto 6deg auto"
                 max-camera-orbit="auto 86deg auto"
@@ -370,7 +370,12 @@
                 shadow-intensity="0"
                 exposure="1.0"
                 tone-mapping="neutral"
-                aria-label="3D Roof & Solar Orbit Monitor"></model-viewer>
+                aria-label="3D Roof & Solar Orbit Monitor">
+                <div slot="hotspot-north" class="pv-3d-dir" data-position="0m 0.01m -1.06m" data-normal="0m 1m 0m">NORTH</div>
+                <div slot="hotspot-east" class="pv-3d-dir" data-position="1.06m 0.01m 0m" data-normal="0m 1m 0m">EAST</div>
+                <div slot="hotspot-south" class="pv-3d-dir" data-position="0m 0.01m 1.06m" data-normal="0m 1m 0m">SOUTH</div>
+                <div slot="hotspot-west" class="pv-3d-dir" data-position="-1.06m 0.01m 0m" data-normal="0m 1m 0m">WEST</div>
+              </model-viewer>
 
               <div class="pv-3d-legend-card" aria-label="Solar Orbit Legend">
                 <div class="pv-3d-legend-list">
@@ -400,13 +405,7 @@
                   </span>
                   <span class="pv-quad-dir">WEST</span>
                 </div>
-                <div class="pv-quad-submeta">
-                  <span class="pv-quad-count">5 panels</span>
-                  <span class="pv-quad-models">
-                    <span class="pv-model-pill">465</span>
-                    <span class="pv-model-pill">310</span>
-                  </span>
-                </div>
+                <div class="pv-quad-count">5 panels</div>
                 <div class="pv-quad-kw" id="pv1-w">0.00<span class="ef-unit-sm">kW</span></div>
                 <div class="pv-quad-day" id="pv1-day">0.00 kWh/d</div>
               </div>
@@ -419,13 +418,7 @@
                   </span>
                   <span class="pv-quad-dir">EAST</span>
                 </div>
-                <div class="pv-quad-submeta">
-                  <span class="pv-quad-count">4 panels</span>
-                  <span class="pv-quad-models">
-                    <span class="pv-model-pill">465</span>
-                    <span class="pv-model-pill">350</span>
-                  </span>
-                </div>
+                <div class="pv-quad-count">4 panels</div>
                 <div class="pv-quad-kw" id="pv2-w">0.00<span class="ef-unit-sm">kW</span></div>
                 <div class="pv-quad-day" id="pv2-day">0.00 kWh/d</div>
               </div>
@@ -438,12 +431,7 @@
                   </span>
                   <span class="pv-quad-dir">WEST</span>
                 </div>
-                <div class="pv-quad-submeta">
-                  <span class="pv-quad-count">3 panels</span>
-                  <span class="pv-quad-models">
-                    <span class="pv-model-pill">465</span>
-                  </span>
-                </div>
+                <div class="pv-quad-count">3 panels</div>
                 <div class="pv-quad-kw" id="pv3-w">0.00<span class="ef-unit-sm">kW</span></div>
                 <div class="pv-quad-day" id="pv3-day">0.00 kWh/d</div>
               </div>
@@ -456,12 +444,7 @@
                   </span>
                   <span class="pv-quad-dir">NORTH</span>
                 </div>
-                <div class="pv-quad-submeta">
-                  <span class="pv-quad-count">3 panels</span>
-                  <span class="pv-quad-models">
-                    <span class="pv-model-pill">445</span>
-                  </span>
-                </div>
+                <div class="pv-quad-count">3 panels</div>
                 <div class="pv-quad-kw" id="pv4-w">0.00<span class="ef-unit-sm">kW</span></div>
                 <div class="pv-quad-day" id="pv4-day">0.00 kWh/d</div>
               </div>
@@ -535,7 +518,7 @@
                     <text x="117" y="32" class="pv-dim-role" dominant-baseline="central">COMBINATION</text>
                     <text x="135" y="46.5" class="pv-dim-model" text-anchor="end" dominant-baseline="central">CS6.2-32TM-</text>
                     <rect x="136.5" y="40" width="21.5" height="13" rx="2.5" class="pv-dim-suffix-box" />
-                    <text x="147.25" y="46.5" class="pv-dim-model" dominant-baseline="central">310</text>
+                    <text x="147.25" y="46.5" class="pv-dim-model" text-anchor="middle" dominant-baseline="central">310</text>
                     <text x="117" y="61" class="pv-dim-weight" dominant-baseline="central">14.7 kg</text>
                   </g>
 
@@ -550,11 +533,11 @@
                     <text x="117" y="139" class="pv-dim-role is-main" dominant-baseline="central">MAIN MODEL</text>
                     <text x="135" y="153" class="pv-dim-model" text-anchor="end" dominant-baseline="central">CS6.2-48TM-</text>
                     <rect x="136.5" y="146.5" width="21.5" height="13" rx="2.5" class="pv-dim-suffix-box" />
-                    <text x="147.25" y="153" class="pv-dim-model" dominant-baseline="central">465</text>
+                    <text x="147.25" y="153" class="pv-dim-model" text-anchor="middle" dominant-baseline="central">465</text>
                     <text x="117" y="169" class="pv-dim-role is-sub" dominant-baseline="central">ANTI-GLARE MODEL</text>
                     <text x="135" y="182" class="pv-dim-model" text-anchor="end" dominant-baseline="central">CS6.2-48TM-</text>
                     <rect x="136.5" y="175.5" width="21.5" height="13" rx="2.5" class="pv-dim-suffix-box" />
-                    <text x="147.25" y="182" class="pv-dim-model" dominant-baseline="central">445</text>
+                    <text x="147.25" y="182" class="pv-dim-model" text-anchor="middle" dominant-baseline="central">445</text>
                     <text x="117" y="199" class="pv-dim-weight" dominant-baseline="central">21.3 kg</text>
                   </g>
 
@@ -569,7 +552,7 @@
                     <text x="302.5" y="154" class="pv-dim-role" dominant-baseline="central">COMBINATION</text>
                     <text x="320.5" y="168.5" class="pv-dim-model" text-anchor="end" dominant-baseline="central">CS6.2-36TM-</text>
                     <rect x="322" y="162" width="21.5" height="13" rx="2.5" class="pv-dim-suffix-box" />
-                    <text x="332.75" y="168.5" class="pv-dim-model" dominant-baseline="central">350</text>
+                    <text x="332.75" y="168.5" class="pv-dim-model" text-anchor="middle" dominant-baseline="central">350</text>
                     <text x="302.5" y="184" class="pv-dim-weight" dominant-baseline="central">16.3 kg</text>
                   </g>
 

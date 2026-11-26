@@ -1015,15 +1015,36 @@ model-viewer.pv-roof-viewer {
   touch-action: pan-y;
 }
 
+model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
+  display: none;
+}
+
+.pv-3d-dir {
+  pointer-events: none;
+  user-select: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: #fbdd84;
+  background-color: rgba(15, 16, 18, 0.78);
+  padding: 2px 6px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
 .pv-3d-legend-card {
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
   gap: 6px;
   background-color: #1c1e23;
   border: 1px solid #3c3f4a;
   border-radius: 12px;
-  padding: 8px 14px;
+  padding: 8px 16px;
   font-family: var(--font-mono);
   font-size: 11px;
   color: #c2c5d0;
@@ -1035,15 +1056,14 @@ model-viewer.pv-roof-viewer {
   justify-content: center;
   flex-wrap: wrap;
   gap: 6px 14px;
-  width: 100%;
 }
 
 .pv-3d-legend-meta {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   flex-wrap: wrap;
-  gap: 4px 12px;
+  gap: 4px 18px;
   width: 100%;
   padding-top: 6px;
   border-top: 1px solid rgba(60, 63, 74, 0.65);
@@ -1064,19 +1084,19 @@ model-viewer.pv-roof-viewer {
 }
 
 .pv-3d-leg-line.is-today {
-  background-color: rgba(251, 221, 132, 0.78);
+  background-color: #fbdd84;
 }
 
 .pv-3d-leg-line.is-summer {
-  background-color: rgba(238, 127, 107, 0.68);
+  background-color: #ee7f6b;
 }
 
 .pv-3d-leg-line.is-equinox {
-  background-color: rgba(69, 185, 136, 0.68);
+  background-color: #b197fc;
 }
 
 .pv-3d-leg-line.is-winter {
-  background-color: rgba(177, 151, 252, 0.72);
+  background-color: #3370eb;
 }
 
 .pv-3d-sun-readout {
@@ -1301,7 +1321,6 @@ model-viewer.pv-roof-viewer {
   font-family: var(--font-mono);
   font-size: 8.8px;
   font-weight: 600;
-  text-anchor: middle;
 }
 
 .pv-dim-suffix-box {
@@ -1523,7 +1542,7 @@ model-viewer.pv-roof-viewer {
   font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.08em;
-  color: #9397a5;
+  color: #fbdd84;
 }
 
 .pv-swatch {
@@ -1559,32 +1578,13 @@ model-viewer.pv-roof-viewer {
   color: #f0f0f4;
 }
 
-.pv-quad-submeta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
+.pv-quad-count {
+  display: block;
   margin-top: 1px;
   font-family: var(--font-mono);
-  white-space: nowrap;
-}
-
-.pv-quad-count {
   color: #b4b7c2;
   font-size: 11px;
-}
-
-.pv-quad-models {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.pv-quad-models .pv-model-pill {
-  font-size: 9.5px;
-  padding: 0.5px 4px;
-  border-radius: 3.5px;
-  line-height: 1.15;
+  line-height: 1.25;
 }
 
 .pv-quad-kw {

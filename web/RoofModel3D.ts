@@ -188,12 +188,10 @@ interface MaterialDef {
   baseColorFactor: RGBA;
   emissiveFactor?: RGB;
   emissiveStrength?: number;
-  baseColorTextureIndex?: number;
   metallicFactor?: number;
   roughnessFactor?: number;
   unlit?: boolean;
-  alphaMode?: "OPAQUE" | "BLEND" | "MASK";
-  alphaCutoff?: number;
+  alphaMode?: "OPAQUE" | "BLEND";
   doubleSided?: boolean;
   useVertexColors?: boolean;
 }
@@ -202,7 +200,6 @@ interface PrimitiveBucket {
   materialIndex: number;
   positions: number[];
   normals: number[];
-  texcoords: number[];
   colors: number[];
   indices: number[];
 }
@@ -211,11 +208,6 @@ class GlbBuilder {
   private materials: MaterialDef[] = [];
   private materialMap = new Map<string, number>();
   private buckets: PrimitiveBucket[] = [];
-  private pngImageBytes: Uint8Array | null = null;
-
-  setTexturePng(bytes: Uint8Array): void {
-    this.pngImageBytes = bytes;
-  }
 
   defineMaterial(def: MaterialDef): number {
     const idx = this.materials.length;
@@ -225,7 +217,6 @@ class GlbBuilder {
       materialIndex: idx,
       positions: [],
       normals: [],
-      texcoords: [],
       colors: [],
       indices: [],
     });
@@ -253,36 +244,6 @@ class GlbBuilder {
     const n = explicitNormal ?? normVec(crossVec(subVec(p1, p0), subVec(p2, p0)));
     this.addTriangle(mat, p0, p1, p2, n);
     this.addTriangle(mat, p0, p2, p3, n);
-  }
-
-  addTexturedQuad(
-    mat: string,
-    pTL: Vec3,
-    pBL: Vec3,
-    pBR: Vec3,
-    pTR: Vec3,
-    u0: number,
-    v0: number,
-    u1: number,
-    v1: number,
-    normal: Vec3 = [0, 1, 0],
-  ): void {
-    const b = this.bucket(mat);
-    const base = b.positions.length / 3;
-    b.positions.push(
-      pTL[0], pTL[1], pTL[2],
-      pBL[0], pBL[1], pBL[2],
-      pBR[0], pBR[1], pBR[2],
-      pTR[0], pTR[1], pTR[2],
-    );
-    b.normals.push(
-      normal[0], normal[1], normal[2],
-      normal[0], normal[1], normal[2],
-      normal[0], normal[1], normal[2],
-      normal[0], normal[1], normal[2],
-    );
-    b.texcoords.push(u0, v0, u0, v1, u1, v1, u1, v0);
-    b.indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
 
   addDisc(mat: string, radius: number, y: number, segs = 64): void {
@@ -456,7 +417,6 @@ class GlbBuilder {
       attributes: {
         POSITION: number;
         NORMAL: number;
-        TEXCOORD_0?: number;
         COLOR_0?: number;
       };
       indices: number;
@@ -510,20 +470,6 @@ class GlbBuilder {
       const posView = appendAligned(new Uint8Array(posArr.buffer), 34962);
       const normView = appendAligned(new Uint8Array(normArr.buffer), 34962);
 
-      let texcoordAcc: number | undefined;
-      if (bk.texcoords.length > 0) {
-        const uvArr = new Float32Array(bk.texcoords);
-        const uvView = appendAligned(new Uint8Array(uvArr.buffer), 34962);
-        texcoordAcc = accessors.length;
-        accessors.push({
-          bufferView: uvView,
-          byteOffset: 0,
-          componentType: 5126,
-          count: uvArr.length / 2,
-          type: "VEC2",
-        });
-      }
-
       let colorAcc: number | undefined;
       if (bk.colors.length > 0) {
         const colArr = new Float32Array(bk.colors);
@@ -572,13 +518,11 @@ class GlbBuilder {
       const attrs: {
         POSITION: number;
         NORMAL: number;
-        TEXCOORD_0?: number;
         COLOR_0?: number;
       } = {
         POSITION: posAcc,
         NORMAL: normAcc,
       };
-      if (texcoordAcc !== undefined) attrs.TEXCOORD_0 = texcoordAcc;
       if (colorAcc !== undefined) attrs.COLOR_0 = colorAcc;
 
       primitives.push({
@@ -588,11 +532,6 @@ class GlbBuilder {
       });
     }
 
-    let imageViewIdx: number | null = null;
-    if (this.pngImageBytes && this.pngImageBytes.byteLength > 0) {
-      imageViewIdx = appendAligned(this.pngImageBytes);
-    }
-
     let usesEmissiveStrength = false;
     const gltfMaterials = this.materials.map((m) => {
       const pbr: Record<string, unknown> = {
@@ -600,18 +539,12 @@ class GlbBuilder {
         metallicFactor: m.metallicFactor ?? (m.unlit ? 0 : 0.08),
         roughnessFactor: m.roughnessFactor ?? (m.unlit ? 1 : 0.72),
       };
-      if (m.baseColorTextureIndex !== undefined) {
-        pbr.baseColorTexture = { index: m.baseColorTextureIndex };
-      }
       const matObj: Record<string, unknown> = {
         name: m.name,
         pbrMetallicRoughness: pbr,
       };
       if (m.emissiveFactor) matObj.emissiveFactor = m.emissiveFactor;
       if (m.alphaMode && m.alphaMode !== "OPAQUE") matObj.alphaMode = m.alphaMode;
-      if (m.alphaMode === "MASK" && m.alphaCutoff !== undefined) {
-        matObj.alphaCutoff = m.alphaCutoff;
-      }
       if (m.doubleSided) matObj.doubleSided = true;
       const exts: Record<string, unknown> = {};
       if (m.unlit) exts.KHR_materials_unlit = {};
@@ -644,14 +577,6 @@ class GlbBuilder {
       bufferViews,
       accessors,
     };
-
-    if (imageViewIdx !== null) {
-      gltf.images = [{ bufferView: imageViewIdx, mimeType: "image/png" }];
-      gltf.samplers = [
-        { magFilter: 9729, minFilter: 9729, wrapS: 33071, wrapT: 33071 },
-      ];
-      gltf.textures = [{ sampler: 0, source: 0 }];
-    }
 
     const jsonRaw = new TextEncoder().encode(JSON.stringify(gltf));
     const jsonPadLen = Math.ceil(jsonRaw.length / 4) * 4;
@@ -691,35 +616,6 @@ function roofPointFromSvg(sx: number, sy: number): Vec3 {
   const distFromEave = Math.min(ROOF_HX - Math.abs(x), ROOF_HZ - Math.abs(z));
   const y = ROOF_EAVE_Y + Math.max(0, distFromEave) * ROOF_SLOPE;
   return [x, y, z];
-}
-
-function addDashedSegment(
-  g: GlbBuilder,
-  mat: string,
-  p0: Vec3,
-  p1: Vec3,
-  radius: number,
-  dashLen: number,
-  gapLen: number,
-): void {
-  const diff = subVec(p1, p0);
-  const total = Math.hypot(diff[0], diff[1], diff[2]);
-  if (total < 1e-4) return;
-  const dir = scaleVec(diff, 1 / total);
-  let t = 0;
-  while (t < total) {
-    const end = Math.min(total, t + dashLen);
-    if (end - t > 0.005) {
-      g.addTubeCurve(
-        mat,
-        [addVec(p0, scaleVec(dir, t)), addVec(p0, scaleVec(dir, end))],
-        radius,
-        false,
-        5,
-      );
-    }
-    t += dashLen + gapLen;
-  }
 }
 
 function sampleDaylightArc(
@@ -800,88 +696,31 @@ function addSolarPanelMesh(g: GlbBuilder, panel: PanelRect): void {
   g.addQuad(edgeMat, p10, p00, o00, o10);
 }
 
-let cachedCompassAtlasPng: Uint8Array | null = null;
-
-/** N / E / S / W 方位ラベル用 1024×512 PNG アトラスをオフスクリーン Canvas で同期生成 */
-function getCompassAtlasPng(): Uint8Array | null {
-  if (cachedCompassAtlasPng) return cachedCompassAtlasPng;
-  if (typeof document === "undefined") return null;
-
-  const width = 1024;
-  const height = 512;
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return null;
-
-  ctx.clearRect(0, 0, width, height);
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.font = '700 68px "JetBrains Mono", ui-monospace, SFMono-Regular, monospace';
-
-  const drawSpacedLabel = (label: string, cy: number) => {
-    const chars = Array.from(label);
-    const tracking = 14;
-    const widths = chars.map((ch) => ctx.measureText(ch).width);
-    const totalW =
-      widths.reduce((a, b) => a + b, 0) + tracking * Math.max(0, chars.length - 1);
-    let cursor = (width - totalW) / 2;
-    for (let i = 0; i < chars.length; i++) {
-      const ch = chars[i];
-      const cx = cursor + widths[i] / 2;
-      ctx.fillStyle = "#fbdd84";
-      ctx.fillText(ch, cx, cy);
-      cursor += widths[i] + tracking;
-    }
-  };
-
-  const labels = ["NORTH", "EAST", "SOUTH", "WEST"];
-  for (let i = 0; i < labels.length; i++) {
-    drawSpacedLabel(labels[i], i * 128 + 64);
-  }
-
-  const dataUrl = canvas.toDataURL("image/png");
-  const b64 = dataUrl.split(",")[1];
-  if (!b64) return null;
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) {
-    bytes[i] = bin.charCodeAt(i);
-  }
-  cachedCompassAtlasPng = bytes;
-  return bytes;
-}
-
 /**
- * 5.9寸(30.54°)半透明寄棟屋根＋蛍光ネオンパネル15枚＋天球半球＋半透明軌道＋発光太陽＋地平3D方位ラベルを含む .glb を生成
+ * 5.9寸(30.54°)半透明寄棟屋根＋蛍光ネオンパネル15枚＋天球半球＋季節軌道＋発光太陽を含む .glb を生成
  */
 export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Array {
   const g = new GlbBuilder();
-  const compassPng = getCompassAtlasPng();
-  if (compassPng) {
-    g.setTexturePng(compassPng);
-  }
 
-  // 半透明ダークガラス調の寄棟屋根 (約14三角形のため負荷増なし)
+  // 半透明黒(rgb(15, 16, 18))の寄棟屋根 (約14三角形のため負荷増なし)
   g.defineMaterial({
     name: "roof_surface",
-    baseColorFactor: [0.025, 0.029, 0.039, 0.48],
-    metallicFactor: 0.04,
-    roughnessFactor: 0.84,
+    baseColorFactor: [...srgbToLinear([15 / 255, 16 / 255, 18 / 255]), 0.48],
+    metallicFactor: 0.0,
+    roughnessFactor: 0.94,
     alphaMode: "BLEND",
     doubleSided: true,
   });
   g.defineMaterial({
     name: "roof_trim",
-    baseColorFactor: [0.045, 0.05, 0.062, 0.82],
-    metallicFactor: 0.05,
-    roughnessFactor: 0.82,
+    baseColorFactor: [...srgbToLinear([24 / 255, 26 / 255, 30 / 255]), 0.86],
+    metallicFactor: 0.0,
+    roughnessFactor: 0.9,
     alphaMode: "BLEND",
   });
   g.defineMaterial({
     name: "roof_ridge",
-    baseColorFactor: [0.055, 0.06, 0.074, 1],
+    baseColorFactor: [...srgbToLinear([38 / 255, 41 / 255, 48 / 255]), 1],
     unlit: true,
   });
 
@@ -923,9 +762,8 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
   });
   g.defineMaterial({
     name: "dome_arch",
-    baseColorFactor: [...srgbToLinear([0.52, 0.56, 0.66]), 0.34],
+    baseColorFactor: [...srgbToLinear([0.42, 0.45, 0.54]), 1],
     unlit: true,
-    alphaMode: "BLEND",
   });
   g.defineMaterial({
     name: "horizon_cross",
@@ -934,27 +772,23 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
   });
   g.defineMaterial({
     name: "orbit_summer",
-    baseColorFactor: [...srgbToLinear([238 / 255, 127 / 255, 107 / 255]), 0.52],
+    baseColorFactor: [...srgbToLinear([238 / 255, 127 / 255, 107 / 255]), 1],
     unlit: true,
-    alphaMode: "BLEND",
   });
   g.defineMaterial({
     name: "orbit_equinox",
-    baseColorFactor: [...srgbToLinear([69 / 255, 185 / 255, 136 / 255]), 0.52],
+    baseColorFactor: [...srgbToLinear([177 / 255, 151 / 255, 252 / 255]), 1],
     unlit: true,
-    alphaMode: "BLEND",
   });
   g.defineMaterial({
     name: "orbit_winter",
-    baseColorFactor: [...srgbToLinear([177 / 255, 151 / 255, 252 / 255]), 0.54],
+    baseColorFactor: [...srgbToLinear([51 / 255, 112 / 255, 235 / 255]), 1],
     unlit: true,
-    alphaMode: "BLEND",
   });
   g.defineMaterial({
     name: "orbit_today",
-    baseColorFactor: [...srgbToLinear([251 / 255, 221 / 255, 132 / 255]), 0.72],
+    baseColorFactor: [...srgbToLinear([251 / 255, 221 / 255, 132 / 255]), 1],
     unlit: true,
-    alphaMode: "BLEND",
   });
   g.defineMaterial({
     name: "sun_sphere",
@@ -990,17 +824,6 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
     doubleSided: true,
     useVertexColors: true,
   });
-  if (compassPng) {
-    g.defineMaterial({
-      name: "compass_label",
-      baseColorFactor: [1, 1, 1, 1],
-      baseColorTextureIndex: 0,
-      unlit: true,
-      alphaMode: "MASK",
-      alphaCutoff: 0.45,
-      doubleSided: true,
-    });
-  }
 
   // 1. 寄棟屋根 (全4面 正確な 5.9/10 = 30.54° 勾配, 半透明のため下面閉塞クワッドは省略)
   const apexW: Vec3 = [-ROOF_RIDGE_HX, ROOF_APEX_Y, 0];
@@ -1066,37 +889,10 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
     );
   }
 
-  addDashedSegment(g, "horizon_cross", [0, 0.0015, -ROOF_HZ - 0.025], [0, 0.0015, -0.96], 0.0032, 0.03, 0.028);
-  addDashedSegment(g, "horizon_cross", [0, 0.0015, ROOF_HZ + 0.025], [0, 0.0015, 0.96], 0.0032, 0.03, 0.028);
-  addDashedSegment(g, "horizon_cross", [ROOF_HX + 0.025, 0.0015, 0], [0.96, 0.0015, 0], 0.0032, 0.03, 0.028);
-  addDashedSegment(g, "horizon_cross", [-ROOF_HX - 0.025, 0.0015, 0], [-0.96, 0.0015, 0], 0.0032, 0.03, 0.028);
-
-  if (compassPng) {
-    const placeLabel = (
-      rowIdx: number,
-      center: Vec3,
-      rightDir: Vec3,
-      upDir: Vec3,
-    ) => {
-      const halfW = 0.22;
-      const halfH = 0.055;
-      const pTL = addVec(subVec(center, scaleVec(rightDir, halfW)), scaleVec(upDir, halfH));
-      const pBL = subVec(subVec(center, scaleVec(rightDir, halfW)), scaleVec(upDir, halfH));
-      const pBR = subVec(addVec(center, scaleVec(rightDir, halfW)), scaleVec(upDir, halfH));
-      const pTR = addVec(addVec(center, scaleVec(rightDir, halfW)), scaleVec(upDir, halfH));
-      const u0 = 0.18;
-      const u1 = 0.82;
-      const v0 = (rowIdx * 128 + 14) / 512;
-      const v1 = (rowIdx * 128 + 114) / 512;
-      g.addTexturedQuad("compass_label", pTL, pBL, pBR, pTR, u0, v0, u1, v1, [0, 1, 0]);
-    };
-    const rLbl = DOME_RADIUS + 0.095;
-    // y=0.001 の地平平面上に不透明マスク描画し、常に全ての太陽軌道より背面(下)へ奥行配置
-    placeLabel(0, [0, 0.001, -rLbl], [1, 0, 0], [0, 0, -1]); // NORTH
-    placeLabel(1, [rLbl, 0.001, 0], [0, 0, -1], [-1, 0, 0]); // EAST
-    placeLabel(2, [0, 0.001, rLbl], [1, 0, 0], [0, 0, -1]); // SOUTH
-    placeLabel(3, [-rLbl, 0.001, 0], [0, 0, -1], [-1, 0, 0]); // WEST
-  }
+  g.addTubeCurve("horizon_cross", [[0, 0.0015, -ROOF_HZ - 0.02], [0, 0.0015, -DOME_RADIUS]], 0.0028, false, 5);
+  g.addTubeCurve("horizon_cross", [[0, 0.0015, ROOF_HZ + 0.02], [0, 0.0015, DOME_RADIUS]], 0.0028, false, 5);
+  g.addTubeCurve("horizon_cross", [[ROOF_HX + 0.02, 0.0015, 0], [DOME_RADIUS, 0.0015, 0]], 0.0028, false, 5);
+  g.addTubeCurve("horizon_cross", [[-ROOF_HX - 0.02, 0.0015, 0], [-DOME_RADIUS, 0.0015, 0]], 0.0028, false, 5);
 
   // 4. 天の子午線アーチ (南 -> 天頂 -> 北)
   const meridianPts: Vec3[] = [];

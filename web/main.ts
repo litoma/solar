@@ -193,6 +193,43 @@ function setPvHovered(idx: 1 | 2 | 3 | 4 | null): void {
   applyPv3dMaterials(mv);
 }
 
+const MV_LAYER_CSS = ".userInput { position: relative; z-index: 2; } .slot.default { z-index: 1; }";
+let mvLayerSheet: CSSStyleSheet | null = null;
+
+function ensureMvLayerOrder(mv: HTMLElement): void {
+  const apply = () => {
+    const shadow = mv.shadowRoot;
+    if (!shadow) return;
+    if ("adoptedStyleSheets" in shadow && typeof CSSStyleSheet !== "undefined") {
+      try {
+        if (!mvLayerSheet) {
+          mvLayerSheet = new CSSStyleSheet();
+          mvLayerSheet.replaceSync(MV_LAYER_CSS);
+        }
+        if (!shadow.adoptedStyleSheets.includes(mvLayerSheet)) {
+          shadow.adoptedStyleSheets = [...shadow.adoptedStyleSheets, mvLayerSheet];
+        }
+        return;
+      } catch {
+        // fallback below
+      }
+    }
+    if (!shadow.getElementById("pv-mv-layer-order")) {
+      const style = document.createElement("style");
+      style.id = "pv-mv-layer-order";
+      style.textContent = MV_LAYER_CSS;
+      shadow.appendChild(style);
+    }
+  };
+  apply();
+  if (!mv.shadowRoot) {
+    void customElements.whenDefined("model-viewer").then(() => {
+      apply();
+      requestAnimationFrame(apply);
+    });
+  }
+}
+
 function syncPv3dScene(lat: number, lon: number, now = new Date()): void {
   pvViewerLat = lat;
   pvViewerLon = lon;
@@ -203,6 +240,7 @@ function syncPv3dScene(lat: number, lon: number, now = new Date()): void {
     pvViewerInitStarted = true;
     void import("@google/model-viewer/dist/model-viewer.min.js");
   }
+  ensureMvLayerOrder(mv);
 
   const snapshot = computeSolarSnapshot(now, lat, lon);
   const readout = document.getElementById("pv-3d-sun-readout");
