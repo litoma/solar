@@ -1088,15 +1088,15 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
 }
 
 .pv-3d-leg-line.is-summer {
-  background-color: #ee7f6b;
+  background-color: #e5343d;
 }
 
 .pv-3d-leg-line.is-equinox {
-  background-color: #b197fc;
+  background-color: #a63cc8;
 }
 
 .pv-3d-leg-line.is-winter {
-  background-color: #3370eb;
+  background-color: #265de0;
 }
 
 .pv-3d-sun-readout {
@@ -2252,114 +2252,47 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
   }
 
   .pv-spec-table-card {
-    width: 100%;
+    width: fit-content;
+    max-width: 100%;
+    overflow-x: auto;
   }
 
-  .pv-spec-table thead {
-    display: none;
+  .pv-spec-table thead th {
+    font-size: 9px;
+    padding: 7px 6px;
   }
 
-  .pv-spec-table,
-  .pv-spec-table tbody {
-    display: block;
-    width: 100%;
+  .pv-spec-table thead th:first-child,
+  .pv-spec-table tbody td:first-child {
+    padding-left: 10px;
   }
 
-  .pv-spec-table tbody tr {
-    display: grid;
-    grid-template-columns: auto auto minmax(0, 1fr) auto;
-    align-items: baseline;
-    gap: 2px 6px;
-    padding: 8px 12px;
-    border-bottom: 1px solid rgba(69, 72, 82, 0.55);
-  }
-
-  .pv-spec-table tbody tr:last-child {
-    border-bottom: none;
-  }
-
-  .pv-spec-table tbody tr.pv-spec-total-row {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-    padding: 8px 12px;
-    background-color: #202228;
-    border-top: 1px solid #3c3f4a;
-  }
-
-  .pv-spec-table tbody tr.pv-spec-total-row td {
-    background-color: transparent;
-    border-top: none;
-  }
-
-  .pv-spec-table tbody tr.pv-spec-total-row td.col-unit,
-  .pv-spec-table tbody tr.pv-spec-total-row td.col-eff {
-    display: none;
+  .pv-spec-table thead th:last-child,
+  .pv-spec-table tbody td:last-child {
+    padding-right: 10px;
   }
 
   .pv-spec-table tbody td {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 4px;
-    padding: 0;
-    border-bottom: none;
-    font-size: 11px;
-    text-align: left;
-  }
-
-  .pv-spec-table tbody td.is-num {
-    text-align: left;
-  }
-
-  .pv-spec-table tbody td.col-model {
-    grid-column: 1 / 4;
-    grid-row: 1;
-    display: inline-flex;
-    align-items: baseline;
-    gap: 5px;
-    flex-wrap: nowrap;
-    min-width: 0;
-  }
-
-  .pv-spec-table tbody td.col-qty {
-    grid-column: 4;
-    grid-row: 1;
-    justify-self: end;
-    margin-left: auto;
-    color: #e4e6ef;
-    font-weight: 600;
-  }
-
-  .pv-spec-table tbody td.col-output {
-    grid-column: 1;
-    grid-row: 2;
-    color: #d6d9e4;
-  }
-
-  .pv-spec-table tbody td.col-unit {
-    grid-column: 2;
-    grid-row: 2;
-    gap: 0;
-    color: #9da1ae;
     font-size: 10px;
+    padding: 7px 6px;
   }
 
-  .pv-spec-table tbody td.col-unit::before {
-    content: "·";
-    color: #5a5e6b;
-    margin-right: 5px;
+  .pv-spec-table tbody tr.pv-spec-total-row td {
+    padding-top: 7px;
+    padding-bottom: 7px;
   }
 
-  .pv-spec-table tbody td.col-unit::after {
-    content: "/panel";
+  .pv-model-pill {
+    font-size: 10px;
+    padding: 1px 4px;
   }
 
-  .pv-spec-table tbody td.col-eff {
-    grid-column: 4;
-    grid-row: 2;
-    color: #9da1ae;
-    font-size: 10.5px;
-    justify-self: end;
+  .pv-spec-qty-dir {
+    font-size: 9.5px;
+  }
+
+  .pv-spec-total-label {
+    font-size: 10px;
   }
 
   .pv-cards-grid {

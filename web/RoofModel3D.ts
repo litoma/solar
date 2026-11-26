@@ -646,8 +646,10 @@ function addSolarPanelMesh(g: GlbBuilder, panel: PanelRect): void {
   const p01 = roofPointFromSvg(panel.x, panel.y + panel.h);
 
   const n = normVec(crossVec(subVec(p01, p00), subVec(p11, p00)));
-  const glassLift = scaleVec(n, 0.005);
-  const frameLift = scaleVec(n, 0.0085);
+  const negN: Vec3 = [-n[0], -n[1], -n[2]];
+  const baseLift = scaleVec(n, 0.002);
+  const rimLift = scaleVec(n, 0.0076);
+  const topLift = scaleVec(n, 0.0092);
 
   const cx = (p00[0] + p10[0] + p11[0] + p01[0]) / 4;
   const cy = (p00[1] + p10[1] + p11[1] + p01[1]) / 4;
@@ -661,39 +663,41 @@ function addSolarPanelMesh(g: GlbBuilder, panel: PanelRect): void {
     return addVec(p, scaleVec(toC, Math.min(0.42, amount / len)));
   };
 
-  const borderThickness = 0.0058;
-  const i00 = insetCorner(p00, borderThickness);
-  const i01 = insetCorner(p01, borderThickness);
-  const i11 = insetCorner(p11, borderThickness);
-  const i10 = insetCorner(p10, borderThickness);
+  // 外周を下向きベベル(rimLift -> topLift)にし、中央上面を最上段の完全フラット一枚板にして凹み見えを解消
+  const bevelWidth = 0.0028;
+  const i00 = insetCorner(p00, bevelWidth);
+  const i01 = insetCorner(p01, bevelWidth);
+  const i11 = insetCorner(p11, bevelWidth);
+  const i10 = insetCorner(p10, bevelWidth);
 
-  g.addQuad(
-    fillMat,
-    addVec(i00, glassLift),
-    addVec(i01, glassLift),
-    addVec(i11, glassLift),
-    addVec(i10, glassLift),
-    n,
-  );
+  const f00 = addVec(i00, topLift);
+  const f01 = addVec(i01, topLift);
+  const f11 = addVec(i11, topLift);
+  const f10 = addVec(i10, topLift);
 
-  const o00 = addVec(p00, frameLift);
-  const o01 = addVec(p01, frameLift);
-  const o11 = addVec(p11, frameLift);
-  const o10 = addVec(p10, frameLift);
-  const f00 = addVec(i00, frameLift);
-  const f01 = addVec(i01, frameLift);
-  const f11 = addVec(i11, frameLift);
-  const f10 = addVec(i10, frameLift);
+  const r00 = addVec(p00, rimLift);
+  const r01 = addVec(p01, rimLift);
+  const r11 = addVec(p11, rimLift);
+  const r10 = addVec(p10, rimLift);
 
-  g.addQuad(edgeMat, o00, o01, f01, f00, n);
-  g.addQuad(edgeMat, o01, o11, f11, f01, n);
-  g.addQuad(edgeMat, o11, o10, f10, f11, n);
-  g.addQuad(edgeMat, o10, o00, f00, f10, n);
+  const b00 = addVec(p00, baseLift);
+  const b01 = addVec(p01, baseLift);
+  const b11 = addVec(p11, baseLift);
+  const b10 = addVec(p10, baseLift);
 
-  g.addQuad(edgeMat, p00, p01, o01, o00);
-  g.addQuad(edgeMat, p01, p11, o11, o01);
-  g.addQuad(edgeMat, p11, p10, o10, o11);
-  g.addQuad(edgeMat, p10, p00, o00, o10);
+  g.addQuad(fillMat, f00, f01, f11, f10, n);
+
+  // 外向きベベル縁 & 外周側面 & 底面 (隙間ゼロの閉じたソリッド板)
+  g.addQuad(edgeMat, r00, r01, f01, f00);
+  g.addQuad(edgeMat, r01, r11, f11, f01);
+  g.addQuad(edgeMat, r11, r10, f10, f11);
+  g.addQuad(edgeMat, r10, r00, f00, r10);
+
+  g.addQuad(edgeMat, b00, b01, r01, r00);
+  g.addQuad(edgeMat, b01, b11, r11, r01);
+  g.addQuad(edgeMat, b11, b10, r10, r11);
+  g.addQuad(edgeMat, b10, b00, r00, r10);
+  g.addQuad(edgeMat, b00, b10, b11, b01, negN);
 }
 
 /**
@@ -772,17 +776,17 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
   });
   g.defineMaterial({
     name: "orbit_summer",
-    baseColorFactor: [...srgbToLinear([238 / 255, 127 / 255, 107 / 255]), 1],
+    baseColorFactor: [...srgbToLinear([229 / 255, 52 / 255, 61 / 255]), 1],
     unlit: true,
   });
   g.defineMaterial({
     name: "orbit_equinox",
-    baseColorFactor: [...srgbToLinear([177 / 255, 151 / 255, 252 / 255]), 1],
+    baseColorFactor: [...srgbToLinear([166 / 255, 60 / 255, 200 / 255]), 1],
     unlit: true,
   });
   g.defineMaterial({
     name: "orbit_winter",
-    baseColorFactor: [...srgbToLinear([51 / 255, 112 / 255, 235 / 255]), 1],
+    baseColorFactor: [...srgbToLinear([38 / 255, 93 / 255, 224 / 255]), 1],
     unlit: true,
   });
   g.defineMaterial({
