@@ -1,11 +1,38 @@
 import { mountOrUpdatePaybackChart, type PaybackData } from "./PaybackChart";
 import { mountOrUpdatePvCharts, type PvMonthlyRecord } from "./PvCharts";
+import {
+  PV_BASE_COLORS,
+  buildRoofSolarGlb,
+  computeSolarSnapshot,
+  type RGB,
+} from "./RoofModel3D";
 import { mountOrUpdateSimulationChart } from "./SimulationChart";
 import {
   mountOrUpdateSummaryCharts,
   type DailyFlowEdge,
   type MonthlyTotalsData,
 } from "./SummaryCharts";
+
+interface SolarMaterial {
+  name: string;
+  setEmissiveFactor(rgb: RGB | string): void;
+  pbrMetallicRoughness: {
+    setBaseColorFactor(rgba: [number, number, number, number]): void;
+  };
+}
+
+interface SolarModelViewerElement extends HTMLElement {
+  src: string;
+  model?: {
+    getMaterialByName(name: string): SolarMaterial | null;
+  };
+  getCameraOrbit?(): { toString(): string };
+  getCameraTarget?(): { toString(): string };
+  cameraOrbit: string;
+  cameraTarget: string;
+  materialFromPoint?(x: number, y: number): SolarMaterial | null;
+  updateHotspot?(cfg: { name: string; position?: string; normal?: string }): void;
+}
 
 interface DashboardResponse {
   hasData: boolean;
@@ -78,6 +105,112 @@ let latestSimYearMap: Record<number, Record<number, number>> = {};
 let latestPvYearMap: Record<number, PvMonthlyRecord[]> = {};
 let latestSimCurrentYear = new Date().getFullYear();
 let latestSimCurrentMonth = new Date().getMonth() + 1;
+let pvViewerInitStarted = false;
+let pvViewerBlobUrl: string | null = null;
+let pvViewerLastKey = "";
+let pvViewerLat = 35.7356;
+let pvViewerLon = 139.6517;
+const pvActiveState: Record<1 | 2 | 3 | 4, boolean> = {
+  1: false,
+  2: false,
+  3: false,
+  4: false,
+};
+let pvHoveredIdx: 1 | 2 | 3 | 4 | null = null;
+
+function applyPv3dMaterials(mv: SolarModelViewerElement | null): void {
+  const model = mv?.model;
+  if (!model) return;
+  for (const pv of [1, 2, 3, 4] as const) {
+    const [r, g, b] = PV_BASE_COLORS[pv];
+    const active = pvActiveState[pv];
+    const hovered = pvHoveredIdx === pv;
+    const fillMat = model.getMaterialByName(`pv${pv}_fill`);
+    const edgeMat = model.getMaterialByName(`pv${pv}_edge`);
+    if (hovered) {
+      fillMat?.pbrMetallicRoughness.setBaseColorFactor([
+        Math.min(1, 0.08 + r * 0.8),
+        Math.min(1, 0.08 + g * 0.8),
+        Math.min(1, 0.09 + b * 0.8),
+        1,
+      ]);
+      fillMat?.setEmissiveFactor([r * 0.55, g * 0.55, b * 0.55]);
+      edgeMat?.setEmissiveFactor([r * 1.0, g * 1.0, b * 1.0]);
+    } else if (active) {
+      fillMat?.pbrMetallicRoughness.setBaseColorFactor([
+        Math.min(1, 0.06 + r * 0.64),
+        Math.min(1, 0.06 + g * 0.64),
+        Math.min(1, 0.07 + b * 0.64),
+        1,
+      ]);
+      fillMat?.setEmissiveFactor([r * 0.36, g * 0.36, b * 0.36]);
+      edgeMat?.setEmissiveFactor([r * 0.88, g * 0.88, b * 0.88]);
+    } else {
+      fillMat?.pbrMetallicRoughness.setBaseColorFactor([
+        0.05 + r * 0.48,
+        0.05 + g * 0.48,
+        0.06 + b * 0.48,
+        1,
+      ]);
+      fillMat?.setEmissiveFactor([r * 0.18, g * 0.18, b * 0.18]);
+      edgeMat?.setEmissiveFactor([r * 0.65, g * 0.65, b * 0.65]);
+    }
+  }
+}
+
+function setPvHovered(idx: 1 | 2 | 3 | 4 | null): void {
+  if (pvHoveredIdx === idx) return;
+  pvHoveredIdx = idx;
+  for (const pv of [1, 2, 3, 4] as const) {
+    document.getElementById(`pv-box-${pv}`)?.classList.toggle("is-hovered", idx === pv);
+  }
+  const mv = document.getElementById("pv-roof-viewer") as SolarModelViewerElement | null;
+  applyPv3dMaterials(mv);
+}
+
+function syncPv3dScene(lat: number, lon: number, now = new Date()): void {
+  pvViewerLat = lat;
+  pvViewerLon = lon;
+  const mv = document.getElementById("pv-roof-viewer") as SolarModelViewerElement | null;
+  if (!mv) return;
+
+  if (!pvViewerInitStarted) {
+    pvViewerInitStarted = true;
+    void import("@google/model-viewer/dist/model-viewer.min.js");
+  }
+
+  const snapshot = computeSolarSnapshot(now, lat, lon);
+  const readout = document.getElementById("pv-3d-sun-readout");
+  if (readout) {
+    readout.textContent = snapshot.isDaylight
+      ? `ALT ${Math.round(snapshot.altitudeDeg)}° · AZ ${Math.round(snapshot.azimuthDeg)}°`
+      : `NIGHT · ALT ${Math.round(snapshot.altitudeDeg)}°`;
+  }
+
+  const bucket = Math.floor(now.getTime() / 120000);
+  const key = `${lat.toFixed(4)},${lon.toFixed(4)},${bucket}`;
+  if (key === pvViewerLastKey) return;
+  pvViewerLastKey = key;
+
+  // 既存の操作カメラアングルを維持しつつGLB差し替え
+  if (pvViewerBlobUrl) {
+    const prevOrbit = mv.getCameraOrbit?.()?.toString();
+    const prevTarget = mv.getCameraTarget?.()?.toString();
+    if (prevOrbit && !prevOrbit.includes("NaN")) mv.cameraOrbit = prevOrbit;
+    if (prevTarget && !prevTarget.includes("NaN")) mv.cameraTarget = prevTarget;
+  }
+
+  const glb = buildRoofSolarGlb(snapshot, lat);
+  const nextUrl = URL.createObjectURL(
+    new Blob([glb as unknown as BlobPart], { type: "model/gltf-binary" }),
+  );
+  const oldUrl = pvViewerBlobUrl;
+  pvViewerBlobUrl = nextUrl;
+  mv.src = nextUrl;
+  if (oldUrl) {
+    window.setTimeout(() => URL.revokeObjectURL(oldUrl), 5000);
+  }
+}
 
 function extractMonthlyActualByYear(
   data: DashboardResponse,
@@ -578,6 +711,8 @@ function renderDashboard(data: DashboardResponse): void {
   const cfg = data.config;
   const tzMin = cfg.timezoneOffsetMinutes ?? 540;
 
+  syncPv3dScene(cfg.latitude ?? 35.7356, cfg.longitude ?? 139.6517);
+
   el("sun-rise-label").textContent = data.sun.sunrise;
   el("sun-set-label").textContent = data.sun.sunset;
   el("val-batt-cap").textContent = `MAX ${cfg.batteryCapacityKwh.toFixed(1)} kWh`;
@@ -860,17 +995,15 @@ function renderDashboard(data: DashboardResponse): void {
     4: data.pvDayKwh?.pv4 ?? 0,
   };
 
-  for (let i = 1; i <= 4; i++) {
+  for (const i of [1, 2, 3, 4] as const) {
     const p = latest[`pv${i}_p_avg_w`];
     const pKw = typeof p === "number" ? Math.max(0, p) / 1000 : 0;
     el(`pv${i}-w`).innerHTML = kwHtml(pKw, "ef-unit-sm");
     el(`pv${i}-day`).innerHTML = kwhDayHtml(pvDayMap[i] ?? 0);
-
-    const roofGroup = document.getElementById(`roof-group-pv${i}`);
-    if (roofGroup) {
-      roofGroup.classList.toggle("is-active", typeof p === "number" && p >= 10);
-    }
+    pvActiveState[i] = typeof p === "number" && p >= 10;
   }
+  const mv = document.getElementById("pv-roof-viewer") as SolarModelViewerElement | null;
+  applyPv3dMaterials(mv);
 
   // BMS STATUS (1: PACK → 2: TEMP → 3: CELL)
   const packV = latest.pack_v;
@@ -1169,22 +1302,35 @@ function setupControls(): void {
     syncTopBarScroll();
   }
 
-  for (let i = 1; i <= 4; i++) {
+  const mv = document.getElementById("pv-roof-viewer") as SolarModelViewerElement | null;
+  if (mv) {
+    mv.addEventListener("load", () => {
+      applyPv3dMaterials(mv);
+    });
+    let mvRaf = 0;
+    mv.addEventListener("pointermove", (ev: PointerEvent) => {
+      if (mvRaf) return;
+      const clientX = ev.clientX;
+      const clientY = ev.clientY;
+      mvRaf = window.requestAnimationFrame(() => {
+        mvRaf = 0;
+        const hit = mv.materialFromPoint?.(clientX, clientY);
+        const m = hit?.name ? /^pv([1-4])_/.exec(hit.name) : null;
+        setPvHovered(m ? (Number(m[1]) as 1 | 2 | 3 | 4) : null);
+      });
+    });
+    mv.addEventListener("pointerleave", () => {
+      setPvHovered(null);
+    });
+  }
+
+  for (const i of [1, 2, 3, 4] as const) {
     const box = document.getElementById(`pv-box-${i}`);
-    const roof = document.getElementById(`roof-group-pv${i}`);
-    if (!box || !roof) continue;
-    const enter = () => {
-      box.classList.add("is-hovered");
-      roof.classList.add("is-hovered");
-    };
-    const leave = () => {
-      box.classList.remove("is-hovered");
-      roof.classList.remove("is-hovered");
-    };
-    box.addEventListener("mouseenter", enter);
-    box.addEventListener("mouseleave", leave);
-    roof.addEventListener("mouseenter", enter);
-    roof.addEventListener("mouseleave", leave);
+    if (!box) continue;
+    box.addEventListener("mouseenter", () => setPvHovered(i));
+    box.addEventListener("mouseleave", () => {
+      if (pvHoveredIdx === i) setPvHovered(null);
+    });
   }
 
   // SUMMARY / PV STRINGS / PV GENERATION ページ送り (横スクロールスナップ + ドットクリック連動)
@@ -1214,6 +1360,7 @@ function setupControls(): void {
 }
 
 setupControls();
+syncPv3dScene(pvViewerLat, pvViewerLon);
 const initTime = formatTimeJst(Math.floor(Date.now() / 1000));
 latestSimCurrentYear = initTime.year;
 latestSimCurrentMonth = initTime.month;

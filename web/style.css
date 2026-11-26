@@ -990,46 +990,104 @@ body {
 }
 
 /* ==========================================================================
-   PV STRINGS セクション: 中央 ROOF + 外周4方角配置
+   PV STRINGS セクション: 3D屋根 + 天球太陽軌道 + PV1〜PV4
    ========================================================================== */
-.pv-xmap {
-  position: relative;
-  width: 100%;
-  min-height: 400px;
-}
-
-/* 中央の ROOF 見出し + 周囲方位付き屋根枠SVG */
-.pv-roof-center {
-  position: absolute;
-  left: 50%;
-  top: 56%;
-  transform: translate(-50%, -50%);
-  width: 274px;
+.pv-3d-page {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  gap: 12px;
+}
+
+.pv-3d-wrap {
+  display: flex;
+  flex-direction: column;
   gap: 6px;
 }
 
-.pv-roof-heading {
-  margin: 0;
+model-viewer.pv-roof-viewer {
+  display: block;
+  width: 100%;
+  height: 365px;
+  background-color: transparent;
+  --poster-color: transparent;
+  outline: none;
+  border-radius: 14px;
+  touch-action: pan-y;
 }
 
-.pv-roof-dir {
-  fill: #fbdd84;
+model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
+  display: none;
+}
+
+.pv-3d-dir {
+  pointer-events: none;
+  user-select: none;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.14em;
-  text-anchor: middle;
+  color: #fbdd84;
+  background-color: rgba(15, 16, 18, 0.78);
+  padding: 2px 6px;
+  border-radius: 999px;
+  white-space: nowrap;
 }
 
-.pv-roof-nothing {
-  fill: #6e7382;
+.pv-3d-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 0 4px;
+}
+
+.pv-3d-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-anchor: middle;
+  font-size: 11px;
+  color: #c2c5d0;
+}
+
+.pv-3d-leg-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.pv-3d-leg-line.is-today {
+  width: 14px;
+  height: 2.5px;
+  border-radius: 2px;
+  background-color: #fbdd84;
+}
+
+.pv-3d-sun-readout {
+  color: #9397a5;
+}
+
+.pv-roof-pitch {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.pv-roof-pitch-label {
+  color: #8f94a2;
+  font-weight: 500;
+}
+
+.pv-roof-pitch-val {
+  color: #d6d9e4;
+  font-weight: 500;
 }
 
 /* PV STRINGS ページ送り + 2ページ目詳細 */
@@ -1057,6 +1115,15 @@ body {
   justify-content: center;
 }
 
+.pv-strings-pager {
+  margin: 0 -16px;
+}
+
+.pv-strings-pager > .pv-page {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
 .pv-charts-page {
   display: flex;
   flex-direction: column;
@@ -1069,39 +1136,8 @@ body {
   flex-direction: column;
   justify-content: center;
   gap: 14px;
-  padding: 4px 2px;
-}
-
-.pv-specs-summary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px 16px;
-  background-color: #1d1e23;
-  border: 1px solid #3c3e47;
-  border-radius: 14px;
-  padding: 13px 16px;
-}
-
-.pv-spec-sum-item {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-
-.pv-spec-sum-label {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  color: #8f94a2;
-}
-
-.pv-spec-sum-val {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  font-weight: 500;
-  color: #e4e6ef;
-  line-height: 1.35;
+  padding-top: 4px;
+  padding-bottom: 4px;
 }
 
 .pv-spec-table-card {
@@ -1123,7 +1159,7 @@ body {
   letter-spacing: 0.06em;
   color: #9397a5;
   text-align: left;
-  padding: 10px 10px 9px;
+  padding: 8px 10px;
   border-bottom: 1px solid #3c3f4a;
   background-color: #202228;
   white-space: nowrap;
@@ -1134,7 +1170,7 @@ body {
 }
 
 .pv-spec-table tbody td {
-  padding: 12px 10px;
+  padding: 8px 10px;
   font-size: 11.5px;
   color: #eceef4;
   border-bottom: 1px solid rgba(69, 72, 82, 0.55);
@@ -1146,6 +1182,20 @@ body {
   border-bottom: none;
 }
 
+.pv-spec-table tbody tr.pv-spec-total-row td {
+  background-color: #202228;
+  border-top: 1px solid #3c3f4a;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.pv-spec-total-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #c2c5d0;
+}
+
 .pv-spec-table tbody td.is-num {
   text-align: right;
 }
@@ -1155,8 +1205,8 @@ body {
 }
 
 .pv-spec-model {
-  display: block;
-  font-size: 12.5px;
+  display: inline;
+  font-size: 12px;
   font-weight: 600;
   color: #fbdd84;
   letter-spacing: 0.01em;
@@ -1164,7 +1214,7 @@ body {
 
 .pv-spec-feature {
   display: inline-block;
-  margin-top: 3px;
+  margin-left: 5px;
   font-size: 10px;
   color: #9da1ae;
 }
@@ -1175,55 +1225,29 @@ body {
   margin-left: 2px;
 }
 
+.pv-spec-table tbody td.col-unit {
+  color: #b4b7c2;
+}
+
 .pv-spec-kw {
-  display: block;
+  display: inline;
   font-weight: 600;
   color: #f4f6fc;
 }
 
-.pv-spec-note {
-  display: block;
-  margin-top: 2px;
-  color: #9da1ae;
-  font-size: 10px;
-  font-weight: 400;
-}
-
 .pv-dim-card {
-  background-color: #26282e;
-  border: 1px solid #454852;
-  border-radius: 14px;
-  padding: 11px 14px 10px;
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 2px 0 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-}
-
-.pv-dim-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.pv-dim-title {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  color: #9397a5;
-}
-
-.pv-dim-unit {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: #8f94a2;
 }
 
 .pv-dim-svg {
   display: block;
-  width: 100%;
-  max-width: 520px;
+  width: 90%;
+  max-width: 450px;
   margin: 0 auto;
   height: auto;
   overflow: visible;
@@ -1232,7 +1256,7 @@ body {
 .pv-dim-num {
   fill: #eceef4;
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: 9.2px;
   font-weight: 600;
   text-anchor: middle;
 }
@@ -1240,7 +1264,7 @@ body {
 .pv-dim-role {
   fill: #9da1ae;
   font-family: var(--font-mono);
-  font-size: 7.5px;
+  font-size: 7px;
   font-weight: 500;
   letter-spacing: 0.08em;
   text-anchor: middle;
@@ -1253,16 +1277,31 @@ body {
 .pv-dim-model {
   fill: #fbdd84;
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: 8.8px;
   font-weight: 600;
+  text-anchor: middle;
+}
+
+.pv-dim-weight {
+  fill: #b8bcc8;
+  font-family: var(--font-mono);
+  font-size: 7.8px;
+  font-weight: 500;
   text-anchor: middle;
 }
 
 .pv-dim-variant {
   fill: #c2c5d0;
   font-family: var(--font-mono);
-  font-size: 8.5px;
+  font-size: 7.8px;
   text-anchor: middle;
+}
+
+.pv-specs-note {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 2px 6px;
 }
 
 .pv-dots {
@@ -1409,94 +1448,21 @@ body {
   color: #f0f2f8;
 }
 
-.pv-xmap-svg {
-  width: 100%;
-  height: auto;
-  display: block;
-}
-
-.roof-group {
-  cursor: pointer;
-  transition: filter 0.2s ease, transform 0.2s ease;
-}
-
-.roof-group.is-hovered,
-.roof-group.is-active {
-  filter: brightness(1.25) drop-shadow(0 0 7px rgba(255, 255, 255, 0.28));
-}
-
-.roof-mod {
-  stroke-width: 1.5;
-  transition: fill 0.2s ease, stroke 0.2s ease;
-}
-
-.mod-pv1 {
-  fill: rgba(240, 160, 75, 0.34);
-  stroke: #f0a04b;
-}
-
-.mod-pv2 {
-  fill: rgba(76, 195, 217, 0.34);
-  stroke: #4cc3d9;
-}
-
-.mod-pv3 {
-  fill: rgba(111, 208, 140, 0.34);
-  stroke: #6fd08c;
-}
-
-.mod-pv4 {
-  fill: rgba(238, 127, 107, 0.34);
-  stroke: #ee7f6b;
-}
-
-/* 外周の4方角オーバーレイ (NORTH / WEST / EAST / SOUTH) */
-.pv-quad {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.pv-quad-north {
-  top: 2px;
-  left: 50%;
-  transform: translateX(-50%);
-  align-items: center;
-  text-align: center;
-  gap: 4px;
-}
-
-.pv-quad-west {
-  left: 10px;
-  top: 56%;
-  transform: translateY(-50%);
-  align-items: flex-start;
-}
-
-.pv-quad-east {
-  right: 10px;
-  top: 56%;
-  transform: translateY(-50%);
-  align-items: flex-start;
+/* 3Dモデル下部の PV1〜4 カードグリッド (1, 2, 3, 4 順) */
+.pv-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .pv-quad-item {
   background-color: #26282e;
   border: 1px solid #454852;
   border-radius: 14px;
-  padding: 8px 14px;
-  min-width: 144px;
+  padding: 9px 12px;
+  min-width: 0;
+  cursor: pointer;
   transition: border-color 0.2s ease, transform 0.2s ease;
-}
-
-.pv-quad-item-wide {
-  display: flex;
-  align-items: baseline;
-  gap: 16px;
-  padding: 6px 18px;
-  min-width: 280px;
-  justify-content: space-between;
 }
 
 .pv-quad-item.is-hovered {
@@ -1556,23 +1522,12 @@ body {
   white-space: nowrap;
 }
 
-.pv-quad-item-wide .pv-quad-kw {
-  margin: 0;
-}
-
 .pv-quad-day {
   font-family: var(--font-mono);
   font-size: 14px;
   font-weight: 500;
   color: #c2c5d0;
   white-space: nowrap;
-}
-
-.pv-quad-nothing {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  color: #8b8e99;
-  letter-spacing: 0.06em;
 }
 
 /* ==========================================================================
@@ -2083,6 +2038,15 @@ body {
     padding: 0 12px;
   }
 
+  .pv-strings-pager {
+    margin: 0 -12px;
+  }
+
+  .pv-strings-pager > .pv-page {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
   .ef-flow-layout {
     grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr);
     grid-template-rows: 124px 20px 152px 24px 124px;
@@ -2175,25 +2139,28 @@ body {
     display: none;
   }
 
-  /* スマホ表示では屋根の余白を詰め、コンパクトに中央表示 */
-  .pv-xmap {
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+  /* スマホ表示では3Dビューの高さとメタ情報をコンパクトに調整 */
+  model-viewer.pv-roof-viewer {
+    height: 290px;
   }
 
-  .pv-roof-center {
-    position: static;
-    transform: none;
-    width: min(312px, 88vw);
-    margin: 0 auto 4px;
+  .pv-3d-dir {
+    font-size: 10px;
+    padding: 1.5px 5px;
   }
 
-  .pv-specs-summary {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px 12px;
-    padding: 11px 12px;
+  .pv-3d-meta {
+    justify-content: space-between;
+    gap: 4px 8px;
+  }
+
+  .pv-3d-legend,
+  .pv-roof-pitch {
+    font-size: 10.5px;
+  }
+
+  .pv-dim-svg {
+    width: 88%;
   }
 
   .pv-spec-table thead {
@@ -2207,16 +2174,35 @@ body {
   }
 
   .pv-spec-table tbody tr {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px 10px;
-    padding: 11px 12px;
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 2px 6px;
+    padding: 8px 12px;
     border-bottom: 1px solid rgba(69, 72, 82, 0.55);
   }
 
   .pv-spec-table tbody tr:last-child {
     border-bottom: none;
+  }
+
+  .pv-spec-table tbody tr.pv-spec-total-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 8px 12px;
+    background-color: #202228;
+    border-top: 1px solid #3c3f4a;
+  }
+
+  .pv-spec-table tbody tr.pv-spec-total-row td {
+    background-color: transparent;
+    border-top: none;
+  }
+
+  .pv-spec-table tbody tr.pv-spec-total-row td.col-unit,
+  .pv-spec-table tbody tr.pv-spec-total-row td.col-eff {
+    display: none;
   }
 
   .pv-spec-table tbody td {
@@ -2234,76 +2220,95 @@ body {
   }
 
   .pv-spec-table tbody td.col-model {
-    flex: 1 1 auto;
+    grid-column: 1 / 4;
+    grid-row: 1;
     display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 5px;
+    flex-wrap: nowrap;
+    min-width: 0;
   }
 
   .pv-spec-table tbody td.col-qty {
+    grid-column: 4;
+    grid-row: 1;
+    justify-self: end;
     margin-left: auto;
     color: #e4e6ef;
     font-weight: 600;
   }
 
   .pv-spec-table tbody td.col-output {
-    flex-basis: 100%;
-    gap: 5px;
+    grid-column: 1;
+    grid-row: 2;
     color: #d6d9e4;
   }
 
-  .pv-spec-table tbody td.col-output .pv-spec-kw,
-  .pv-spec-table tbody td.col-output .pv-spec-note {
-    display: inline;
-    margin-top: 0;
-  }
-
-  .pv-spec-table tbody td.col-eff,
-  .pv-spec-table tbody td.col-wt {
+  .pv-spec-table tbody td.col-unit {
+    grid-column: 2;
+    grid-row: 2;
+    gap: 0;
     color: #9da1ae;
-    font-size: 10.5px;
-    flex-basis: auto;
+    font-size: 10px;
   }
 
-  .pv-spec-table tbody td.col-wt::before {
+  .pv-spec-table tbody td.col-unit::before {
     content: "·";
     color: #5a5e6b;
+    margin-right: 5px;
   }
 
-  .pv-dim-card {
-    padding: 10px 10px 8px;
+  .pv-spec-table tbody td.col-unit::after {
+    content: "/panel";
+  }
+
+  .pv-spec-table tbody td.col-eff {
+    grid-column: 4;
+    grid-row: 2;
+    color: #9da1ae;
+    font-size: 10.5px;
+    justify-self: end;
   }
 
   .pv-spec-feature {
+    margin-left: 0;
     margin-top: 0;
   }
 
-  .pv-quad {
-    position: static;
-    transform: none;
-    align-items: stretch;
-    text-align: left;
+  .pv-specs-note {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
   }
 
-  .pv-quad-item,
-  .pv-quad-item-wide {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 8px 14px;
-    min-width: 0;
-    width: 100%;
+  .pv-specs-note-sep {
+    display: none;
+  }
+
+  .pv-cards-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .pv-quad-item {
+    padding: 8px 12px;
+  }
+
+  .pv-quad-head {
+    font-size: 12px;
+    gap: 6px;
+  }
+
+  .pv-quad-count {
+    font-size: 11px;
   }
 
   .pv-quad-kw {
     font-size: 21px;
-    margin: 0;
   }
 
   .pv-quad-day {
-    font-size: 13.5px;
+    font-size: 12.5px;
   }
 
   .sim-summary-grid,
