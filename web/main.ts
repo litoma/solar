@@ -217,12 +217,14 @@ function syncSolarWaveOpacity(mv: SolarModelViewerElement | null): boolean {
 
   for (let w = 0; w < SOLAR_WAVE_COUNT; w++) {
     const phase = (((cycle + w / SOLAR_WAVE_COUNT) % 1) + 1) % 1;
-    let factor = 0;
+    let haloFactor = 0;
+    let beamFactor = 0;
     if (phase < 0.9) {
       const progress = phase / 0.9;
       const fadeIn = progress < 0.16 ? Math.sin((progress / 0.16) * Math.PI * 0.5) : 1;
-      const fadeOut = Math.pow(1 - progress, 1.6);
-      factor = fadeIn * fadeOut;
+      haloFactor = fadeIn * Math.pow(1 - progress, 1.6);
+      const beamFadeIn = progress < 0.12 ? Math.sin((progress / 0.12) * Math.PI * 0.5) : 1;
+      beamFactor = beamFadeIn * Math.pow(1 - progress, 1.05);
     }
 
     const haloMat = w === 0 ? firstHalo : model.getMaterialByName(`sun_halo_wave_${w}`);
@@ -230,7 +232,7 @@ function syncSolarWaveOpacity(mv: SolarModelViewerElement | null): boolean {
       SOLAR_HALO_RGB[0],
       SOLAR_HALO_RGB[1],
       SOLAR_HALO_RGB[2],
-      0.34 * factor,
+      0.34 * haloFactor,
     ]);
 
     const beamMat = model.getMaterialByName(`sun_beam_wave_${w}`);
@@ -238,7 +240,7 @@ function syncSolarWaveOpacity(mv: SolarModelViewerElement | null): boolean {
       SOLAR_BEAM_RGB[0],
       SOLAR_BEAM_RGB[1],
       SOLAR_BEAM_RGB[2],
-      factor,
+      beamFactor,
     ]);
   }
   return true;

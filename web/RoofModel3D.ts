@@ -1070,18 +1070,20 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
     g.addSphere("sun_sphere", sunPos, 0.062, 16, 24);
     g.addSphere("sun_halo_base", sunPos, 0.095, 14, 22);
 
-    // 常設ベース光円錐 (太陽側が濃く屋根へ向かって薄くなる静的ベース)
+    // 常設ベース光円錐 (太陽側が濃く屋根全体まで届いて徐々に薄くなる静的ベース)
     g.addLightCone("sun_beam", sunPos, beamTarget, [
-      { t: 0.05, radius: 0.048, alpha: 0.09 },
-      { t: 0.38, radius: 0.16, alpha: 0.048 },
-      { t: 0.74, radius: 0.3, alpha: 0.018 },
-      { t: 0.96, radius: 0.39, alpha: 0.0 },
+      { t: 0.04, radius: 0.048, alpha: 0.13 },
+      { t: 0.4, radius: 0.18, alpha: 0.088 },
+      { t: 0.78, radius: 0.31, alpha: 0.048 },
+      { t: 1.02, radius: 0.39, alpha: 0.022 },
+      { t: 1.24, radius: 0.46, alpha: 0.0 },
     ]);
     g.addLightCone("sun_beam", sunPos, beamTarget, [
-      { t: 0.03, radius: 0.026, alpha: 0.13 },
-      { t: 0.36, radius: 0.095, alpha: 0.07 },
-      { t: 0.72, radius: 0.18, alpha: 0.024 },
-      { t: 0.93, radius: 0.24, alpha: 0.0 },
+      { t: 0.02, radius: 0.026, alpha: 0.18 },
+      { t: 0.38, radius: 0.11, alpha: 0.115 },
+      { t: 0.75, radius: 0.21, alpha: 0.056 },
+      { t: 1.0, radius: 0.27, alpha: 0.024 },
+      { t: 1.18, radius: 0.32, alpha: 0.0 },
     ]);
 
     const animDur = SOLAR_PULSE_DURATION;
@@ -1106,26 +1108,41 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
         scale: [0.062, 0.062, 0.062],
       });
 
-      // 太陽中心から屋根へ向かって広がりながら薄くなる光円錐ウェーブ
+      // 太陽中心から屋根全体へ向かって波頭が見えるよう流れ広がりながら薄くなる光円錐ウェーブ (2重殻)
       const beamMeshKey = `sun_beam_wave_${w}`;
       g.addLightCone(
         beamMeshKey,
         [0, 0, 0],
         relBeamTarget,
         [
-          { t: 0.03, radius: 0.032, alpha: 0.22 },
-          { t: 0.34, radius: 0.13, alpha: 0.12 },
-          { t: 0.7, radius: 0.26, alpha: 0.042 },
-          { t: 0.97, radius: 0.37, alpha: 0.0 },
+          { t: 0.22, radius: 0.08, alpha: 0.0 },
+          { t: 0.58, radius: 0.22, alpha: 0.12 },
+          { t: 0.86, radius: 0.33, alpha: 0.28 },
+          { t: 0.95, radius: 0.365, alpha: 0.24 },
+          { t: 1.0, radius: 0.385, alpha: 0.0 },
         ],
         22,
+        beamMeshKey,
+      );
+      g.addLightCone(
+        beamMeshKey,
+        [0, 0, 0],
+        relBeamTarget,
+        [
+          { t: 0.25, radius: 0.05, alpha: 0.0 },
+          { t: 0.62, radius: 0.13, alpha: 0.16 },
+          { t: 0.88, radius: 0.2, alpha: 0.34 },
+          { t: 0.95, radius: 0.22, alpha: 0.28 },
+          { t: 1.0, radius: 0.24, alpha: 0.0 },
+        ],
+        20,
         beamMeshKey,
       );
       const beamNodeIdx = g.addNode({
         name: `SunBeamWave_${w}`,
         meshKey: beamMeshKey,
         translation: sunPos,
-        scale: [0.16, 0.16, 0.16],
+        scale: [0.12, 0.12, 0.12],
       });
 
       const haloScaleVals: number[] = [];
@@ -1137,13 +1154,13 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
         if (phase >= 0.9) {
           // 透明度0の休止期間後半で開始サイズに戻し、縮み戻りを一切見せない
           const rReset = phase < 0.94 ? 0.195 : 0.062;
-          const bReset = phase < 0.94 ? 1.06 : 0.16;
+          const bReset = phase < 0.94 ? 1.2 : 0.12;
           haloScaleVals.push(rReset, rReset, rReset);
           beamScaleVals.push(bReset, bReset, bReset);
         } else {
           const progress = phase / 0.9;
           const haloR = 0.062 + 0.133 * (1 - Math.pow(1 - progress, 1.35));
-          const beamS = 0.16 + 0.9 * (1 - Math.pow(1 - progress, 1.25));
+          const beamS = 0.12 + 1.08 * (1 - Math.pow(1 - progress, 1.15));
           haloScaleVals.push(haloR, haloR, haloR);
           beamScaleVals.push(beamS, beamS, beamS);
         }
