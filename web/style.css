@@ -1921,6 +1921,139 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
   color: #e4e6ef;
 }
 
+/* PV GENERATION 2ページ目: 年間 PV別・方位別 二重円グラフ */
+.pv-donut-card {
+  padding: 14px 12px 12px;
+}
+
+.pv-donut-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  user-select: none;
+}
+
+.pv-donut-svg-stage {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+}
+
+.pv-donut-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  touch-action: manipulation;
+}
+
+.pv-donut-slice {
+  cursor: pointer;
+  transition: opacity 0.18s ease;
+}
+
+.pv-donut-slice.is-dimmed {
+  opacity: 0.48;
+}
+
+.pv-donut-slice-label text,
+.pv-donut-callout text {
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.72);
+}
+
+.pv-donut-tooltip {
+  position: absolute;
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 15;
+  max-width: calc(100% - 8px);
+}
+
+.pv-donut-tooltip .sim-tooltip {
+  min-width: 165px;
+}
+
+.pv-dir-grid {
+  width: 100%;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.pv-dir-card {
+  background-color: #26282e;
+  border: 1px solid #454852;
+  border-radius: 12px;
+  padding: 8px 11px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  cursor: pointer;
+  transition: border-color 0.18s ease;
+}
+
+.pv-dir-card.is-active {
+  border-color: #fbdd84;
+}
+
+.pv-dir-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pv-dir-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.pv-dir-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 2.5px;
+  flex-shrink: 0;
+}
+
+.pv-dir-val {
+  font-family: var(--font-sans);
+  font-size: 20px;
+  font-weight: 500;
+  color: #f0f0f5;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.pv-dir-val .ef-unit-sm {
+  font-size: 12px;
+  margin-left: 3px;
+}
+
+.pv-dir-pvs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.pv-dir-pv-tag {
+  letter-spacing: 0.03em;
+}
+
 .sim-chart-box {
   background-color: #1d1e23;
   border: 1px solid #3c3e47;
@@ -2440,6 +2573,35 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
 
   .sim-pv-val {
     font-size: 22px;
+  }
+
+  .pv-donut-card {
+    padding: 12px 8px 10px;
+  }
+
+  .pv-dir-grid {
+    gap: 6px;
+  }
+
+  .pv-dir-card {
+    padding: 7px 8px;
+  }
+
+  .pv-dir-head {
+    font-size: 11px;
+  }
+
+  .pv-dir-val {
+    font-size: 17px;
+  }
+
+  .pv-dir-val .ef-unit-sm {
+    font-size: 10.5px;
+  }
+
+  .pv-dir-pvs {
+    font-size: 9.5px;
+    gap: 4px;
   }
 
   .sim-months-grid {

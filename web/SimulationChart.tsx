@@ -10,7 +10,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { PV_SERIES, type PvMonthlyRecord } from "./PvCharts";
+import {
+  PV_SERIES,
+  aggregateAnnualPvTotals,
+  resolveMonthlyPvValues,
+  type PvMonthlyRecord,
+} from "./PvCharts";
 
 export interface MonthlySimItem {
   month: number;
@@ -248,36 +253,15 @@ function SimulationChartView({
     pvByMonth.set(rec.month, rec);
   }
 
-  const annualPvTotals = { pv1: 0, pv2: 0, pv3: 0, pv4: 0 };
+  const annualPvTotals = aggregateAnnualPvTotals(pvMonthly, monthlyActualKwh);
   const data: MonthlySimItem[] = BASE_SIMULATION.map((b) => {
     const actualRaw = Math.max(0, monthlyActualKwh[b.month] ?? 0);
     const actualRounded = Math.round(actualRaw);
     const pct = b.estimatedKwh > 0 ? (actualRaw / b.estimatedKwh) * 100 : 0;
-
-    const pvRec = pvByMonth.get(b.month);
-    const r1 = Math.max(0, pvRec?.pv1 ?? 0);
-    const r2 = Math.max(0, pvRec?.pv2 ?? 0);
-    const r3 = Math.max(0, pvRec?.pv3 ?? 0);
-    const r4 = Math.max(0, pvRec?.pv4 ?? 0);
-    const rSum = r1 + r2 + r3 + r4;
-
-    let pv1 = 0, pv2 = 0, pv3 = 0, pv4 = 0;
-    if (actualRaw > 0 && rSum > 0) {
-      pv1 = (actualRaw * r1) / rSum;
-      pv2 = (actualRaw * r2) / rSum;
-      pv3 = (actualRaw * r3) / rSum;
-      pv4 = (actualRaw * r4) / rSum;
-    } else if (rSum > 0) {
-      pv1 = r1;
-      pv2 = r2;
-      pv3 = r3;
-      pv4 = r4;
-    }
-
-    annualPvTotals.pv1 += pv1;
-    annualPvTotals.pv2 += pv2;
-    annualPvTotals.pv3 += pv3;
-    annualPvTotals.pv4 += pv4;
+    const { pv1, pv2, pv3, pv4 } = resolveMonthlyPvValues(
+      pvByMonth.get(b.month),
+      actualRaw,
+    );
 
     return {
       month: b.month,
@@ -301,11 +285,7 @@ function SimulationChartView({
   );
   const totalActualKwh = Math.round(totalActualRaw);
   const totalPct = (totalActualRaw / ANNUAL_TOTAL_KWH) * 100;
-  const pvAnnualSum =
-    annualPvTotals.pv1 +
-    annualPvTotals.pv2 +
-    annualPvTotals.pv3 +
-    annualPvTotals.pv4;
+  const pvAnnualSum = annualPvTotals.total;
 
   const maxBar = data.reduce((mx, d) => Math.max(mx, d.barMaxKwh), 0);
   const yMax = maxBar > 900 ? Math.ceil(maxBar / 100) * 100 : 900;
