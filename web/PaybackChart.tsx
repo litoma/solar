@@ -4,6 +4,7 @@ import {
   Bar,
   CartesianGrid,
   ComposedChart,
+  ReferenceArea,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -194,19 +195,19 @@ function CustomPaybackTooltip({
         ) : null}
       </div>
       <div className="sim-tooltip-row">
-        <span className="sim-tooltip-label">実績累計回収:</span>
+        <span className="sim-tooltip-label">回収実績:</span>
         <span className="sim-tooltip-actual">
           ¥{p.actualCumYen.toLocaleString("ja-JP")}
         </span>
       </div>
       <div className="sim-tooltip-row">
-        <span className="sim-tooltip-label">実績ペース予測:</span>
+        <span className="sim-tooltip-label">回収計画:</span>
         <span className="sim-tooltip-pct">
           ¥{p.projectedCumYen.toLocaleString("ja-JP")} ({p.pctOfTarget.toFixed(0)}%)
         </span>
       </div>
       <div className="sim-tooltip-row">
-        <span className="sim-tooltip-label">予測ベース残額:</span>
+        <span className="sim-tooltip-label">目標まで残額:</span>
         <span className="sim-tooltip-est">
           {p.projectedCumYen >= targetYen
             ? `+¥${(p.projectedCumYen - targetYen).toLocaleString("ja-JP")} (黒字)`
@@ -447,10 +448,13 @@ function PaybackChartView({
     setPage(idx);
   };
 
+  const currentYearLabel = String(currentYear);
+  const hasCurrentYear = points.some((pt) => pt.label === currentYearLabel);
+
   return (
     <div className="sim-container">
       <div className="payback-pager" ref={scrollerRef} onScroll={onScroll}>
-        {/* 1ページ目: 進捗バー + 実績/実績ペース予測グラフ + 年次マイルストーン */}
+        {/* 1ページ目: 進捗バー + 回収実績/回収計画グラフ + 年次マイルストーン */}
         <div className="payback-page">
           <div className="payback-bar-wrap">
             <div className="payback-bar-track">
@@ -471,11 +475,11 @@ function PaybackChartView({
             <div className="summary-chart-legend sim-chart-legend" aria-label="Payback Legend">
               <span className="summary-legend-item">
                 <span className="sim-legend-swatch sim-legend-swatch-actual" />
-                <span style={{ color: "#57f293" }}>実績累計回収</span>
+                <span style={{ color: "#57f293" }}>回収実績</span>
               </span>
               <span className="summary-legend-item">
                 <span className="sim-legend-swatch sim-legend-swatch-est" />
-                <span style={{ color: FORECAST_TEXT }}>実績ペース予測</span>
+                <span style={{ color: FORECAST_TEXT }}>回収計画</span>
               </span>
             </div>
 
@@ -489,12 +493,40 @@ function PaybackChartView({
                   strokeDasharray="3 3"
                   vertical={false}
                 />
+                {hasCurrentYear ? (
+                  <ReferenceArea
+                    x1={currentYearLabel}
+                    x2={currentYearLabel}
+                    fill="#fbdd84"
+                    fillOpacity={0.08}
+                    stroke="none"
+                  />
+                ) : null}
                 <XAxis
                   dataKey="label"
-                  tick={{
-                    fill: "#b8bbc6",
-                    fontSize: 11.5,
-                    fontFamily: "JetBrains Mono, monospace",
+                  interval={0}
+                  tick={(tickProps: {
+                    x?: number | string;
+                    y?: number | string;
+                    payload?: { value?: string };
+                  }) => {
+                    const tx = Number(tickProps.x ?? 0);
+                    const ty = Number(tickProps.y ?? 0);
+                    const val = String(tickProps.payload?.value ?? "");
+                    const isCur = val === currentYearLabel;
+                    return (
+                      <text
+                        x={tx}
+                        y={ty + 11}
+                        textAnchor="middle"
+                        fill={isCur ? "#fbdd84" : "#b8bbc6"}
+                        fontSize={11.5}
+                        fontWeight={isCur ? 700 : 400}
+                        fontFamily="JetBrains Mono, monospace"
+                      >
+                        {val}
+                      </text>
+                    );
                   }}
                   axisLine={{ stroke: "#484a54" }}
                   tickLine={false}
@@ -529,7 +561,7 @@ function PaybackChartView({
                   }}
                 />
                 <Bar
-                  name="実績累計回収"
+                  name="回収実績"
                   dataKey="actualCumMan"
                   stackId="actual"
                   fill="#57f293"
@@ -561,7 +593,7 @@ function PaybackChartView({
                   }}
                 />
                 <Bar
-                  name="実績ペース予測"
+                  name="回収計画"
                   dataKey="projectedDeltaMan"
                   stackId="actual"
                   fill={FORECAST_FILL}

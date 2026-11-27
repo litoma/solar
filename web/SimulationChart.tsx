@@ -285,7 +285,6 @@ function SimulationChartView({
   );
   const totalActualKwh = Math.round(totalActualRaw);
   const totalPct = (totalActualRaw / ANNUAL_TOTAL_KWH) * 100;
-  const pvAnnualSum = annualPvTotals.total;
 
   const maxBar = data.reduce((mx, d) => Math.max(mx, d.barMaxKwh), 0);
   const yMax = maxBar > 900 ? Math.ceil(maxBar / 100) * 100 : 900;
@@ -317,30 +316,26 @@ function SimulationChartView({
               {ANNUAL_TOTAL_KWH.toLocaleString("ja-JP")} kWh
             </span>
           </div>
-        </div>
-      </div>
 
-      {/* PV1〜PV4 年間実績カード (横並び4列 / 右上に占有率%) */}
-      <div className="sim-pv-grid" aria-label="Annual Generation by PV String">
-        {PV_SERIES.map((s) => {
-          const val = annualPvTotals[s.key];
-          const sharePct = pvAnnualSum > 0 ? (val / pvAnnualSum) * 100 : 0;
-          return (
-            <div key={s.key} className="sim-pv-card">
-              <div className="sim-pv-head">
-                <span className="pv-quad-title">
-                  <span className={`pv-swatch swatch-${s.key}`} />
-                  <span className="pv-quad-name">{s.label}</span>
-                </span>
-                <span className="sim-pv-pct">{sharePct.toFixed(1)}%</span>
-              </div>
-              <div className="sim-pv-val">
-                {val.toFixed(1)}
-                <span className="ef-unit-sm">kWh</span>
-              </div>
-            </div>
-          );
-        })}
+          {/* PV1〜PV4 年間実績サブボックス (ANNUAL TOTAL内に内包 / PV右横に kWh 表示) */}
+          <div className="sim-pv-grid" aria-label="Annual Generation by PV String">
+            {PV_SERIES.map((s) => {
+              const val = annualPvTotals[s.key];
+              return (
+                <div key={s.key} className="sim-pv-card">
+                  <span className="pv-quad-title">
+                    <span className={`pv-swatch swatch-${s.key}`} />
+                    <span className="pv-quad-name">{s.label}</span>
+                  </span>
+                  <span className="sim-pv-val">
+                    {val.toFixed(1)}
+                    <span className="ef-unit-sm">kWh</span>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* 中段: 月別発電量グラフ (ACTUAL=PV1〜4積み上げ + ESTIMATED重ね枠) */}
@@ -391,10 +386,30 @@ function SimulationChartView({
               <XAxis
                 dataKey="shortLabel"
                 interval={0}
-                tick={{
-                  fill: "#b8bbc6",
-                  fontSize: 10.5,
-                  fontFamily: "JetBrains Mono, monospace",
+                tick={(tickProps: {
+                  x?: number | string;
+                  y?: number | string;
+                  payload?: { value?: string };
+                }) => {
+                  const tx = Number(tickProps.x ?? 0);
+                  const ty = Number(tickProps.y ?? 0);
+                  const val = String(tickProps.payload?.value ?? "");
+                  const isCur =
+                    Boolean(currentMonthItem) &&
+                    val === currentMonthItem?.shortLabel;
+                  return (
+                    <text
+                      x={tx}
+                      y={ty + 11}
+                      textAnchor="middle"
+                      fill={isCur ? "#fbdd84" : "#b8bbc6"}
+                      fontSize={10.5}
+                      fontWeight={isCur ? 700 : 400}
+                      fontFamily="JetBrains Mono, monospace"
+                    >
+                      {val}
+                    </text>
+                  );
                 }}
                 axisLine={{ stroke: "#484a54" }}
                 tickLine={false}

@@ -52,38 +52,38 @@ export const PV_SERIES: PvSeriesItem[] = [
 const PV_MAP = new Map<PvKey, PvSeriesItem>(PV_SERIES.map((s) => [s.key, s]));
 
 // 時計回りの並び順: 12時から 東(PV2) → 西(PV1, PV3) → 南(該当パネルなしのため0なら非表示) → 北(PV4)
-// 外周リングの配色: EAST=PV2系の濃いマゼンタピンク, WEST=PV1(橙)とPV3(黄緑)の中間である濃い黄土/オリーブアンバー, NORTH=PV4系の濃いシアン
+// 外周リングの配色: 内側リング(PV1〜4)より一段濃い(暗い)同系色 / 中間色でコントラストを付ける
 const DIRECTION_RING_ORDER: DirectionConfig[] = [
   {
     key: "east",
     label: "EAST",
-    color: "#d92684",
-    textColor: "#ff7ac4",
-    fill: "rgba(182, 18, 104, 0.56)",
+    color: "#9e1c60",
+    textColor: "#f472b6",
+    fill: "rgba(104, 12, 60, 0.72)",
     pvs: ["pv2"],
   },
   {
     key: "west",
     label: "WEST",
-    color: "#c49a12",
-    textColor: "#ffd859",
-    fill: "rgba(158, 126, 10, 0.54)",
+    color: "#8f7812",
+    textColor: "#f3cf4a",
+    fill: "rgba(88, 74, 8, 0.74)",
     pvs: ["pv1", "pv3"],
   },
   {
     key: "south",
     label: "SOUTH",
-    color: "#ea580c",
+    color: "#9a3412",
     textColor: "#fb923c",
-    fill: "rgba(194, 78, 12, 0.52)",
+    fill: "rgba(102, 38, 8, 0.72)",
     pvs: [],
   },
   {
     key: "north",
     label: "NORTH",
-    color: "#00a6c4",
-    textColor: "#6beeff",
-    fill: "rgba(0, 128, 156, 0.54)",
+    color: "#0e7490",
+    textColor: "#5ce1f6",
+    fill: "rgba(6, 70, 90, 0.76)",
     pvs: ["pv4"],
   },
 ];
