@@ -36,6 +36,7 @@ interface DirectionConfig {
   key: DirectionKey;
   label: string;
   color: string;
+  textColor: string;
   fill: string;
   pvs: PvKey[];
 }
@@ -51,40 +52,41 @@ export const PV_SERIES: PvSeriesItem[] = [
 const PV_MAP = new Map<PvKey, PvSeriesItem>(PV_SERIES.map((s) => [s.key, s]));
 
 // 時計回りの並び順: 12時から 東(PV2) → 西(PV1, PV3) → 南(該当パネルなしのため0なら非表示) → 北(PV4)
+// 外周リングの配色: EAST=PV2系の濃いマゼンタピンク, WEST=PV1(橙)とPV3(黄緑)の中間である濃い黄土/オリーブアンバー, NORTH=PV4系の濃いシアン
 const DIRECTION_RING_ORDER: DirectionConfig[] = [
   {
     key: "east",
     label: "EAST",
-    color: "#b197fc",
-    fill: "rgba(177, 151, 252, 0.34)",
+    color: "#d92684",
+    textColor: "#ff7ac4",
+    fill: "rgba(182, 18, 104, 0.56)",
     pvs: ["pv2"],
   },
   {
     key: "west",
     label: "WEST",
-    color: "#fbdd84",
-    fill: "rgba(251, 221, 132, 0.30)",
+    color: "#c49a12",
+    textColor: "#ffd859",
+    fill: "rgba(158, 126, 10, 0.54)",
     pvs: ["pv1", "pv3"],
   },
   {
     key: "south",
     label: "SOUTH",
-    color: "#ff9f43",
-    fill: "rgba(255, 159, 67, 0.32)",
+    color: "#ea580c",
+    textColor: "#fb923c",
+    fill: "rgba(194, 78, 12, 0.52)",
     pvs: [],
   },
   {
     key: "north",
     label: "NORTH",
-    color: "#94a3b8",
-    fill: "rgba(148, 163, 184, 0.34)",
+    color: "#00a6c4",
+    textColor: "#6beeff",
+    fill: "rgba(0, 128, 156, 0.54)",
     pvs: ["pv4"],
   },
 ];
-
-const DIR_MAP = new Map<DirectionKey, DirectionConfig>(
-  DIRECTION_RING_ORDER.map((d) => [d.key, d]),
-);
 
 /**
  * 選択年の各月の PV1〜PV4 発電量を、月別実績トータル (solar_kwh) に比例配分して求める
@@ -173,6 +175,7 @@ interface OuterArcSlice {
   kwh: number;
   sharePct: number;
   color: string;
+  textColor: string;
   fill: string;
   startRad: number;
   endRad: number;
@@ -183,15 +186,16 @@ type HoverTarget =
   | { kind: "pv"; key: PvKey; x: number; y: number }
   | { kind: "dir"; key: DirectionKey; x: number; y: number };
 
-const SVG_W = 420;
-const SVG_H = 396;
-const CX = 210;
-const CY = 198;
-const R_HOLE = 59;
-const R1_IN = 61;
-const R1_OUT = 121;
-const R2_IN = 125;
-const R2_OUT = 165;
+// 外側リングを太くし、グラフ表示領域を広げる (CENTER 0..56 / INNER 58..126 / OUTER 130..192)
+const SVG_W = 440;
+const SVG_H = 420;
+const CX = 220;
+const CY = 210;
+const R_HOLE = 56;
+const R1_IN = 58;
+const R1_OUT = 126;
+const R2_IN = 130;
+const R2_OUT = 192;
 const RING_GAP_PX = 2.6;
 const START_RAD = -Math.PI / 2; // 12時方向から時計回り
 
@@ -207,7 +211,6 @@ function polarToCart(r: number, rad: number): { x: number; y: number } {
 
 /**
  * 内半径 rIn〜外半径 rOut・開始角〜終了角 のドーナツ扇形 SVG パスを生成する
- * sliceCount > 1 のときは境界線間の隙間が半径によらず一定幅 (RING_GAP_PX) になるよう平行オフセットする
  */
 function describeAnnularSector(
   rIn: number,
@@ -271,7 +274,7 @@ function computeCalloutAnchor(midRad: number, outerR: number): {
 } {
   const cos = Math.cos(midRad);
   const pStart = polarToCart(outerR - 1, midRad);
-  const pElbow = polarToCart(outerR + 13, midRad);
+  const pElbow = polarToCart(outerR + 12, midRad);
   if (Math.abs(cos) < 0.22) {
     return {
       lx1: pStart.x,
@@ -314,7 +317,7 @@ function buildRingSlices(annual: AnnualPvBreakdown): {
         Boolean(item.meta) && item.kwh > 0,
       );
     const dirKwh = activePvs.reduce((sum, item) => sum + item.kwh, 0);
-    // 南など該当パネル・発電量が 0 の方位は表示対象から除外する
+    // 南など該当パネル・発電量が 0 の方位は非表示
     if (dirKwh <= 0 || activePvs.length === 0) continue;
 
     const dirStart = cursor;
@@ -353,6 +356,7 @@ function buildRingSlices(annual: AnnualPvBreakdown): {
       kwh: dirKwh,
       sharePct: (dirKwh / annual.total) * 100,
       color: dir.color,
+      textColor: dir.textColor,
       fill: dir.fill,
       startRad: dirStart,
       endRad: dirEnd,
@@ -398,7 +402,7 @@ function PvDonutChart({
       ? outerSlices.find((d) => d.key === hover.key) ?? null
       : null;
 
-  const totalFontSize = annual.total >= 1000 ? 17 : 20;
+  const totalFontSize = annual.total >= 1000 ? 16 : 19;
 
   return (
     <div
@@ -456,7 +460,7 @@ function PvDonutChart({
             </>
           ) : (
             <>
-              {/* 外側の円: 方位 (時計回りに EAST → WEST → NORTH、該当なしの方位は非表示) */}
+              {/* 外側の円: 方位 (太めの幅にして方位名・%・kWhをすべて表示) */}
               <g className="pv-donut-outer-ring">
                 {outerSlices.map((d) => {
                   const pathD = describeAnnularSector(
@@ -470,9 +474,13 @@ function PvDonutChart({
                   const dimmed = Boolean(hover) && !active;
                   const rMid = (R2_IN + R2_OUT) / 2;
                   const arcLen = rMid * (d.endRad - d.startRad);
-                  const labelPos = polarToCart(rMid, d.midRad);
-                  const outsideCallout = arcLen < 46;
-                  const callout = outsideCallout
+                  const isTiny = arcLen < 42;
+                  const isCompact = arcLen < 68;
+                  const labelPos = polarToCart(
+                    isCompact ? rMid + 3 : rMid,
+                    d.midRad,
+                  );
+                  const callout = isTiny
                     ? computeCalloutAnchor(d.midRad, R2_OUT)
                     : null;
 
@@ -502,9 +510,9 @@ function PvDonutChart({
                         fill={d.fill}
                         fillRule="evenodd"
                         stroke={d.color}
-                        strokeWidth={active ? 2 : 1.3}
+                        strokeWidth={active ? 2.1 : 1.4}
                       />
-                      {outsideCallout && callout ? (
+                      {isTiny && callout ? (
                         <g className="pv-donut-callout">
                           <polyline
                             points={`${callout.lx1.toFixed(1)},${callout.ly1.toFixed(1)} ${callout.lx2.toFixed(1)},${callout.ly2.toFixed(1)}`}
@@ -518,7 +526,7 @@ function PvDonutChart({
                             y={callout.ty - 5}
                             textAnchor={callout.textAnchor}
                             dominantBaseline="central"
-                            fill={d.color}
+                            fill={d.textColor}
                             fontSize={10.5}
                             fontWeight={700}
                             fontFamily="JetBrains Mono, monospace"
@@ -535,6 +543,33 @@ function PvDonutChart({
                             fontWeight={600}
                             fontFamily="JetBrains Mono, monospace"
                           >
+                            {d.sharePct.toFixed(1)}% · {d.kwh.toFixed(1)}kWh
+                          </text>
+                        </g>
+                      ) : isCompact ? (
+                        <g className="pv-donut-slice-label">
+                          <text
+                            x={labelPos.x}
+                            y={labelPos.y - 6}
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                            fill="#ffffff"
+                            fontSize={11.5}
+                            fontWeight={700}
+                            fontFamily="JetBrains Mono, monospace"
+                          >
+                            {d.label}
+                          </text>
+                          <text
+                            x={labelPos.x}
+                            y={labelPos.y + 8}
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                            fill={d.textColor}
+                            fontSize={10.5}
+                            fontWeight={700}
+                            fontFamily="JetBrains Mono, monospace"
+                          >
                             {d.sharePct.toFixed(1)}%
                           </text>
                         </g>
@@ -542,11 +577,11 @@ function PvDonutChart({
                         <g className="pv-donut-slice-label">
                           <text
                             x={labelPos.x}
-                            y={labelPos.y - 6.5}
+                            y={labelPos.y - 13.5}
                             textAnchor="middle"
                             dominantBaseline="central"
                             fill="#ffffff"
-                            fontSize={11}
+                            fontSize={12.5}
                             fontWeight={700}
                             letterSpacing="0.04em"
                             fontFamily="JetBrains Mono, monospace"
@@ -555,15 +590,27 @@ function PvDonutChart({
                           </text>
                           <text
                             x={labelPos.x}
-                            y={labelPos.y + 7.5}
+                            y={labelPos.y + 0.5}
                             textAnchor="middle"
                             dominantBaseline="central"
-                            fill={d.color}
-                            fontSize={10.5}
+                            fill={d.textColor}
+                            fontSize={11.5}
                             fontWeight={700}
                             fontFamily="JetBrains Mono, monospace"
                           >
                             {d.sharePct.toFixed(1)}%
+                          </text>
+                          <text
+                            x={labelPos.x}
+                            y={labelPos.y + 14.5}
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                            fill="#e8ebf3"
+                            fontSize={9.8}
+                            fontWeight={500}
+                            fontFamily="JetBrains Mono, monospace"
+                          >
+                            {d.kwh.toFixed(1)} kWh
                           </text>
                         </g>
                       )}
@@ -588,10 +635,9 @@ function PvDonutChart({
                   const arcLen = rMid * (s.endRad - s.startRad);
                   const isCompact = arcLen < 78;
                   const isTiny = arcLen < 36;
-                  // コンパクト幅のスライスは半径のやや外側に配置して左右幅を確保する
-                  const labelPos = polarToCart(isCompact ? rMid + 4 : rMid, s.midRad);
+                  const labelPos = polarToCart(isCompact ? rMid + 6 : rMid, s.midRad);
                   const callout = isTiny
-                    ? computeCalloutAnchor(s.midRad, R2_OUT + 14)
+                    ? computeCalloutAnchor(s.midRad, R2_OUT + 12)
                     : null;
 
                   return (
@@ -680,7 +726,7 @@ function PvDonutChart({
                         <g className="pv-donut-slice-label">
                           <text
                             x={labelPos.x}
-                            y={labelPos.y - 13}
+                            y={labelPos.y - 13.5}
                             textAnchor="middle"
                             dominantBaseline="central"
                             fill="#ffffff"
@@ -692,7 +738,7 @@ function PvDonutChart({
                           </text>
                           <text
                             x={labelPos.x}
-                            y={labelPos.y + 1.5}
+                            y={labelPos.y + 1}
                             textAnchor="middle"
                             dominantBaseline="central"
                             fill={s.color}
@@ -708,7 +754,7 @@ function PvDonutChart({
                             textAnchor="middle"
                             dominantBaseline="central"
                             fill="#e2e5ef"
-                            fontSize={9.5}
+                            fontSize={9.8}
                             fontWeight={500}
                             fontFamily="JetBrains Mono, monospace"
                           >
@@ -732,11 +778,11 @@ function PvDonutChart({
               />
               <text
                 x={CX}
-                y={CY - 21}
+                y={CY - 20}
                 textAnchor="middle"
                 dominantBaseline="central"
                 fill="#fbdd84"
-                fontSize={10.5}
+                fontSize={10}
                 fontWeight={600}
                 letterSpacing="0.08em"
                 fontFamily="JetBrains Mono, monospace"
@@ -754,17 +800,17 @@ function PvDonutChart({
                 fontFamily="'Space Grotesk', sans-serif"
               >
                 {annual.total.toFixed(1)}
-                <tspan fill="#b8bbc6" fontSize={10.5} fontWeight={500}>
+                <tspan fill="#b8bbc6" fontSize={10} fontWeight={500}>
                   {" "}kWh
                 </tspan>
               </text>
               <text
                 x={CX}
-                y={CY + 22}
+                y={CY + 21}
                 textAnchor="middle"
                 dominantBaseline="central"
                 fill="#9aa0ae"
-                fontSize={9}
+                fontSize={8.5}
                 letterSpacing="0.04em"
                 fontFamily="JetBrains Mono, monospace"
               >
@@ -814,7 +860,7 @@ function PvDonutChart({
                 </>
               ) : hoveredOuter ? (
                 <>
-                  <div className="sim-tooltip-title" style={{ color: hoveredOuter.color }}>
+                  <div className="sim-tooltip-title" style={{ color: hoveredOuter.textColor }}>
                     {hoveredOuter.label}
                   </div>
                   <div className="sim-tooltip-row">
@@ -843,64 +889,6 @@ function PvDonutChart({
           </div>
         ) : null}
       </div>
-
-      {/* 下部: 方位ごとの年間実績サマリー (時計回り順 / 非表示の方位は除外) */}
-      {outerSlices.length > 0 ? (
-        <div className="pv-dir-grid" aria-label="Annual Generation by Direction">
-          {outerSlices.map((d) => {
-            const active = isOuterActive(d);
-            return (
-              <div
-                key={d.key}
-                className={`pv-dir-card${active ? " is-active" : ""}`}
-                onMouseEnter={() =>
-                  setHover({
-                    kind: "dir",
-                    key: d.key,
-                    x: CX,
-                    y: CY,
-                  })
-                }
-                onMouseLeave={() => setHover(null)}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const labelPos = polarToCart((R2_IN + R2_OUT) / 2, d.midRad);
-                  setHover((prev) =>
-                    prev?.kind === "dir" && prev.key === d.key
-                      ? null
-                      : { kind: "dir", key: d.key, x: labelPos.x, y: labelPos.y },
-                  );
-                }}
-              >
-                <div className="pv-dir-head">
-                  <span className="pv-dir-title">
-                    <span
-                      className="pv-dir-swatch"
-                      style={{
-                        backgroundColor: d.fill,
-                        border: `1.2px solid ${d.color}`,
-                      }}
-                    />
-                    <span style={{ color: d.color }}>{d.label}</span>
-                  </span>
-                  <span className="sim-pv-pct">{d.sharePct.toFixed(1)}%</span>
-                </div>
-                <div className="pv-dir-val">
-                  {d.kwh.toFixed(1)}
-                  <span className="ef-unit-sm">kWh</span>
-                </div>
-                <div className="pv-dir-pvs">
-                  {d.pvs.map((pv) => (
-                    <span key={pv.key} className="pv-dir-pv-tag" style={{ color: pv.color }}>
-                      {pv.label}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
     </div>
   );
 }

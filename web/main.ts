@@ -1,5 +1,6 @@
 import { mountOrUpdatePaybackChart, type PaybackData } from "./PaybackChart";
 import { mountOrUpdatePvCharts, type PvMonthlyRecord } from "./PvCharts";
+import { DEFAULT_BUY_TARIFF, type BuyTariffConfig } from "./tariff";
 import {
   PV_BASE_COLORS,
   SOLAR_PULSE_DURATION,
@@ -54,6 +55,7 @@ interface DashboardResponse {
   config: {
     location: string;
     buyPriceYenPerKwh: number;
+    buyTariff?: BuyTariffConfig;
     sellPriceYenPerKwh: number;
     refreshIntervalSec: number;
     batteryCapacityKwh: number;
@@ -80,6 +82,10 @@ interface DashboardResponse {
   } | null;
   latest: Record<string, number | null> | null;
   sellDayKwhComputed: number;
+  todaySummary?: {
+    buyCostYen: number;
+    solarValueYen: number;
+  };
   todayBatteryChgKwh?: number | null;
   todayBatteryDischgKwh?: number | null;
   todayFlows?: DailyFlowEdge[];
@@ -919,7 +925,7 @@ function renderDashboard(data: DashboardResponse): void {
     renderPvGenerationForYear(activeSimYear);
     mountOrUpdatePaybackChart(
       fallbackPayback,
-      cfg.buyPriceYenPerKwh,
+      cfg.buyTariff ?? fallbackPayback.buyTariff ?? DEFAULT_BUY_TARIFF,
       year,
       month,
     );
@@ -952,7 +958,7 @@ function renderDashboard(data: DashboardResponse): void {
   renderPvGenerationForYear(activeSimYear);
   mountOrUpdatePaybackChart(
     fallbackPayback,
-    cfg.buyPriceYenPerKwh,
+    cfg.buyTariff ?? fallbackPayback.buyTariff ?? DEFAULT_BUY_TARIFF,
     year,
     month,
   );
@@ -1027,8 +1033,14 @@ function renderDashboard(data: DashboardResponse): void {
   const buyToday = latest.buy_day_kwh ?? 0;
   const sellToday = data.sellDayKwhComputed ?? 0;
 
-  const solarValueYen = Math.round(solarToday * cfg.buyPriceYenPerKwh);
-  const buyCostYen = Math.round(buyToday * cfg.buyPriceYenPerKwh);
+  const solarValueYen =
+    typeof data.todaySummary?.solarValueYen === "number"
+      ? data.todaySummary.solarValueYen
+      : Math.round(solarToday * cfg.buyPriceYenPerKwh);
+  const buyCostYen =
+    typeof data.todaySummary?.buyCostYen === "number"
+      ? data.todaySummary.buyCostYen
+      : Math.round(buyToday * cfg.buyPriceYenPerKwh);
   const sellRevYen = Math.round(sellToday * cfg.sellPriceYenPerKwh);
 
   mountOrUpdateSummaryCharts(
@@ -1593,7 +1605,7 @@ mountOrUpdatePaybackChart(
     firstDate: null,
     byYearMonth: {},
   },
-  35,
+  DEFAULT_BUY_TARIFF,
   initTime.year,
   initTime.month,
 );

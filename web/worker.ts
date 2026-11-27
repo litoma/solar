@@ -1,3 +1,11 @@
+import {
+  DEFAULT_BUY_TARIFF,
+  calcMarginalPeriodEnergyYen,
+  calcMonthlySelfBenefitYen,
+  getMarginalTierRate,
+  type BuyTariffConfig,
+} from "./tariff";
+
 export interface SellPriceTier {
   startYear: number;
   endYear: number | null;
@@ -7,6 +15,7 @@ export interface SellPriceTier {
 export interface SiteConfig {
   location: string;
   buyPriceYenPerKwh: number;
+  buyTariff: BuyTariffConfig;
   sellPriceYenPerKwh: number;
   sellPriceSchedule: SellPriceTier[];
   sellPriceScheduleRaw: string;
@@ -37,6 +46,11 @@ export interface Env {
   SOLAR_LOCATION?: string;
   SOLAR_LATITUDE?: string;
   SOLAR_LONGITUDE?: string;
+  SOLAR_BASE_FEE_YEN?: string;
+  SOLAR_BASELINE_BASE_FEE_YEN?: string;
+  SOLAR_BUY_PRICE_TIER1_YEN?: string;
+  SOLAR_BUY_PRICE_TIER2_YEN?: string;
+  SOLAR_BUY_PRICE_TIER3_YEN?: string;
   SOLAR_BUY_PRICE_YEN?: string;
   SOLAR_SELL_PRICE_YEN?: string;
   SOLAR_SELL_PRICE_SCHEDULE?: string;
@@ -324,6 +338,12 @@ function parsePositiveNumber(raw: string | undefined, fallback: number): number 
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
+function parseNonNegativeNumber(raw: string | undefined, fallback: number): number {
+  if (!raw) return fallback;
+  const n = Number(raw.trim());
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+}
+
 /**
  * "1-4:24,5-10:8.3,11+:8.5" のような年数別売電単価スケジュール文字列をパースする
  */
@@ -394,10 +414,49 @@ function getOperationYearForYm(startYm: string, targetYm: string): number {
 
 async function resolveSiteConfig(env: Env): Promise<SiteConfig> {
   const location = (env.SOLAR_LOCATION || DEFAULT_LOCATION).trim() || DEFAULT_LOCATION;
-  const buyPriceYenPerKwh = parsePositiveNumber(
+  const legacyBuyPrice = parsePositiveNumber(
     env.SOLAR_BUY_PRICE_YEN,
     DEFAULT_BUY_PRICE_YEN,
   );
+  const hasTierEnv = Boolean(
+    env.SOLAR_BUY_PRICE_TIER1_YEN ||
+      env.SOLAR_BUY_PRICE_TIER2_YEN ||
+      env.SOLAR_BUY_PRICE_TIER3_YEN,
+  );
+  const baseFeeYen = parseNonNegativeNumber(
+    env.SOLAR_BASE_FEE_YEN,
+    DEFAULT_BUY_TARIFF.baseFeeYen,
+  );
+  // 比較基準の基本料金が未指定の場合は現行プランと同額扱い (将来 0円プランへ移行し差額比較する際にも対応可)
+  const baselineBaseFeeYen = parseNonNegativeNumber(
+    env.SOLAR_BASELINE_BASE_FEE_YEN,
+    baseFeeYen,
+  );
+  const buyTariff: BuyTariffConfig = {
+    baseFeeYen,
+    baselineBaseFeeYen,
+    tier1MaxKwh: DEFAULT_BUY_TARIFF.tier1MaxKwh,
+    tier1YenPerKwh: parsePositiveNumber(
+      env.SOLAR_BUY_PRICE_TIER1_YEN,
+      hasTierEnv || !env.SOLAR_BUY_PRICE_YEN
+        ? DEFAULT_BUY_TARIFF.tier1YenPerKwh
+        : legacyBuyPrice,
+    ),
+    tier2MaxKwh: DEFAULT_BUY_TARIFF.tier2MaxKwh,
+    tier2YenPerKwh: parsePositiveNumber(
+      env.SOLAR_BUY_PRICE_TIER2_YEN,
+      hasTierEnv || !env.SOLAR_BUY_PRICE_YEN
+        ? DEFAULT_BUY_TARIFF.tier2YenPerKwh
+        : legacyBuyPrice,
+    ),
+    tier3YenPerKwh: parsePositiveNumber(
+      env.SOLAR_BUY_PRICE_TIER3_YEN,
+      hasTierEnv || !env.SOLAR_BUY_PRICE_YEN
+        ? DEFAULT_BUY_TARIFF.tier3YenPerKwh
+        : legacyBuyPrice,
+    ),
+  };
+  const buyPriceYenPerKwh = buyTariff.tier2YenPerKwh;
   const baseSellPriceYen = parsePositiveNumber(
     env.SOLAR_SELL_PRICE_YEN,
     DEFAULT_SELL_PRICE_YEN,
@@ -483,6 +542,7 @@ async function resolveSiteConfig(env: Env): Promise<SiteConfig> {
   return {
     location,
     buyPriceYenPerKwh,
+    buyTariff,
     sellPriceYenPerKwh,
     sellPriceSchedule,
     sellPriceScheduleRaw,
@@ -1537,12 +1597,32 @@ async function buildDashboard(
 
   let totalSolarKwh = 0;
   let totalSellKwh = 0;
+  let totalBuyKwh = 0;
+  let totalSelfKwh = 0;
   let totalBenefitYen = 0;
   let activeDays = 0;
   let firstDate: string | null = null;
+  const monthAcc: Record<
+    string,
+    {
+      solarKwh: number;
+      sellKwh: number;
+      buyKwh: number;
+      selfKwh: number;
+      sellYen: number;
+      days: number;
+    }
+  > = {};
   const byYearMonth: Record<
     string,
-    { solarKwh: number; sellKwh: number; benefitYen: number; days: number }
+    {
+      solarKwh: number;
+      sellKwh: number;
+      buyKwh: number;
+      selfKwh: number;
+      benefitYen: number;
+      days: number;
+    }
   > = {};
 
   const sellStartYm = cfg.sellStartDate.slice(0, 7);
@@ -1611,23 +1691,46 @@ async function buildDashboard(
         cfg.sellPriceYenPerKwh,
       );
     }
-    const benefit = selfKwh * cfg.buyPriceYenPerKwh + eKwh * sellPriceForDay;
     totalSolarKwh += sKwh;
     totalSellKwh += eKwh;
-    totalBenefitYen += benefit;
+    totalBuyKwh += bKwh;
+    totalSelfKwh += selfKwh;
     activeDays += 1;
     if (!firstDate || d.jst_date < firstDate) firstDate = d.jst_date;
-    const cur = byYearMonth[ym] || {
+    const cur = monthAcc[ym] || {
       solarKwh: 0,
       sellKwh: 0,
-      benefitYen: 0,
+      buyKwh: 0,
+      selfKwh: 0,
+      sellYen: 0,
       days: 0,
     };
-    cur.solarKwh = Math.round((cur.solarKwh + sKwh) * 100) / 100;
-    cur.sellKwh = Math.round((cur.sellKwh + eKwh) * 100) / 100;
-    cur.benefitYen = Math.round(cur.benefitYen + benefit);
+    cur.solarKwh += sKwh;
+    cur.sellKwh += eKwh;
+    cur.buyKwh += bKwh;
+    cur.selfKwh += selfKwh;
+    cur.sellYen += eKwh * sellPriceForDay;
     cur.days += 1;
-    byYearMonth[ym] = cur;
+    monthAcc[ym] = cur;
+  }
+
+  // 月別の累計 kWh (買電量 〜 買電量 + 自家消費量) を基準に 3段階料金差額で回収額を算出
+  for (const [ym, acc] of Object.entries(monthAcc)) {
+    const selfBenefit = calcMonthlySelfBenefitYen(
+      acc.buyKwh,
+      acc.selfKwh,
+      cfg.buyTariff,
+    );
+    const monthBenefit = selfBenefit + acc.sellYen;
+    totalBenefitYen += monthBenefit;
+    byYearMonth[ym] = {
+      solarKwh: round2(acc.solarKwh),
+      sellKwh: round2(acc.sellKwh),
+      buyKwh: round2(acc.buyKwh),
+      selfKwh: round2(acc.selfKwh),
+      benefitYen: Math.round(monthBenefit),
+      days: acc.days,
+    };
   }
   for (const m of Object.keys(monthlyActualKwh)) {
     const k = Number(m);
@@ -1759,16 +1862,36 @@ async function buildDashboard(
     initialCostYen: cfg.initialCostYen,
     subsidyYen: cfg.subsidyYen,
     sellPriceSchedule: cfg.sellPriceSchedule,
+    buyTariff: cfg.buyTariff,
     startYm: cfg.startYm,
     sellStartDate: cfg.sellStartDate,
     selfConsumeRatio: cfg.selfConsumeRatio,
     totalSolarKwh: Math.round(totalSolarKwh * 10) / 10,
     totalSellKwh: Math.round(totalSellKwh * 10) / 10,
+    totalBuyKwh: round2(totalBuyKwh),
+    totalSelfKwh: round2(totalSelfKwh),
     totalBenefitYen: Math.round(totalBenefitYen),
     activeDays,
     firstDate,
     byYearMonth,
   };
+
+  // SUMMARY 当日金額表示用: 今月の累計段階位置を反映した買電コスト・発電価値を算出
+  const currentYmKey = todayJst.slice(0, 7);
+  const curMonthAcc = monthAcc[currentYmKey];
+  const curMonthBuyKwh = curMonthAcc?.buyKwh ?? Math.max(0, today?.buy_kwh ?? 0);
+  const curMonthSelfKwh =
+    curMonthAcc?.selfKwh ??
+    Math.max(0, (today?.solar_kwh ?? 0) - sellDayKwhFromSeries);
+  const todaySelfEffectiveRate =
+    curMonthSelfKwh > 0.01
+      ? calcMonthlySelfBenefitYen(
+          curMonthBuyKwh,
+          curMonthSelfKwh,
+          cfg.buyTariff,
+          false,
+        ) / curMonthSelfKwh
+      : getMarginalTierRate(curMonthBuyKwh, cfg.buyTariff);
 
   // 次の1分値が届く頃までキャッシュする (10〜60秒)
   const ttlSec =
@@ -1832,6 +1955,14 @@ async function buildDashboard(
   const useTodayTarget = round2(
     Math.max(0, Number(latest?.load_day_kwh ?? today?.load_kwh ?? 0)),
   );
+  const todayBuyCostYen = Math.round(
+    calcMarginalPeriodEnergyYen(curMonthBuyKwh, buyTodayTarget, cfg.buyTariff),
+  );
+  const todaySelfSolar = Math.max(0, solarTodayTarget - sellDayKwhFromSeries);
+  const todaySolarValueYen = Math.round(
+    todaySelfSolar * todaySelfEffectiveRate +
+      sellDayKwhFromSeries * cfg.sellPriceYenPerKwh,
+  );
   const todayFlows = computeTodayFlows(todayBuckets, {
     solar: solarTodayTarget,
     battIn: todayBatteryDischgKwh,
@@ -1849,6 +1980,10 @@ async function buildDashboard(
     weather,
     latest: latest || null,
     sellDayKwhComputed: sellDayKwhFromSeries,
+    todaySummary: {
+      buyCostYen: todayBuyCostYen,
+      solarValueYen: todaySolarValueYen,
+    },
     pvDayKwh,
     pvMonthlyByYear,
     todayBatteryChgKwh,

@@ -37,8 +37,22 @@ export default defineConfig({
 
       // 太陽光パネルの設置場所 (初期値: 東京都中央区 / 今回のサイト用: 東京都練馬区)
       SOLAR_LOCATION: bindings.text(process.env.SOLAR_LOCATION || "東京都練馬区"),
-      // 買電単価 (円/kWh, 初期値: 35)
-      SOLAR_BUY_PRICE_YEN: bindings.text(process.env.SOLAR_BUY_PRICE_YEN || "35"),
+      // 電気の基本料金 (円/月, 初期値: 1991.56 / 基本料金なしプランは 0)
+      SOLAR_BASE_FEE_YEN: bindings.text(
+        process.env.SOLAR_BASE_FEE_YEN || "1991.56",
+      ),
+      // 従量電灯 第1段階料金 (〜120kWh, 円/kWh, 初期値: 29.86)
+      SOLAR_BUY_PRICE_TIER1_YEN: bindings.text(
+        process.env.SOLAR_BUY_PRICE_TIER1_YEN || "29.86",
+      ),
+      // 従量電灯 第2段階料金 (121〜400kWh, 円/kWh, 初期値: 35.87)
+      SOLAR_BUY_PRICE_TIER2_YEN: bindings.text(
+        process.env.SOLAR_BUY_PRICE_TIER2_YEN || "35.87",
+      ),
+      // 従量電灯 第3段階料金 (401kWh〜, 円/kWh, 初期値: 40.49)
+      SOLAR_BUY_PRICE_TIER3_YEN: bindings.text(
+        process.env.SOLAR_BUY_PRICE_TIER3_YEN || "40.49",
+      ),
       // 売電単価 (円/kWh, 初期値: 24 ※年数別スケジュール未設定時のフォールバック)
       SOLAR_SELL_PRICE_YEN: bindings.text(process.env.SOLAR_SELL_PRICE_YEN || "24"),
       // 年数別の売電単価スケジュール (初期投資支援スキーム + 卒FIT: 1〜4年目=24円, 5〜10年目=8.3円, 11年目以降=8.5円)
