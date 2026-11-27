@@ -61,12 +61,12 @@ const MONTH_LABELS = [
   "DEC",
 ];
 
-// PV1〜4は3D屋根の蛍光ネオン配色と統一 (オレンジ・水色・黄緑・ピンク)
+// PV1〜4は3D屋根の蛍光ネオン配色と統一 (オレンジ・ピンク・黄緑・水色)
 const PV_SERIES: SeriesConfig[] = [
   { key: "pv1", label: "PV1", color: "#ff7a18", fill: "rgba(255, 122, 24, 0.34)" },
-  { key: "pv2", label: "PV2", color: "#00e5ff", fill: "rgba(0, 229, 255, 0.34)" },
+  { key: "pv2", label: "PV2", color: "#ff3ca6", fill: "rgba(255, 60, 166, 0.34)" },
   { key: "pv3", label: "PV3", color: "#9eff14", fill: "rgba(158, 255, 20, 0.34)" },
-  { key: "pv4", label: "PV4", color: "#ff3ca6", fill: "rgba(255, 60, 166, 0.34)" },
+  { key: "pv4", label: "PV4", color: "#00e5ff", fill: "rgba(0, 229, 255, 0.34)" },
 ];
 
 // 方位別はPV1〜4と色が重複しない固有の半透明パレットを使用

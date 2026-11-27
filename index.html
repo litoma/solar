@@ -356,6 +356,7 @@
               <model-viewer
                 id="pv-roof-viewer"
                 class="pv-roof-viewer"
+                autoplay
                 camera-controls
                 disable-pan
                 touch-action="pan-y"
@@ -385,7 +386,7 @@
                   <span class="pv-3d-leg-item"><span class="pv-3d-leg-line is-winter"></span>WINTER</span>
                 </div>
                 <div class="pv-3d-legend-meta">
-                  <span class="pv-3d-leg-item pv-3d-sun-readout" id="pv-3d-sun-readout">ALT --° · AZ --°</span>
+                  <span class="pv-3d-leg-item pv-3d-sun-readout" id="pv-3d-sun-readout">ALT <span class="pv-3d-sun-deg">--°</span> · AZ <span class="pv-3d-sun-deg">--°</span></span>
                   <span class="pv-roof-pitch">
                     <span class="pv-roof-pitch-label">ROOF PITCH</span>
                     <span class="pv-roof-pitch-val">30.5° (5.9/10 pitch)</span>
@@ -455,8 +456,11 @@
           <div class="pv-page pv-specs-page">
             <!-- パネル寸法図 (CS6.2-32TM + CS6.2-48TM + CS6.2-36TM) -->
             <div class="summary-graph-block">
-              <div class="summary-subpage-head">
-                <span class="summary-subpage-title">Canadian Solar TOPHiKu6 (N型 TOPCon)</span>
+              <div class="pv-specs-title-wrap">
+                <div class="summary-subpage-head">
+                  <span class="summary-subpage-title">Canadian Solar TOPHiKu6 (N型 TOPCon)</span>
+                </div>
+                <div class="sim-note pv-specs-note">Warranty: 30-yr Output / 25-yr Product</div>
               </div>
               <div class="pv-dim-card">
                 <svg class="pv-dim-svg" viewBox="0 0 380 254" preserveAspectRatio="xMidYMid meet" role="img"
@@ -545,13 +549,12 @@
                     <rect x="25.6" y="7.6" width="182.8" height="77.8" rx="2.6" fill="none" stroke="#1e222c"
                       stroke-width="0.8" />
                     <line x1="117" y1="7" x2="117" y2="86" stroke="#666d7e" stroke-width="1.3" />
-                    <rect x="52" y="21" width="130" height="51" rx="6" fill="rgba(0, 0, 0, 0.88)"
+                    <rect x="52" y="25" width="130" height="43" rx="6" fill="rgba(0, 0, 0, 0.88)"
                       stroke="rgba(215, 189, 114, 0.48)" stroke-width="1" />
-                    <text x="117" y="32" class="pv-dim-role" dominant-baseline="central">COMBINATION</text>
-                    <text x="135" y="46.5" class="pv-dim-model" text-anchor="end" dominant-baseline="central">CS6.2-32TM-</text>
-                    <rect x="136.5" y="40" width="21.5" height="13" rx="2.5" class="pv-dim-suffix-box" />
-                    <text x="147.25" y="46.5" class="pv-dim-model" text-anchor="middle" dominant-baseline="central">310</text>
-                    <text x="117" y="61" class="pv-dim-weight" dominant-baseline="central">14.7 kg</text>
+                    <text x="117" y="38.5" class="pv-dim-role" dominant-baseline="central">COMBINATION</text>
+                    <text x="135" y="54.5" class="pv-dim-model" text-anchor="end" dominant-baseline="central">CS6.2-32TM-</text>
+                    <rect x="136.5" y="48" width="21.5" height="13" rx="2.5" class="pv-dim-suffix-box" />
+                    <text x="147.25" y="54.5" class="pv-dim-model" text-anchor="middle" dominant-baseline="central">310</text>
                   </g>
 
                   <!-- 下左: メインモデル CS6.2-48TM-[465] / ANTI-GLARE MODEL CS6.2-48TM-[445] -->
@@ -562,17 +565,16 @@
                       stroke-width="0.8" />
                     <line x1="25" y1="170" x2="209" y2="170" stroke="#2d3340" stroke-width="0.7" />
                     <line x1="117" y1="111" x2="117" y2="229" stroke="#666d7e" stroke-width="1.3" />
-                    <rect x="50" y="128" width="134" height="84" rx="6" fill="rgba(0, 0, 0, 0.9)"
+                    <rect x="50" y="132" width="134" height="76" rx="6" fill="rgba(0, 0, 0, 0.9)"
                       stroke="rgba(215, 189, 114, 0.48)" stroke-width="1" />
-                    <text x="117" y="139" class="pv-dim-role is-main" dominant-baseline="central">MAIN MODEL</text>
-                    <text x="135" y="153" class="pv-dim-model" text-anchor="end" dominant-baseline="central">CS6.2-48TM-</text>
-                    <rect x="136.5" y="146.5" width="21.5" height="13" rx="2.5" class="pv-dim-suffix-box" />
-                    <text x="147.25" y="153" class="pv-dim-model" text-anchor="middle" dominant-baseline="central">465</text>
-                    <text x="117" y="169" class="pv-dim-role is-sub" dominant-baseline="central">ANTI-GLARE MODEL</text>
-                    <text x="135" y="182" class="pv-dim-model" text-anchor="end" dominant-baseline="central">CS6.2-48TM-</text>
-                    <rect x="136.5" y="175.5" width="21.5" height="13" rx="2.5" class="pv-dim-suffix-box" />
-                    <text x="147.25" y="182" class="pv-dim-model" text-anchor="middle" dominant-baseline="central">445</text>
-                    <text x="117" y="199" class="pv-dim-weight" dominant-baseline="central">21.3 kg</text>
+                    <text x="117" y="144" class="pv-dim-role is-main" dominant-baseline="central">MAIN MODEL</text>
+                    <text x="135" y="157.5" class="pv-dim-model" text-anchor="end" dominant-baseline="central">CS6.2-48TM-</text>
+                    <rect x="136.5" y="151" width="21.5" height="13" rx="2.5" class="pv-dim-suffix-box" />
+                    <text x="147.25" y="157.5" class="pv-dim-model" text-anchor="middle" dominant-baseline="central">465</text>
+                    <text x="117" y="177.5" class="pv-dim-role is-sub" dominant-baseline="central">ANTI-GLARE MODEL</text>
+                    <text x="135" y="191" class="pv-dim-model" text-anchor="end" dominant-baseline="central">CS6.2-48TM-</text>
+                    <rect x="136.5" y="184.5" width="21.5" height="13" rx="2.5" class="pv-dim-suffix-box" />
+                    <text x="147.25" y="191" class="pv-dim-model" text-anchor="middle" dominant-baseline="central">445</text>
                   </g>
 
                   <!-- 下右: コンビネーションモデル CS6.2-36TM-[350] -->
@@ -583,13 +585,12 @@
                       stroke-width="0.8" />
                     <line x1="233" y1="170" x2="372" y2="170" stroke="#2d3340" stroke-width="0.7" />
                     <line x1="302.5" y1="111" x2="302.5" y2="229" stroke="#666d7e" stroke-width="1.3" />
-                    <rect x="242.5" y="142" width="120" height="56" rx="6" fill="rgba(0, 0, 0, 0.88)"
+                    <rect x="242.5" y="148.5" width="120" height="43" rx="6" fill="rgba(0, 0, 0, 0.88)"
                       stroke="rgba(215, 189, 114, 0.48)" stroke-width="1" />
-                    <text x="302.5" y="154" class="pv-dim-role" dominant-baseline="central">COMBINATION</text>
-                    <text x="320.5" y="168.5" class="pv-dim-model" text-anchor="end" dominant-baseline="central">CS6.2-36TM-</text>
-                    <rect x="322" y="162" width="21.5" height="13" rx="2.5" class="pv-dim-suffix-box" />
-                    <text x="332.75" y="168.5" class="pv-dim-model" text-anchor="middle" dominant-baseline="central">350</text>
-                    <text x="302.5" y="184" class="pv-dim-weight" dominant-baseline="central">16.3 kg</text>
+                    <text x="302.5" y="162" class="pv-dim-role" dominant-baseline="central">COMBINATION</text>
+                    <text x="320.5" y="178" class="pv-dim-model" text-anchor="end" dominant-baseline="central">CS6.2-36TM-</text>
+                    <rect x="322" y="171.5" width="21.5" height="13" rx="2.5" class="pv-dim-suffix-box" />
+                    <text x="332.75" y="178" class="pv-dim-model" text-anchor="middle" dominant-baseline="central">350</text>
                   </g>
 
                   <!-- 右上: 厚み (30 mm) 共通表記 -->
@@ -618,17 +619,21 @@
                     <th scope="col" class="is-num">PER PANEL</th>
                     <th scope="col" class="is-num">OUTPUT</th>
                     <th scope="col" class="is-num">EFF.</th>
+                    <th scope="col" class="is-num">WT/PANEL</th>
+                    <th scope="col" class="is-num">TOTAL WT</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
                     <td class="col-model">
-                      <span class="pv-model-pill">465</span>
+                      <span class="pv-model-pill">310</span>
                     </td>
-                    <td class="col-qty">6<span class="pv-spec-qty-dir">(W4+E2)</span></td>
-                    <td class="col-unit is-num">0.465 kW</td>
-                    <td class="col-output is-num"><span class="pv-spec-kw">2.790 kW</span></td>
-                    <td class="col-eff is-num">23.3%</td>
+                    <td class="col-qty">4<span class="pv-spec-qty-dir">(W4)</span></td>
+                    <td class="col-unit is-num">0.310 kW</td>
+                    <td class="col-output is-num"><span class="pv-spec-kw">1.240 kW</span></td>
+                    <td class="col-eff is-num">22.9%</td>
+                    <td class="col-unit is-num">14.7 kg</td>
+                    <td class="col-wt-total is-num"><span class="pv-spec-kw">58.8 kg</span></td>
                   </tr>
                   <tr>
                     <td class="col-model">
@@ -638,15 +643,8 @@
                     <td class="col-unit is-num">0.350 kW</td>
                     <td class="col-output is-num"><span class="pv-spec-kw">0.700 kW</span></td>
                     <td class="col-eff is-num">23.1%</td>
-                  </tr>
-                  <tr>
-                    <td class="col-model">
-                      <span class="pv-model-pill">310</span>
-                    </td>
-                    <td class="col-qty">4<span class="pv-spec-qty-dir">(W4)</span></td>
-                    <td class="col-unit is-num">0.310 kW</td>
-                    <td class="col-output is-num"><span class="pv-spec-kw">1.240 kW</span></td>
-                    <td class="col-eff is-num">22.9%</td>
+                    <td class="col-unit is-num">16.3 kg</td>
+                    <td class="col-wt-total is-num"><span class="pv-spec-kw">32.6 kg</span></td>
                   </tr>
                   <tr>
                     <td class="col-model">
@@ -656,6 +654,19 @@
                     <td class="col-unit is-num">0.445 kW</td>
                     <td class="col-output is-num"><span class="pv-spec-kw">1.335 kW</span></td>
                     <td class="col-eff is-num">22.3%</td>
+                    <td class="col-unit is-num">21.3 kg</td>
+                    <td class="col-wt-total is-num"><span class="pv-spec-kw">63.9 kg</span></td>
+                  </tr>
+                  <tr>
+                    <td class="col-model">
+                      <span class="pv-model-pill">465</span>
+                    </td>
+                    <td class="col-qty">6<span class="pv-spec-qty-dir">(W4+E2)</span></td>
+                    <td class="col-unit is-num">0.465 kW</td>
+                    <td class="col-output is-num"><span class="pv-spec-kw">2.790 kW</span></td>
+                    <td class="col-eff is-num">23.3%</td>
+                    <td class="col-unit is-num">21.3 kg</td>
+                    <td class="col-wt-total is-num"><span class="pv-spec-kw">127.8 kg</span></td>
                   </tr>
                   <tr class="pv-spec-total-row">
                     <td class="col-model">
@@ -665,13 +676,11 @@
                     <td class="col-unit is-num">—</td>
                     <td class="col-output is-num"><span class="pv-spec-kw">6.065 kW</span></td>
                     <td class="col-eff is-num">—</td>
+                    <td class="col-unit is-num">—</td>
+                    <td class="col-wt-total is-num"><span class="pv-spec-kw">283.1 kg</span></td>
                   </tr>
                 </tbody>
               </table>
-            </div>
-
-            <div class="sim-note pv-specs-note">
-              <span>Warranty: 30-yr Output / 25-yr Product</span>
             </div>
           </div>
         </div>

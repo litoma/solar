@@ -245,9 +245,11 @@ function syncPv3dScene(lat: number, lon: number, now = new Date()): void {
   const snapshot = computeSolarSnapshot(now, lat, lon);
   const readout = document.getElementById("pv-3d-sun-readout");
   if (readout) {
-    readout.textContent = snapshot.isDaylight
-      ? `ALT ${Math.round(snapshot.altitudeDeg)}° · AZ ${Math.round(snapshot.azimuthDeg)}°`
-      : `NIGHT · ALT ${Math.round(snapshot.altitudeDeg)}°`;
+    const altDeg = `${Math.round(snapshot.altitudeDeg)}°`;
+    const azDeg = `${Math.round(snapshot.azimuthDeg)}°`;
+    readout.innerHTML = snapshot.isDaylight
+      ? `ALT <span class="pv-3d-sun-deg">${altDeg}</span> · AZ <span class="pv-3d-sun-deg">${azDeg}</span>`
+      : `NIGHT · ALT <span class="pv-3d-sun-deg">${altDeg}</span>`;
   }
 
   const bucket = Math.floor(now.getTime() / 120000);

@@ -13,9 +13,9 @@ export interface SolarSnapshot {
 
 export const PV_BASE_COLORS: Record<1 | 2 | 3 | 4, RGB> = {
   1: [255 / 255, 122 / 255, 24 / 255],  // Neon Orange (#ff7a18)
-  2: [0 / 255, 229 / 255, 255 / 255],   // Neon Cyan (#00e5ff)
+  2: [255 / 255, 60 / 255, 166 / 255],  // Neon Pink (#ff3ca6)
   3: [158 / 255, 255 / 255, 20 / 255],  // Neon Yellow-Green (#9eff14)
-  4: [255 / 255, 60 / 255, 166 / 255],  // Neon Pink (#ff3ca6)
+  4: [0 / 255, 229 / 255, 255 / 255],   // Neon Cyan (#00e5ff)
 };
 
 function srgbChanToLinear(c: number): number {
@@ -110,6 +110,22 @@ function normVec(v: Vec3): Vec3 {
   return [v[0] / len, v[1] / len, v[2] / len];
 }
 
+function quatFromTo(from: Vec3, to: Vec3): [number, number, number, number] {
+  const a = normVec(from);
+  const b = normVec(to);
+  const d = dotVec(a, b);
+  if (d > 0.99999) return [0, 0, 0, 1];
+  if (d < -0.99999) {
+    const ortho: Vec3 = Math.abs(a[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+    const axis = normVec(crossVec(a, ortho));
+    return [axis[0], axis[1], axis[2], 0];
+  }
+  const c = crossVec(a, b);
+  const s = 1 + d;
+  const len = Math.hypot(c[0], c[1], c[2], s);
+  return [c[0] / len, c[1] / len, c[2] / len, s / len];
+}
+
 /**
  * 座標変換 (glTF Right-Handed Y-Up):
  * +X = East, -X = West, -Z = North, +Z = South, +Y = Zenith
@@ -197,6 +213,7 @@ interface MaterialDef {
 }
 
 interface PrimitiveBucket {
+  meshKey: string;
   materialIndex: number;
   positions: number[];
   normals: number[];
@@ -204,31 +221,69 @@ interface PrimitiveBucket {
   indices: number[];
 }
 
+interface NodeAnimTrack {
+  nodeIndex: number;
+  path: "translation" | "scale";
+  values: number[];
+}
+
+interface SceneNodeDef {
+  name: string;
+  meshKey: string;
+  translation?: Vec3;
+  rotation?: [number, number, number, number];
+  scale?: Vec3;
+}
+
 class GlbBuilder {
   private materials: MaterialDef[] = [];
   private materialMap = new Map<string, number>();
   private buckets: PrimitiveBucket[] = [];
+  private bucketMap = new Map<string, PrimitiveBucket>();
+  private extraNodes: SceneNodeDef[] = [];
+  private animName: string | null = null;
+  private animTimes: number[] = [];
+  private animTracks: NodeAnimTrack[] = [];
 
   defineMaterial(def: MaterialDef): number {
     const idx = this.materials.length;
     this.materials.push(def);
     this.materialMap.set(def.name, idx);
-    this.buckets.push({
-      materialIndex: idx,
-      positions: [],
-      normals: [],
-      colors: [],
-      indices: [],
-    });
     return idx;
   }
 
-  private bucket(name: string): PrimitiveBucket {
+  private bucket(name: string, meshKey = "static"): PrimitiveBucket {
     const idx = this.materialMap.get(name);
     if (idx === undefined) {
       throw new Error(`Unknown material: ${name}`);
     }
-    return this.buckets[idx];
+    const key = `${meshKey}::${idx}`;
+    let bk = this.bucketMap.get(key);
+    if (!bk) {
+      bk = {
+        meshKey,
+        materialIndex: idx,
+        positions: [],
+        normals: [],
+        colors: [],
+        indices: [],
+      };
+      this.bucketMap.set(key, bk);
+      this.buckets.push(bk);
+    }
+    return bk;
+  }
+
+  addNode(node: SceneNodeDef): number {
+    const nodeIdx = 1 + this.extraNodes.length;
+    this.extraNodes.push(node);
+    return nodeIdx;
+  }
+
+  setAnimation(name: string, times: number[], tracks: NodeAnimTrack[]): void {
+    this.animName = name;
+    this.animTimes = times;
+    this.animTracks = tracks;
   }
 
   addTriangle(mat: string, p0: Vec3, p1: Vec3, p2: Vec3, explicitNormal?: Vec3): void {
@@ -328,8 +383,9 @@ class GlbBuilder {
     to: Vec3,
     stops: Array<{ t: number; radius: number; alpha: number }>,
     radialSegs = 24,
+    meshKey = "static",
   ): void {
-    const b = this.bucket(mat);
+    const b = this.bucket(mat, meshKey);
     const axis = subVec(to, from);
     const axisNorm = normVec(axis);
     const upGuess: Vec3 = Math.abs(axisNorm[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
@@ -366,8 +422,15 @@ class GlbBuilder {
     }
   }
 
-  addSphere(mat: string, center: Vec3, radius: number, latSegs = 12, lonSegs = 20): void {
-    const b = this.bucket(mat);
+  addSphere(
+    mat: string,
+    center: Vec3,
+    radius: number,
+    latSegs = 12,
+    lonSegs = 20,
+    meshKey = "static",
+  ): void {
+    const b = this.bucket(mat, meshKey);
     const startIdx = b.positions.length / 3;
     for (let lat = 0; lat <= latSegs; lat++) {
       const theta = (lat / latSegs) * Math.PI;
@@ -413,7 +476,8 @@ class GlbBuilder {
       min?: number[];
       max?: number[];
     }> = [];
-    const primitives: Array<{
+
+    type GlbPrimitive = {
       attributes: {
         POSITION: number;
         NORMAL: number;
@@ -421,7 +485,10 @@ class GlbBuilder {
       };
       indices: number;
       material: number;
-    }> = [];
+    };
+
+    const primitivesByMesh = new Map<string, GlbPrimitive[]>();
+    primitivesByMesh.set("static", []);
 
     const chunks: Uint8Array[] = [];
     let byteCursor = 0;
@@ -525,11 +592,85 @@ class GlbBuilder {
       };
       if (colorAcc !== undefined) attrs.COLOR_0 = colorAcc;
 
-      primitives.push({
+      let list = primitivesByMesh.get(bk.meshKey);
+      if (!list) {
+        list = [];
+        primitivesByMesh.set(bk.meshKey, list);
+      }
+      list.push({
         attributes: attrs,
         indices: idxAcc,
         material: bk.materialIndex,
       });
+    }
+
+    const meshes: Array<{ name: string; primitives: GlbPrimitive[] }> = [];
+    const meshIndexByKey = new Map<string, number>();
+    for (const [key, list] of primitivesByMesh.entries()) {
+      if (list.length === 0) continue;
+      meshIndexByKey.set(key, meshes.length);
+      meshes.push({
+        name: key === "static" ? "SolarHemisphereMesh" : `${key}_Mesh`,
+        primitives: list,
+      });
+    }
+
+    const gltfNodes: Array<Record<string, unknown>> = [
+      { mesh: meshIndexByKey.get("static") ?? 0, name: "SolarHemisphereRoot" },
+    ];
+    for (const n of this.extraNodes) {
+      const mIdx = meshIndexByKey.get(n.meshKey);
+      if (mIdx === undefined) continue;
+      const obj: Record<string, unknown> = {
+        name: n.name,
+        mesh: mIdx,
+      };
+      if (n.translation) obj.translation = n.translation;
+      if (n.rotation) obj.rotation = n.rotation;
+      if (n.scale) obj.scale = n.scale;
+      gltfNodes.push(obj);
+    }
+
+    let animations: Array<Record<string, unknown>> | undefined;
+    if (this.animName && this.animTimes.length >= 2 && this.animTracks.length > 0) {
+      const timeArr = new Float32Array(this.animTimes);
+      const timeView = appendAligned(new Uint8Array(timeArr.buffer));
+      const timeAcc = accessors.length;
+      accessors.push({
+        bufferView: timeView,
+        byteOffset: 0,
+        componentType: 5126,
+        count: timeArr.length,
+        type: "SCALAR",
+        min: [timeArr[0]],
+        max: [timeArr[timeArr.length - 1]],
+      });
+
+      const samplers: Array<Record<string, unknown>> = [];
+      const channels: Array<Record<string, unknown>> = [];
+      for (const tr of this.animTracks) {
+        const valArr = new Float32Array(tr.values);
+        const valView = appendAligned(new Uint8Array(valArr.buffer));
+        const valAcc = accessors.length;
+        accessors.push({
+          bufferView: valView,
+          byteOffset: 0,
+          componentType: 5126,
+          count: valArr.length / 3,
+          type: "VEC3",
+        });
+        const samplerIdx = samplers.length;
+        samplers.push({
+          input: timeAcc,
+          interpolation: "LINEAR",
+          output: valAcc,
+        });
+        channels.push({
+          sampler: samplerIdx,
+          target: { node: tr.nodeIndex, path: tr.path },
+        });
+      }
+      animations = [{ name: this.animName, samplers, channels }];
     }
 
     let usesEmissiveStrength = false;
@@ -569,14 +710,17 @@ class GlbBuilder {
       asset: { version: "2.0", generator: "EP-VIEW-3D" },
       extensionsUsed,
       scene: 0,
-      scenes: [{ nodes: [0] }],
-      nodes: [{ mesh: 0, name: "SolarHemisphereRoot" }],
-      meshes: [{ name: "SolarHemisphereMesh", primitives }],
+      scenes: [{ nodes: gltfNodes.map((_, i) => i) }],
+      nodes: gltfNodes,
+      meshes,
       materials: gltfMaterials,
       buffers: [{ byteLength: byteCursor }],
       bufferViews,
       accessors,
     };
+    if (animations) {
+      gltf.animations = animations;
+    }
 
     const jsonRaw = new TextEncoder().encode(JSON.stringify(gltf));
     const jsonPadLen = Math.ceil(jsonRaw.length / 4) * 4;
@@ -828,6 +972,14 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
     doubleSided: true,
     useVertexColors: true,
   });
+  g.defineMaterial({
+    name: "sun_ray",
+    baseColorFactor: [...srgbToLinear([1.0, 0.92, 0.56]), 1],
+    unlit: true,
+    alphaMode: "BLEND",
+    doubleSided: true,
+    useVertexColors: true,
+  });
 
   // 1. 寄棟屋根 (全4面 正確な 5.9/10 = 30.54° 勾配, 半透明のため下面閉塞クワッドは省略)
   const apexW: Vec3 = [-ROOF_RIDGE_HX, ROOF_APEX_Y, 0];
@@ -929,26 +1081,152 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
       Math.max(0, snapshot.sunVec[1]) * todayRadius,
       snapshot.sunVec[2] * todayRadius,
     ];
-    g.addSphere("sun_sphere", sunPos, 0.062, 16, 24);
-    g.addSphere("sun_halo_inner", sunPos, 0.09, 14, 22);
-    g.addSphere("sun_halo_mid", sunPos, 0.132, 14, 22);
-    g.addSphere("sun_halo_outer", sunPos, 0.175, 12, 20);
-
     const beamTarget: Vec3 = [0, ROOF_EAVE_Y + ROOF_APEX_H * 0.45, 0];
-    // 外側の淡い光の広がり
+
+    // 淡いベース光円錐 (静的)
     g.addLightCone("sun_beam", sunPos, beamTarget, [
-      { t: 0.05, radius: 0.048, alpha: 0.15 },
-      { t: 0.38, radius: 0.16, alpha: 0.085 },
-      { t: 0.74, radius: 0.3, alpha: 0.032 },
+      { t: 0.05, radius: 0.048, alpha: 0.11 },
+      { t: 0.38, radius: 0.16, alpha: 0.062 },
+      { t: 0.74, radius: 0.3, alpha: 0.024 },
       { t: 0.96, radius: 0.39, alpha: 0.0 },
     ]);
-    // 内側の少し明るい光軸
     g.addLightCone("sun_beam", sunPos, beamTarget, [
-      { t: 0.03, radius: 0.026, alpha: 0.22 },
-      { t: 0.36, radius: 0.095, alpha: 0.12 },
-      { t: 0.72, radius: 0.18, alpha: 0.045 },
+      { t: 0.03, radius: 0.026, alpha: 0.16 },
+      { t: 0.36, radius: 0.095, alpha: 0.09 },
+      { t: 0.72, radius: 0.18, alpha: 0.032 },
       { t: 0.93, radius: 0.24, alpha: 0.0 },
     ]);
+
+    // 太陽コア・コロナハロー・中心から外へ降り注ぐ光ストリーク (glTFアニメーション)
+    g.addSphere("sun_sphere", [0, 0, 0], 0.062, 16, 24, "sun_core");
+    g.addSphere("sun_halo_inner", [0, 0, 0], 0.09, 14, 22, "sun_halo_inner");
+    g.addSphere("sun_halo_mid", [0, 0, 0], 0.132, 14, 22, "sun_halo_mid");
+    g.addSphere("sun_halo_outer", [0, 0, 0], 0.175, 12, 20, "sun_halo_outer");
+
+    // 共有インスタンスの光線ストリークメッシュ (ローカル +Z 向きに前後アルファ減衰)
+    g.addLightCone(
+      "sun_ray",
+      [0, 0, -0.095],
+      [0, 0, 0.095],
+      [
+        { t: 0, radius: 0.002, alpha: 0.0 },
+        { t: 0.28, radius: 0.015, alpha: 0.25 },
+        { t: 0.65, radius: 0.022, alpha: 0.34 },
+        { t: 1.0, radius: 0.004, alpha: 0.0 },
+      ],
+      14,
+      "sun_ray",
+    );
+
+    const animDur = 3.6;
+    const animSteps = 36;
+    const times: number[] = [];
+    for (let i = 0; i <= animSteps; i++) {
+      times.push((i / animSteps) * animDur);
+    }
+    const tracks: NodeAnimTrack[] = [];
+
+    const addPulseScaleTrack = (
+      nodeIdx: number,
+      minS: number,
+      maxS: number,
+      phaseOffset: number,
+    ) => {
+      const values: number[] = [];
+      for (let i = 0; i <= animSteps; i++) {
+        const u = i === animSteps ? 0 : i / animSteps;
+        const w = 0.5 - 0.5 * Math.cos(Math.PI * 2 * (u + phaseOffset));
+        const s = minS + (maxS - minS) * w;
+        values.push(s, s, s);
+      }
+      tracks.push({ nodeIndex: nodeIdx, path: "scale", values });
+    };
+
+    const sunCoreIdx = g.addNode({ name: "SunCore", meshKey: "sun_core", translation: sunPos });
+    const haloInnerIdx = g.addNode({ name: "SunHaloInner", meshKey: "sun_halo_inner", translation: sunPos });
+    const haloMidIdx = g.addNode({ name: "SunHaloMid", meshKey: "sun_halo_mid", translation: sunPos });
+    const haloOuterIdx = g.addNode({ name: "SunHaloOuter", meshKey: "sun_halo_outer", translation: sunPos });
+
+    addPulseScaleTrack(sunCoreIdx, 0.97, 1.04, 0);
+    addPulseScaleTrack(haloInnerIdx, 0.94, 1.12, 0.0);
+    addPulseScaleTrack(haloMidIdx, 0.9, 1.16, 1 / 3);
+    addPulseScaleTrack(haloOuterIdx, 0.86, 1.22, 2 / 3);
+
+    const mainAxis = subVec(beamTarget, sunPos);
+    const axisNorm = normVec(mainAxis);
+    const upGuess: Vec3 = Math.abs(axisNorm[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+    const uVec = normVec(crossVec(upGuess, axisNorm));
+    const vVec = normVec(crossVec(axisNorm, uVec));
+
+    const spreadR = 0.2;
+    const rayAngles: Array<{ ox: number; oy: number; phase: number }> = [
+      { ox: 0, oy: 0, phase: 0 / 6 },
+      { ox: Math.cos(0) * spreadR, oy: Math.sin(0) * spreadR, phase: 1 / 6 },
+      { ox: Math.cos((2 * Math.PI * 2) / 5) * spreadR, oy: Math.sin((2 * Math.PI * 2) / 5) * spreadR, phase: 2 / 6 },
+      { ox: Math.cos((2 * Math.PI * 4) / 5) * spreadR, oy: Math.sin((2 * Math.PI * 4) / 5) * spreadR, phase: 3 / 6 },
+      { ox: Math.cos((2 * Math.PI * 1) / 5) * spreadR, oy: Math.sin((2 * Math.PI * 1) / 5) * spreadR, phase: 4 / 6 },
+      { ox: Math.cos((2 * Math.PI * 3) / 5) * spreadR, oy: Math.sin((2 * Math.PI * 3) / 5) * spreadR, phase: 5 / 6 },
+    ];
+
+    rayAngles.forEach((ray, rIdx) => {
+      const targetPos = addVec(
+        beamTarget,
+        addVec(scaleVec(uVec, ray.ox), scaleVec(vVec, ray.oy)),
+      );
+      const rayVec = subVec(targetPos, sunPos);
+      const rot = quatFromTo([0, 0, 1], normVec(rayVec));
+      const startPos = addVec(sunPos, scaleVec(rayVec, 0.02));
+      const endPos = addVec(sunPos, scaleVec(rayVec, 0.9));
+
+      const rayNodeIdx = g.addNode({
+        name: `SunRay_${rIdx}`,
+        meshKey: "sun_ray",
+        translation: startPos,
+        rotation: rot,
+        scale: [0, 0, 0],
+      });
+
+      const transVals: number[] = [];
+      const scaleVals: number[] = [];
+      for (let i = 0; i <= animSteps; i++) {
+        const uBase = i === animSteps ? 0 : i / animSteps;
+        const phase = ((uBase + ray.phase) % 1 + 1) % 1;
+
+        if (phase >= 0.84) {
+          // 帰還ウィンドウ: 始点・終点ともに scale=[0,0,0] の状態で戻し逆走を不可視化
+          const pos = phase < 0.92 ? endPos : startPos;
+          transVals.push(pos[0], pos[1], pos[2]);
+          scaleVals.push(0, 0, 0);
+        } else {
+          const progress = phase / 0.84;
+          const p = 0.02 + 0.88 * progress;
+          const pos = addVec(sunPos, scaleVec(rayVec, p));
+          transVals.push(pos[0], pos[1], pos[2]);
+
+          const widthSpread = 0.65 + 0.75 * progress;
+          let sx: number;
+          let sz: number;
+          if (progress < 0.18) {
+            const k = Math.sin((progress / 0.18) * Math.PI * 0.5);
+            sx = widthSpread * k;
+            sz = 1.05 * k;
+          } else if (progress > 0.74) {
+            const f = Math.max(0, (1 - progress) / 0.26);
+            sx = widthSpread * (0.25 + 0.75 * f) * f;
+            sz = 1.05 * f;
+          } else {
+            sx = widthSpread;
+            sz = 1.05;
+          }
+          scaleVals.push(sx, sx, sz);
+        }
+      }
+
+      tracks.push({ nodeIndex: rayNodeIdx, path: "translation", values: transVals });
+      tracks.push({ nodeIndex: rayNodeIdx, path: "scale", values: scaleVals });
+    });
+
+    g.setAnimation("SolarPulse", times, tracks);
   }
 
   return g.buildGlb();
