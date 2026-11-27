@@ -22,6 +22,13 @@ interface SolarMaterial {
   setEmissiveStrength?(strength: number): void;
   pbrMetallicRoughness: {
     setBaseColorFactor(rgba: [number, number, number, number]): void;
+    baseColorTexture?: {
+      texture: {
+        sampler: {
+          setOffset(offset: { u: number; v: number } | null): void;
+        };
+      } | null;
+    };
   };
 }
 
@@ -199,7 +206,6 @@ function setPvHovered(idx: 1 | 2 | 3 | 4 | null): void {
 }
 
 const SOLAR_HALO_RGB = srgbToLinear([1, 0.89, 0.44]);
-const SOLAR_BEAM_RGB = srgbToLinear([1, 0.89, 0.5]);
 let solarWaveRafId: number | null = null;
 let solarWaveViewerInView = true;
 
@@ -207,7 +213,8 @@ function syncSolarWaveOpacity(mv: SolarModelViewerElement | null): boolean {
   const model = mv?.model;
   if (!model) return false;
   const firstHalo = model.getMaterialByName("sun_halo_wave_0");
-  if (!firstHalo) return false;
+  const beamMat = model.getMaterialByName("sun_beam");
+  if (!firstHalo && !beamMat) return false;
 
   const t =
     typeof mv.currentTime === "number" && Number.isFinite(mv.currentTime)
@@ -218,13 +225,10 @@ function syncSolarWaveOpacity(mv: SolarModelViewerElement | null): boolean {
   for (let w = 0; w < SOLAR_WAVE_COUNT; w++) {
     const phase = (((cycle + w / SOLAR_WAVE_COUNT) % 1) + 1) % 1;
     let haloFactor = 0;
-    let beamFactor = 0;
     if (phase < 0.9) {
       const progress = phase / 0.9;
-      const fadeIn = progress < 0.16 ? Math.sin((progress / 0.16) * Math.PI * 0.5) : 1;
-      haloFactor = fadeIn * Math.pow(1 - progress, 1.6);
-      const beamFadeIn = progress < 0.12 ? Math.sin((progress / 0.12) * Math.PI * 0.5) : 1;
-      beamFactor = beamFadeIn * Math.pow(1 - progress, 1.05);
+      const fadeIn = progress < 0.18 ? Math.sin((progress / 0.18) * Math.PI * 0.5) : 1;
+      haloFactor = fadeIn * Math.pow(1 - progress, 1.7);
     }
 
     const haloMat = w === 0 ? firstHalo : model.getMaterialByName(`sun_halo_wave_${w}`);
@@ -232,17 +236,13 @@ function syncSolarWaveOpacity(mv: SolarModelViewerElement | null): boolean {
       SOLAR_HALO_RGB[0],
       SOLAR_HALO_RGB[1],
       SOLAR_HALO_RGB[2],
-      0.34 * haloFactor,
-    ]);
-
-    const beamMat = model.getMaterialByName(`sun_beam_wave_${w}`);
-    beamMat?.pbrMetallicRoughness.setBaseColorFactor([
-      SOLAR_BEAM_RGB[0],
-      SOLAR_BEAM_RGB[1],
-      SOLAR_BEAM_RGB[2],
-      beamFactor,
+      0.18 * haloFactor,
     ]);
   }
+
+  // 単一円錐メッシュ表面の光の揺らぎを太陽から屋根側へ滑らかに流す
+  const beamSampler = beamMat?.pbrMetallicRoughness.baseColorTexture?.texture?.sampler;
+  beamSampler?.setOffset({ u: 0, v: -(cycle % 1) });
   return true;
 }
 
@@ -260,7 +260,9 @@ function startSolarWaveLoop(mv: SolarModelViewerElement | null): void {
   if (pager && pager.clientWidth > 0 && Math.round(pager.scrollLeft / pager.clientWidth) !== 0) {
     return;
   }
-  if (!mv.model?.getMaterialByName("sun_halo_wave_0")) return;
+  if (!mv.model?.getMaterialByName("sun_beam") && !mv.model?.getMaterialByName("sun_halo_wave_0")) {
+    return;
+  }
 
   const tick = () => {
     solarWaveRafId = null;

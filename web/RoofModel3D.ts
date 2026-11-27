@@ -11,8 +11,8 @@ export interface SolarSnapshot {
   sunVec: Vec3;
 }
 
-export const SOLAR_PULSE_DURATION = 3.6;
-export const SOLAR_WAVE_COUNT = 3;
+export const SOLAR_PULSE_DURATION = 4.2;
+export const SOLAR_WAVE_COUNT = 2;
 
 export const PV_BASE_COLORS: Record<1 | 2 | 3 | 4, RGB> = {
   1: [255 / 255, 122 / 255, 24 / 255],  // Neon Orange (#ff7a18)
@@ -186,9 +186,92 @@ export function computeSolarSnapshot(
   };
 }
 
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) {
+      c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    }
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(bytes: Uint8Array): number {
+  let c = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) {
+    c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+  }
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+function pngChunk(type: string, data: Uint8Array): Uint8Array {
+  const out = new Uint8Array(12 + data.length);
+  const dv = new DataView(out.buffer);
+  dv.setUint32(0, data.length, false);
+  for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+  out.set(data, 8);
+  dv.setUint32(8 + data.length, crc32(out.subarray(4, 8 + data.length)), false);
+  return out;
+}
+
+function buildSunBeamWavePng(): Uint8Array {
+  const height = 64;
+  const raw = new Uint8Array(height * 5);
+  let s1 = 1;
+  let s2 = 0;
+  for (let y = 0; y < height; y++) {
+    const off = y * 5;
+    const wave = 0.5 + 0.5 * Math.cos((2 * Math.PI * y) / height);
+    const alpha = Math.round((0.58 + 0.42 * wave) * 255);
+    raw[off] = 0;
+    raw[off + 1] = 255;
+    raw[off + 2] = 255;
+    raw[off + 3] = 255;
+    raw[off + 4] = alpha;
+  }
+  for (let i = 0; i < raw.length; i++) {
+    s1 = (s1 + raw[i]) % 65521;
+    s2 = (s2 + s1) % 65521;
+  }
+  const adler = ((s2 << 16) | s1) >>> 0;
+
+  const zlib = new Uint8Array(2 + 5 + raw.length + 4);
+  zlib[0] = 0x78;
+  zlib[1] = 0x01;
+  zlib[2] = 0x01;
+  zlib[3] = raw.length & 0xff;
+  zlib[4] = (raw.length >>> 8) & 0xff;
+  zlib[5] = (~raw.length) & 0xff;
+  zlib[6] = ((~raw.length) >>> 8) & 0xff;
+  zlib.set(raw, 7);
+  new DataView(zlib.buffer).setUint32(7 + raw.length, adler, false);
+
+  const ihdr = new Uint8Array(13);
+  const idv = new DataView(ihdr.buffer);
+  idv.setUint32(0, 1, false);
+  idv.setUint32(4, height, false);
+  ihdr[8] = 8;
+  ihdr[9] = 6;
+
+  const sig = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const c1 = pngChunk("IHDR", ihdr);
+  const c2 = pngChunk("IDAT", zlib);
+  const c3 = pngChunk("IEND", new Uint8Array(0));
+  const total = new Uint8Array(sig.length + c1.length + c2.length + c3.length);
+  let pos = 0;
+  for (const part of [sig, c1, c2, c3]) {
+    total.set(part, pos);
+    pos += part.length;
+  }
+  return total;
+}
+
 interface MaterialDef {
   name: string;
   baseColorFactor: RGBA;
+  baseColorTextureIndex?: number;
   emissiveFactor?: RGB;
   emissiveStrength?: number;
   metallicFactor?: number;
@@ -204,6 +287,7 @@ interface PrimitiveBucket {
   materialIndex: number;
   positions: number[];
   normals: number[];
+  uvs: number[];
   colors: number[];
   indices: number[];
 }
@@ -225,12 +309,19 @@ interface SceneNodeDef {
 class GlbBuilder {
   private materials: MaterialDef[] = [];
   private materialMap = new Map<string, number>();
+  private textures: Uint8Array[] = [];
   private buckets: PrimitiveBucket[] = [];
   private bucketMap = new Map<string, PrimitiveBucket>();
   private extraNodes: SceneNodeDef[] = [];
   private animName: string | null = null;
   private animTimes: number[] = [];
   private animTracks: NodeAnimTrack[] = [];
+
+  defineTexture(pngBytes: Uint8Array): number {
+    const idx = this.textures.length;
+    this.textures.push(pngBytes);
+    return idx;
+  }
 
   defineMaterial(def: MaterialDef): number {
     const idx = this.materials.length;
@@ -252,6 +343,7 @@ class GlbBuilder {
         materialIndex: idx,
         positions: [],
         normals: [],
+        uvs: [],
         colors: [],
         indices: [],
       };
@@ -363,39 +455,74 @@ class GlbBuilder {
     }
   }
 
-  /** 頂点アルファ減衰付きの柔らかい円錐光線メッシュ (太陽 -> 屋根) */
-  addLightCone(
+  /**
+   * 単一外殻による自然な太陽光円錐メッシュ (屋根から遠い側を手前で透明化 + UV流れ用TEXCOORD_0)
+   */
+  addSunBeamCone(
     mat: string,
     from: Vec3,
     to: Vec3,
-    stops: Array<{ t: number; radius: number; alpha: number }>,
-    radialSegs = 24,
-    meshKey = "static",
+    tStart = 0.025,
+    rStart = 0.044,
+    tEnd = 0.98,
+    rEnd = 0.3,
+    axialRings = 28,
+    radialSegs = 36,
   ): void {
-    const b = this.bucket(mat, meshKey);
+    const b = this.bucket(mat, "static");
     const axis = subVec(to, from);
     const axisNorm = normVec(axis);
     const upGuess: Vec3 = Math.abs(axisNorm[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
     const uVec = normVec(crossVec(upGuess, axisNorm));
     const vVec = normVec(crossVec(axisNorm, uVec));
 
+    // 各放射角度(j)について、屋根から遠いレイほど手前のtで透明になる到達終端 rayEndT[j] を算出
+    const rayEndT: number[] = [];
+    const radialDirs: Vec3[] = [];
+    for (let j = 0; j < radialSegs; j++) {
+      const ang = (j / radialSegs) * Math.PI * 2;
+      const radial = addVec(
+        scaleVec(uVec, Math.cos(ang)),
+        scaleVec(vVec, Math.sin(ang)),
+      );
+      radialDirs.push(radial);
+
+      const pEnd = addVec(addVec(from, scaleVec(axis, tEnd)), scaleVec(radial, rEnd));
+      const cx = clamp(pEnd[0], -ROOF_HX, ROOF_HX);
+      const cz = clamp(pEnd[2], -ROOF_HZ, ROOF_HZ);
+      const outDist = Math.hypot(pEnd[0] - cx, pEnd[2] - cz);
+      const roofYAtEnd =
+        ROOF_EAVE_Y +
+        Math.max(0, Math.min(ROOF_HX - Math.abs(cx), ROOF_HZ - Math.abs(cz))) * ROOF_SLOPE;
+      const aboveDist = Math.max(0, pEnd[1] - roofYAtEnd);
+
+      const farness = clamp((aboveDist * 1.35 + outDist * 1.5) / 0.34, 0, 1);
+      rayEndT.push(tEnd - 0.56 * farness);
+    }
+
     const ringStart = b.positions.length / 3;
-    for (const stop of stops) {
-      const center = addVec(from, scaleVec(axis, stop.t));
+    const peakAlpha = 0.145;
+    for (let i = 0; i <= axialRings; i++) {
+      const frac = i / axialRings;
+      const t = tStart + (tEnd - tStart) * frac;
+      const r = rStart + (rEnd - rStart) * frac;
+      const center = addVec(from, scaleVec(axis, t));
+
       for (let j = 0; j < radialSegs; j++) {
-        const ang = (j / radialSegs) * Math.PI * 2;
-        const radial = addVec(
-          scaleVec(uVec, Math.cos(ang)),
-          scaleVec(vVec, Math.sin(ang)),
-        );
-        const pos = addVec(center, scaleVec(radial, stop.radius));
+        const radial = radialDirs[j];
+        const pos = addVec(center, scaleVec(radial, r));
         b.positions.push(pos[0], pos[1], pos[2]);
         b.normals.push(radial[0], radial[1], radial[2]);
-        b.colors.push(1, 1, 1, stop.alpha);
+        b.uvs.push(j / radialSegs, t * 1.25);
+
+        const u = clamp((t - tStart) / Math.max(0.05, rayEndT[j] - tStart), 0, 1);
+        const axialFade = Math.pow(1 - u, 1.95);
+        const groundFade = clamp((pos[1] - 0.006) / 0.034, 0, 1);
+        b.colors.push(1, 1, 1, peakAlpha * axialFade * groundFade);
       }
     }
 
-    for (let i = 0; i < stops.length - 1; i++) {
+    for (let i = 0; i < axialRings; i++) {
       const r0 = ringStart + i * radialSegs;
       const r1 = ringStart + (i + 1) * radialSegs;
       for (let j = 0; j < radialSegs; j++) {
@@ -468,6 +595,7 @@ class GlbBuilder {
       attributes: {
         POSITION: number;
         NORMAL: number;
+        TEXCOORD_0?: number;
         COLOR_0?: number;
       };
       indices: number;
@@ -524,6 +652,20 @@ class GlbBuilder {
       const posView = appendAligned(new Uint8Array(posArr.buffer), 34962);
       const normView = appendAligned(new Uint8Array(normArr.buffer), 34962);
 
+      let uvAcc: number | undefined;
+      if (bk.uvs.length > 0) {
+        const uvArr = new Float32Array(bk.uvs);
+        const uvView = appendAligned(new Uint8Array(uvArr.buffer), 34962);
+        uvAcc = accessors.length;
+        accessors.push({
+          bufferView: uvView,
+          byteOffset: 0,
+          componentType: 5126,
+          count: uvArr.length / 2,
+          type: "VEC2",
+        });
+      }
+
       let colorAcc: number | undefined;
       if (bk.colors.length > 0) {
         const colArr = new Float32Array(bk.colors);
@@ -572,11 +714,13 @@ class GlbBuilder {
       const attrs: {
         POSITION: number;
         NORMAL: number;
+        TEXCOORD_0?: number;
         COLOR_0?: number;
       } = {
         POSITION: posAcc,
         NORMAL: normAcc,
       };
+      if (uvAcc !== undefined) attrs.TEXCOORD_0 = uvAcc;
       if (colorAcc !== undefined) attrs.COLOR_0 = colorAcc;
 
       let list = primitivesByMesh.get(bk.meshKey);
@@ -589,6 +733,29 @@ class GlbBuilder {
         indices: idxAcc,
         material: bk.materialIndex,
       });
+    }
+
+    const gltfImages: Array<{ bufferView: number; mimeType: string }> = [];
+    const gltfSamplers: Array<{
+      magFilter: number;
+      minFilter: number;
+      wrapS: number;
+      wrapT: number;
+    }> = [];
+    const gltfTextures: Array<{ sampler: number; source: number }> = [];
+    if (this.textures.length > 0) {
+      gltfSamplers.push({
+        magFilter: 9729,
+        minFilter: 9729,
+        wrapS: 33071,
+        wrapT: 10497,
+      });
+      for (const png of this.textures) {
+        const imgView = appendAligned(png);
+        const imgIdx = gltfImages.length;
+        gltfImages.push({ bufferView: imgView, mimeType: "image/png" });
+        gltfTextures.push({ sampler: 0, source: imgIdx });
+      }
     }
 
     const meshes: Array<{ name: string; primitives: GlbPrimitive[] }> = [];
@@ -667,6 +834,9 @@ class GlbBuilder {
         metallicFactor: m.metallicFactor ?? (m.unlit ? 0 : 0.08),
         roughnessFactor: m.roughnessFactor ?? (m.unlit ? 1 : 0.72),
       };
+      if (m.baseColorTextureIndex !== undefined) {
+        pbr.baseColorTexture = { index: m.baseColorTextureIndex };
+      }
       const matObj: Record<string, unknown> = {
         name: m.name,
         pbrMetallicRoughness: pbr,
@@ -705,6 +875,11 @@ class GlbBuilder {
       bufferViews,
       accessors,
     };
+    if (gltfTextures.length > 0) {
+      gltf.images = gltfImages;
+      gltf.samplers = gltfSamplers;
+      gltf.textures = gltfTextures;
+    }
     if (animations) {
       gltf.animations = animations;
     }
@@ -933,9 +1108,13 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
     metallicFactor: 0.0,
     roughnessFactor: 1.0,
   });
+  const beamWaveTexIdx = snapshot.isDaylight
+    ? g.defineTexture(buildSunBeamWavePng())
+    : undefined;
+
   g.defineMaterial({
     name: "sun_halo_base",
-    baseColorFactor: [...srgbToLinear([1, 0.9, 0.45]), 0.14],
+    baseColorFactor: [...srgbToLinear([1, 0.9, 0.45]), 0.11],
     unlit: true,
     alphaMode: "BLEND",
   });
@@ -946,18 +1125,11 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
       unlit: true,
       alphaMode: "BLEND",
     });
-    g.defineMaterial({
-      name: `sun_beam_wave_${w}`,
-      baseColorFactor: [...srgbToLinear([1.0, 0.89, 0.5]), 0],
-      unlit: true,
-      alphaMode: "BLEND",
-      doubleSided: true,
-      useVertexColors: true,
-    });
   }
   g.defineMaterial({
     name: "sun_beam",
-    baseColorFactor: [...srgbToLinear([1.0, 0.87, 0.48]), 1],
+    baseColorFactor: [...srgbToLinear([1.0, 0.89, 0.5]), 1],
+    baseColorTextureIndex: beamWaveTexIdx,
     unlit: true,
     alphaMode: "BLEND",
     doubleSided: true,
@@ -1066,25 +1238,12 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
     ];
     const beamTarget: Vec3 = [0, ROOF_EAVE_Y + ROOF_APEX_H * 0.45, 0];
 
-    // 太陽本体 + 穏やかな定常ベースコロナ (伸び縮みさせず固定)
+    // 太陽本体 + 穏やかな定常コロナ
     g.addSphere("sun_sphere", sunPos, 0.062, 16, 24);
-    g.addSphere("sun_halo_base", sunPos, 0.095, 14, 22);
+    g.addSphere("sun_halo_base", sunPos, 0.088, 14, 22);
 
-    // 常設ベース光円錐 (太陽側が濃く屋根全体まで届いて徐々に薄くなる静的ベース)
-    g.addLightCone("sun_beam", sunPos, beamTarget, [
-      { t: 0.04, radius: 0.048, alpha: 0.13 },
-      { t: 0.4, radius: 0.18, alpha: 0.088 },
-      { t: 0.78, radius: 0.31, alpha: 0.048 },
-      { t: 1.02, radius: 0.39, alpha: 0.022 },
-      { t: 1.24, radius: 0.46, alpha: 0.0 },
-    ]);
-    g.addLightCone("sun_beam", sunPos, beamTarget, [
-      { t: 0.02, radius: 0.026, alpha: 0.18 },
-      { t: 0.38, radius: 0.11, alpha: 0.115 },
-      { t: 0.75, radius: 0.21, alpha: 0.056 },
-      { t: 1.0, radius: 0.27, alpha: 0.024 },
-      { t: 1.18, radius: 0.32, alpha: 0.0 },
-    ]);
+    // 単一外殻の光円錐メッシュ (内部多層なし、屋根から遠い側ほど手前で透明化)
+    g.addSunBeamCone("sun_beam", sunPos, beamTarget);
 
     const animDur = SOLAR_PULSE_DURATION;
     const animSteps = 36;
@@ -1093,12 +1252,11 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
       times.push((i / animSteps) * animDur);
     }
     const tracks: NodeAnimTrack[] = [];
-    const relBeamTarget = subVec(beamTarget, sunPos);
 
     for (let w = 0; w < SOLAR_WAVE_COUNT; w++) {
       const phaseOffset = w / SOLAR_WAVE_COUNT;
 
-      // 外側へ広がるにつれて薄くなって消えるコロナ波 (半径 1.0 を基準に scale で拡大)
+      // 太陽周囲の穏やかなコロナ波
       const haloMeshKey = `sun_halo_wave_${w}`;
       g.addSphere(haloMeshKey, [0, 0, 0], 1.0, 14, 22, haloMeshKey);
       const haloNodeIdx = g.addNode({
@@ -1108,66 +1266,22 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
         scale: [0.062, 0.062, 0.062],
       });
 
-      // 太陽中心から屋根全体へ向かって波頭が見えるよう流れ広がりながら薄くなる光円錐ウェーブ (2重殻)
-      const beamMeshKey = `sun_beam_wave_${w}`;
-      g.addLightCone(
-        beamMeshKey,
-        [0, 0, 0],
-        relBeamTarget,
-        [
-          { t: 0.22, radius: 0.08, alpha: 0.0 },
-          { t: 0.58, radius: 0.22, alpha: 0.12 },
-          { t: 0.86, radius: 0.33, alpha: 0.28 },
-          { t: 0.95, radius: 0.365, alpha: 0.24 },
-          { t: 1.0, radius: 0.385, alpha: 0.0 },
-        ],
-        22,
-        beamMeshKey,
-      );
-      g.addLightCone(
-        beamMeshKey,
-        [0, 0, 0],
-        relBeamTarget,
-        [
-          { t: 0.25, radius: 0.05, alpha: 0.0 },
-          { t: 0.62, radius: 0.13, alpha: 0.16 },
-          { t: 0.88, radius: 0.2, alpha: 0.34 },
-          { t: 0.95, radius: 0.22, alpha: 0.28 },
-          { t: 1.0, radius: 0.24, alpha: 0.0 },
-        ],
-        20,
-        beamMeshKey,
-      );
-      const beamNodeIdx = g.addNode({
-        name: `SunBeamWave_${w}`,
-        meshKey: beamMeshKey,
-        translation: sunPos,
-        scale: [0.12, 0.12, 0.12],
-      });
-
       const haloScaleVals: number[] = [];
-      const beamScaleVals: number[] = [];
       for (let i = 0; i <= animSteps; i++) {
         const uBase = i === animSteps ? 0 : i / animSteps;
         const phase = ((uBase + phaseOffset) % 1 + 1) % 1;
 
         if (phase >= 0.9) {
-          // 透明度0の休止期間後半で開始サイズに戻し、縮み戻りを一切見せない
-          const rReset = phase < 0.94 ? 0.195 : 0.062;
-          const bReset = phase < 0.94 ? 1.2 : 0.12;
+          const rReset = phase < 0.94 ? 0.145 : 0.062;
           haloScaleVals.push(rReset, rReset, rReset);
-          beamScaleVals.push(bReset, bReset, bReset);
         } else {
           const progress = phase / 0.9;
-          const haloR = 0.062 + 0.133 * (1 - Math.pow(1 - progress, 1.35));
-          const beamS = 0.12 + 1.08 * (1 - Math.pow(1 - progress, 1.15));
+          const haloR = 0.062 + 0.083 * (1 - Math.pow(1 - progress, 1.4));
           haloScaleVals.push(haloR, haloR, haloR);
-          beamScaleVals.push(beamS, beamS, beamS);
         }
       }
 
       tracks.push({ nodeIndex: haloNodeIdx, path: "scale", values: haloScaleVals });
-      tracks.push({ nodeIndex: beamNodeIdx, path: "scale", values: beamScaleVals });
     }
 
     g.setAnimation("SolarPulse", times, tracks);
