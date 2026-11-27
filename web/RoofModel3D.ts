@@ -11,6 +11,9 @@ export interface SolarSnapshot {
   sunVec: Vec3;
 }
 
+export const SOLAR_PULSE_DURATION = 3.6;
+export const SOLAR_WAVE_COUNT = 3;
+
 export const PV_BASE_COLORS: Record<1 | 2 | 3 | 4, RGB> = {
   1: [255 / 255, 122 / 255, 24 / 255],  // Neon Orange (#ff7a18)
   2: [255 / 255, 60 / 255, 166 / 255],  // Neon Pink (#ff3ca6)
@@ -108,22 +111,6 @@ function normVec(v: Vec3): Vec3 {
   const len = Math.hypot(v[0], v[1], v[2]);
   if (len < 1e-8) return [0, 1, 0];
   return [v[0] / len, v[1] / len, v[2] / len];
-}
-
-function quatFromTo(from: Vec3, to: Vec3): [number, number, number, number] {
-  const a = normVec(from);
-  const b = normVec(to);
-  const d = dotVec(a, b);
-  if (d > 0.99999) return [0, 0, 0, 1];
-  if (d < -0.99999) {
-    const ortho: Vec3 = Math.abs(a[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
-    const axis = normVec(crossVec(a, ortho));
-    return [axis[0], axis[1], axis[2], 0];
-  }
-  const c = crossVec(a, b);
-  const s = 1 + d;
-  const len = Math.hypot(c[0], c[1], c[2], s);
-  return [c[0] / len, c[1] / len, c[2] / len, s / len];
 }
 
 /**
@@ -947,34 +934,30 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
     roughnessFactor: 1.0,
   });
   g.defineMaterial({
-    name: "sun_halo_inner",
-    baseColorFactor: [...srgbToLinear([1, 0.91, 0.48]), 0.34],
+    name: "sun_halo_base",
+    baseColorFactor: [...srgbToLinear([1, 0.9, 0.45]), 0.14],
     unlit: true,
     alphaMode: "BLEND",
   });
-  g.defineMaterial({
-    name: "sun_halo_mid",
-    baseColorFactor: [...srgbToLinear([1, 0.86, 0.38]), 0.14],
-    unlit: true,
-    alphaMode: "BLEND",
-  });
-  g.defineMaterial({
-    name: "sun_halo_outer",
-    baseColorFactor: [...srgbToLinear([1, 0.82, 0.34]), 0.05],
-    unlit: true,
-    alphaMode: "BLEND",
-  });
+  for (let w = 0; w < SOLAR_WAVE_COUNT; w++) {
+    g.defineMaterial({
+      name: `sun_halo_wave_${w}`,
+      baseColorFactor: [...srgbToLinear([1, 0.89, 0.44]), 0],
+      unlit: true,
+      alphaMode: "BLEND",
+    });
+    g.defineMaterial({
+      name: `sun_beam_wave_${w}`,
+      baseColorFactor: [...srgbToLinear([1.0, 0.89, 0.5]), 0],
+      unlit: true,
+      alphaMode: "BLEND",
+      doubleSided: true,
+      useVertexColors: true,
+    });
+  }
   g.defineMaterial({
     name: "sun_beam",
     baseColorFactor: [...srgbToLinear([1.0, 0.87, 0.48]), 1],
-    unlit: true,
-    alphaMode: "BLEND",
-    doubleSided: true,
-    useVertexColors: true,
-  });
-  g.defineMaterial({
-    name: "sun_ray",
-    baseColorFactor: [...srgbToLinear([1.0, 0.92, 0.56]), 1],
     unlit: true,
     alphaMode: "BLEND",
     doubleSided: true,
@@ -1083,148 +1066,92 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
     ];
     const beamTarget: Vec3 = [0, ROOF_EAVE_Y + ROOF_APEX_H * 0.45, 0];
 
-    // 淡いベース光円錐 (静的)
+    // 太陽本体 + 穏やかな定常ベースコロナ (伸び縮みさせず固定)
+    g.addSphere("sun_sphere", sunPos, 0.062, 16, 24);
+    g.addSphere("sun_halo_base", sunPos, 0.095, 14, 22);
+
+    // 常設ベース光円錐 (太陽側が濃く屋根へ向かって薄くなる静的ベース)
     g.addLightCone("sun_beam", sunPos, beamTarget, [
-      { t: 0.05, radius: 0.048, alpha: 0.11 },
-      { t: 0.38, radius: 0.16, alpha: 0.062 },
-      { t: 0.74, radius: 0.3, alpha: 0.024 },
+      { t: 0.05, radius: 0.048, alpha: 0.09 },
+      { t: 0.38, radius: 0.16, alpha: 0.048 },
+      { t: 0.74, radius: 0.3, alpha: 0.018 },
       { t: 0.96, radius: 0.39, alpha: 0.0 },
     ]);
     g.addLightCone("sun_beam", sunPos, beamTarget, [
-      { t: 0.03, radius: 0.026, alpha: 0.16 },
-      { t: 0.36, radius: 0.095, alpha: 0.09 },
-      { t: 0.72, radius: 0.18, alpha: 0.032 },
+      { t: 0.03, radius: 0.026, alpha: 0.13 },
+      { t: 0.36, radius: 0.095, alpha: 0.07 },
+      { t: 0.72, radius: 0.18, alpha: 0.024 },
       { t: 0.93, radius: 0.24, alpha: 0.0 },
     ]);
 
-    // 太陽コア・コロナハロー・中心から外へ降り注ぐ光ストリーク (glTFアニメーション)
-    g.addSphere("sun_sphere", [0, 0, 0], 0.062, 16, 24, "sun_core");
-    g.addSphere("sun_halo_inner", [0, 0, 0], 0.09, 14, 22, "sun_halo_inner");
-    g.addSphere("sun_halo_mid", [0, 0, 0], 0.132, 14, 22, "sun_halo_mid");
-    g.addSphere("sun_halo_outer", [0, 0, 0], 0.175, 12, 20, "sun_halo_outer");
-
-    // 共有インスタンスの光線ストリークメッシュ (ローカル +Z 向きに前後アルファ減衰)
-    g.addLightCone(
-      "sun_ray",
-      [0, 0, -0.095],
-      [0, 0, 0.095],
-      [
-        { t: 0, radius: 0.002, alpha: 0.0 },
-        { t: 0.28, radius: 0.015, alpha: 0.25 },
-        { t: 0.65, radius: 0.022, alpha: 0.34 },
-        { t: 1.0, radius: 0.004, alpha: 0.0 },
-      ],
-      14,
-      "sun_ray",
-    );
-
-    const animDur = 3.6;
+    const animDur = SOLAR_PULSE_DURATION;
     const animSteps = 36;
     const times: number[] = [];
     for (let i = 0; i <= animSteps; i++) {
       times.push((i / animSteps) * animDur);
     }
     const tracks: NodeAnimTrack[] = [];
+    const relBeamTarget = subVec(beamTarget, sunPos);
 
-    const addPulseScaleTrack = (
-      nodeIdx: number,
-      minS: number,
-      maxS: number,
-      phaseOffset: number,
-    ) => {
-      const values: number[] = [];
-      for (let i = 0; i <= animSteps; i++) {
-        const u = i === animSteps ? 0 : i / animSteps;
-        const w = 0.5 - 0.5 * Math.cos(Math.PI * 2 * (u + phaseOffset));
-        const s = minS + (maxS - minS) * w;
-        values.push(s, s, s);
-      }
-      tracks.push({ nodeIndex: nodeIdx, path: "scale", values });
-    };
+    for (let w = 0; w < SOLAR_WAVE_COUNT; w++) {
+      const phaseOffset = w / SOLAR_WAVE_COUNT;
 
-    const sunCoreIdx = g.addNode({ name: "SunCore", meshKey: "sun_core", translation: sunPos });
-    const haloInnerIdx = g.addNode({ name: "SunHaloInner", meshKey: "sun_halo_inner", translation: sunPos });
-    const haloMidIdx = g.addNode({ name: "SunHaloMid", meshKey: "sun_halo_mid", translation: sunPos });
-    const haloOuterIdx = g.addNode({ name: "SunHaloOuter", meshKey: "sun_halo_outer", translation: sunPos });
-
-    addPulseScaleTrack(sunCoreIdx, 0.97, 1.04, 0);
-    addPulseScaleTrack(haloInnerIdx, 0.94, 1.12, 0.0);
-    addPulseScaleTrack(haloMidIdx, 0.9, 1.16, 1 / 3);
-    addPulseScaleTrack(haloOuterIdx, 0.86, 1.22, 2 / 3);
-
-    const mainAxis = subVec(beamTarget, sunPos);
-    const axisNorm = normVec(mainAxis);
-    const upGuess: Vec3 = Math.abs(axisNorm[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
-    const uVec = normVec(crossVec(upGuess, axisNorm));
-    const vVec = normVec(crossVec(axisNorm, uVec));
-
-    const spreadR = 0.2;
-    const rayAngles: Array<{ ox: number; oy: number; phase: number }> = [
-      { ox: 0, oy: 0, phase: 0 / 6 },
-      { ox: Math.cos(0) * spreadR, oy: Math.sin(0) * spreadR, phase: 1 / 6 },
-      { ox: Math.cos((2 * Math.PI * 2) / 5) * spreadR, oy: Math.sin((2 * Math.PI * 2) / 5) * spreadR, phase: 2 / 6 },
-      { ox: Math.cos((2 * Math.PI * 4) / 5) * spreadR, oy: Math.sin((2 * Math.PI * 4) / 5) * spreadR, phase: 3 / 6 },
-      { ox: Math.cos((2 * Math.PI * 1) / 5) * spreadR, oy: Math.sin((2 * Math.PI * 1) / 5) * spreadR, phase: 4 / 6 },
-      { ox: Math.cos((2 * Math.PI * 3) / 5) * spreadR, oy: Math.sin((2 * Math.PI * 3) / 5) * spreadR, phase: 5 / 6 },
-    ];
-
-    rayAngles.forEach((ray, rIdx) => {
-      const targetPos = addVec(
-        beamTarget,
-        addVec(scaleVec(uVec, ray.ox), scaleVec(vVec, ray.oy)),
-      );
-      const rayVec = subVec(targetPos, sunPos);
-      const rot = quatFromTo([0, 0, 1], normVec(rayVec));
-      const startPos = addVec(sunPos, scaleVec(rayVec, 0.02));
-      const endPos = addVec(sunPos, scaleVec(rayVec, 0.9));
-
-      const rayNodeIdx = g.addNode({
-        name: `SunRay_${rIdx}`,
-        meshKey: "sun_ray",
-        translation: startPos,
-        rotation: rot,
-        scale: [0, 0, 0],
+      // 外側へ広がるにつれて薄くなって消えるコロナ波 (半径 1.0 を基準に scale で拡大)
+      const haloMeshKey = `sun_halo_wave_${w}`;
+      g.addSphere(haloMeshKey, [0, 0, 0], 1.0, 14, 22, haloMeshKey);
+      const haloNodeIdx = g.addNode({
+        name: `SunHaloWave_${w}`,
+        meshKey: haloMeshKey,
+        translation: sunPos,
+        scale: [0.062, 0.062, 0.062],
       });
 
-      const transVals: number[] = [];
-      const scaleVals: number[] = [];
+      // 太陽中心から屋根へ向かって広がりながら薄くなる光円錐ウェーブ
+      const beamMeshKey = `sun_beam_wave_${w}`;
+      g.addLightCone(
+        beamMeshKey,
+        [0, 0, 0],
+        relBeamTarget,
+        [
+          { t: 0.03, radius: 0.032, alpha: 0.22 },
+          { t: 0.34, radius: 0.13, alpha: 0.12 },
+          { t: 0.7, radius: 0.26, alpha: 0.042 },
+          { t: 0.97, radius: 0.37, alpha: 0.0 },
+        ],
+        22,
+        beamMeshKey,
+      );
+      const beamNodeIdx = g.addNode({
+        name: `SunBeamWave_${w}`,
+        meshKey: beamMeshKey,
+        translation: sunPos,
+        scale: [0.16, 0.16, 0.16],
+      });
+
+      const haloScaleVals: number[] = [];
+      const beamScaleVals: number[] = [];
       for (let i = 0; i <= animSteps; i++) {
         const uBase = i === animSteps ? 0 : i / animSteps;
-        const phase = ((uBase + ray.phase) % 1 + 1) % 1;
+        const phase = ((uBase + phaseOffset) % 1 + 1) % 1;
 
-        if (phase >= 0.84) {
-          // 帰還ウィンドウ: 始点・終点ともに scale=[0,0,0] の状態で戻し逆走を不可視化
-          const pos = phase < 0.92 ? endPos : startPos;
-          transVals.push(pos[0], pos[1], pos[2]);
-          scaleVals.push(0, 0, 0);
+        if (phase >= 0.9) {
+          // 透明度0の休止期間後半で開始サイズに戻し、縮み戻りを一切見せない
+          const rReset = phase < 0.94 ? 0.195 : 0.062;
+          const bReset = phase < 0.94 ? 1.06 : 0.16;
+          haloScaleVals.push(rReset, rReset, rReset);
+          beamScaleVals.push(bReset, bReset, bReset);
         } else {
-          const progress = phase / 0.84;
-          const p = 0.02 + 0.88 * progress;
-          const pos = addVec(sunPos, scaleVec(rayVec, p));
-          transVals.push(pos[0], pos[1], pos[2]);
-
-          const widthSpread = 0.65 + 0.75 * progress;
-          let sx: number;
-          let sz: number;
-          if (progress < 0.18) {
-            const k = Math.sin((progress / 0.18) * Math.PI * 0.5);
-            sx = widthSpread * k;
-            sz = 1.05 * k;
-          } else if (progress > 0.74) {
-            const f = Math.max(0, (1 - progress) / 0.26);
-            sx = widthSpread * (0.25 + 0.75 * f) * f;
-            sz = 1.05 * f;
-          } else {
-            sx = widthSpread;
-            sz = 1.05;
-          }
-          scaleVals.push(sx, sx, sz);
+          const progress = phase / 0.9;
+          const haloR = 0.062 + 0.133 * (1 - Math.pow(1 - progress, 1.35));
+          const beamS = 0.16 + 0.9 * (1 - Math.pow(1 - progress, 1.25));
+          haloScaleVals.push(haloR, haloR, haloR);
+          beamScaleVals.push(beamS, beamS, beamS);
         }
       }
 
-      tracks.push({ nodeIndex: rayNodeIdx, path: "translation", values: transVals });
-      tracks.push({ nodeIndex: rayNodeIdx, path: "scale", values: scaleVals });
-    });
+      tracks.push({ nodeIndex: haloNodeIdx, path: "scale", values: haloScaleVals });
+      tracks.push({ nodeIndex: beamNodeIdx, path: "scale", values: beamScaleVals });
+    }
 
     g.setAnimation("SolarPulse", times, tracks);
   }

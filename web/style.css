@@ -1177,9 +1177,7 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
 }
 
 .pv-spec-table-card {
-  width: fit-content;
-  max-width: 100%;
-  margin: 0 auto;
+  width: 100%;
   background-color: #26282e;
   border: 1px solid #454852;
   border-radius: 14px;
@@ -1187,7 +1185,7 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
 }
 
 .pv-spec-table {
-  width: auto;
+  width: 100%;
   border-collapse: collapse;
   font-family: var(--font-mono);
 }
@@ -1351,10 +1349,11 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
+  width: 100%;
 }
 
-.pv-specs-note {
-  width: 100%;
+.sim-note.pv-specs-note {
+  width: auto;
   text-align: left;
   padding: 0 4px;
 }
@@ -2268,8 +2267,7 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
   }
 
   .pv-spec-table-card {
-    width: fit-content;
-    max-width: 100%;
+    width: 100%;
     overflow-x: auto;
   }
 

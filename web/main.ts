@@ -2,6 +2,8 @@ import { mountOrUpdatePaybackChart, type PaybackData } from "./PaybackChart";
 import { mountOrUpdatePvCharts, type PvMonthlyRecord } from "./PvCharts";
 import {
   PV_BASE_COLORS,
+  SOLAR_PULSE_DURATION,
+  SOLAR_WAVE_COUNT,
   buildRoofSolarGlb,
   computeSolarSnapshot,
   srgbToLinear,
@@ -25,6 +27,9 @@ interface SolarMaterial {
 
 interface SolarModelViewerElement extends HTMLElement {
   src: string;
+  currentTime?: number;
+  paused?: boolean;
+  loaded?: boolean;
   model?: {
     getMaterialByName(name: string): SolarMaterial | null;
   };
@@ -191,6 +196,80 @@ function setPvHovered(idx: 1 | 2 | 3 | 4 | null): void {
   }
   const mv = document.getElementById("pv-roof-viewer") as SolarModelViewerElement | null;
   applyPv3dMaterials(mv);
+}
+
+const SOLAR_HALO_RGB = srgbToLinear([1, 0.89, 0.44]);
+const SOLAR_BEAM_RGB = srgbToLinear([1, 0.89, 0.5]);
+let solarWaveRafId: number | null = null;
+let solarWaveViewerInView = true;
+
+function syncSolarWaveOpacity(mv: SolarModelViewerElement | null): boolean {
+  const model = mv?.model;
+  if (!model) return false;
+  const firstHalo = model.getMaterialByName("sun_halo_wave_0");
+  if (!firstHalo) return false;
+
+  const t =
+    typeof mv.currentTime === "number" && Number.isFinite(mv.currentTime)
+      ? mv.currentTime
+      : performance.now() * 0.001;
+  const cycle = t / SOLAR_PULSE_DURATION;
+
+  for (let w = 0; w < SOLAR_WAVE_COUNT; w++) {
+    const phase = (((cycle + w / SOLAR_WAVE_COUNT) % 1) + 1) % 1;
+    let factor = 0;
+    if (phase < 0.9) {
+      const progress = phase / 0.9;
+      const fadeIn = progress < 0.16 ? Math.sin((progress / 0.16) * Math.PI * 0.5) : 1;
+      const fadeOut = Math.pow(1 - progress, 1.6);
+      factor = fadeIn * fadeOut;
+    }
+
+    const haloMat = w === 0 ? firstHalo : model.getMaterialByName(`sun_halo_wave_${w}`);
+    haloMat?.pbrMetallicRoughness.setBaseColorFactor([
+      SOLAR_HALO_RGB[0],
+      SOLAR_HALO_RGB[1],
+      SOLAR_HALO_RGB[2],
+      0.34 * factor,
+    ]);
+
+    const beamMat = model.getMaterialByName(`sun_beam_wave_${w}`);
+    beamMat?.pbrMetallicRoughness.setBaseColorFactor([
+      SOLAR_BEAM_RGB[0],
+      SOLAR_BEAM_RGB[1],
+      SOLAR_BEAM_RGB[2],
+      factor,
+    ]);
+  }
+  return true;
+}
+
+function stopSolarWaveLoop(): void {
+  if (solarWaveRafId !== null) {
+    window.cancelAnimationFrame(solarWaveRafId);
+    solarWaveRafId = null;
+  }
+}
+
+function startSolarWaveLoop(mv: SolarModelViewerElement | null): void {
+  if (!mv || solarWaveRafId !== null) return;
+  if (document.hidden || !solarWaveViewerInView) return;
+  const pager = document.getElementById("pv-pager");
+  if (pager && pager.clientWidth > 0 && Math.round(pager.scrollLeft / pager.clientWidth) !== 0) {
+    return;
+  }
+  if (!mv.model?.getMaterialByName("sun_halo_wave_0")) return;
+
+  const tick = () => {
+    solarWaveRafId = null;
+    if (document.hidden || !solarWaveViewerInView) return;
+    if (pager && pager.clientWidth > 0 && Math.round(pager.scrollLeft / pager.clientWidth) !== 0) {
+      return;
+    }
+    if (!syncSolarWaveOpacity(mv)) return;
+    solarWaveRafId = window.requestAnimationFrame(tick);
+  };
+  solarWaveRafId = window.requestAnimationFrame(tick);
 }
 
 const MV_LAYER_CSS = ".userInput { position: relative; z-index: 2; } .slot.default { z-index: 1; }";
@@ -1380,7 +1459,38 @@ function setupControls(): void {
   if (mv) {
     mv.addEventListener("load", () => {
       applyPv3dMaterials(mv);
+      stopSolarWaveLoop();
+      if (syncSolarWaveOpacity(mv)) {
+        startSolarWaveLoop(mv);
+      }
     });
+    if ("IntersectionObserver" in window) {
+      const io = new IntersectionObserver(
+        (entries) => {
+          solarWaveViewerInView = entries.some((e) => e.isIntersecting);
+          if (solarWaveViewerInView) {
+            startSolarWaveLoop(mv);
+          } else {
+            stopSolarWaveLoop();
+          }
+        },
+        { threshold: 0.05 },
+      );
+      io.observe(mv);
+    }
+    document.getElementById("pv-pager")?.addEventListener(
+      "scroll",
+      () => {
+        const pager = document.getElementById("pv-pager");
+        if (!pager || pager.clientWidth === 0) return;
+        if (Math.round(pager.scrollLeft / pager.clientWidth) === 0) {
+          startSolarWaveLoop(mv);
+        } else {
+          stopSolarWaveLoop();
+        }
+      },
+      { passive: true },
+    );
     let mvRaf = 0;
     mv.addEventListener("pointermove", (ev: PointerEvent) => {
       if (mvRaf) return;
@@ -1433,9 +1543,11 @@ function setupControls(): void {
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
       stopRefresh();
+      stopSolarWaveLoop();
     } else if (document.visibilityState === "visible") {
       refresh();
       scheduleRefresh(currentRefreshSec, true);
+      startSolarWaveLoop(mv);
     }
   });
 }
