@@ -36,6 +36,13 @@ interface MonthlyChartPoint {
   north: number | null;
 }
 
+export interface PvSeriesItem {
+  key: "pv1" | "pv2" | "pv3" | "pv4";
+  label: string;
+  color: string;
+  fill: string;
+}
+
 interface SeriesConfig {
   key: keyof Pick<
     MonthlyChartPoint,
@@ -62,7 +69,7 @@ const MONTH_LABELS = [
 ];
 
 // PV1〜4は3D屋根の蛍光ネオン配色と統一 (オレンジ・ピンク・黄緑・水色)
-const PV_SERIES: SeriesConfig[] = [
+export const PV_SERIES: PvSeriesItem[] = [
   { key: "pv1", label: "PV1", color: "#ff7a18", fill: "rgba(255, 122, 24, 0.34)" },
   { key: "pv2", label: "PV2", color: "#ff3ca6", fill: "rgba(255, 60, 166, 0.34)" },
   { key: "pv3", label: "PV3", color: "#9eff14", fill: "rgba(158, 255, 20, 0.34)" },

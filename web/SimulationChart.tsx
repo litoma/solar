@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { PV_SERIES, type PvMonthlyRecord } from "./PvCharts";
 
 export interface MonthlySimItem {
   month: number;
@@ -17,6 +18,11 @@ export interface MonthlySimItem {
   shortLabel: string;
   estimatedKwh: number;
   actualKwh: number;
+  actualExactKwh: number;
+  pv1: number;
+  pv2: number;
+  pv3: number;
+  pv4: number;
   barMaxKwh: number;
   pct: number;
 }
@@ -67,8 +73,20 @@ function CustomTooltip({
       </div>
       <div className="sim-tooltip-row">
         <span className="sim-tooltip-label">ACTUAL:</span>
-        <span className="sim-tooltip-actual">{Math.round(item.actualKwh)} kWh</span>
+        <span className="sim-tooltip-actual">{Math.round(item.actualExactKwh)} kWh</span>
       </div>
+      {item.actualExactKwh > 0 ? (
+        <div className="sim-tooltip-pv-list">
+          {PV_SERIES.map((s) => (
+            <div key={s.key} className="sim-tooltip-row sim-tooltip-pv-row">
+              <span className="sim-tooltip-label" style={{ color: s.color }}>
+                {s.label}:
+              </span>
+              <span className="sim-tooltip-pv-val">{item[s.key].toFixed(1)} kWh</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
       <div className="sim-tooltip-row">
         <span className="sim-tooltip-label">ESTIMATED:</span>
         <span className="sim-tooltip-est">{item.estimatedKwh} kWh</span>
@@ -122,19 +140,56 @@ function renderGenerationBar(rawProps: unknown): React.ReactElement {
   }
 
   const est = Math.max(0, item.estimatedKwh);
-  const act = Math.max(0, item.actualKwh);
+  const pvVals = [item.pv1, item.pv2, item.pv3, item.pv4].map((v) => Math.max(0, v));
+  const pvSum = pvVals[0] + pvVals[1] + pvVals[2] + pvVals[3];
+  const act = pvSum > 0 ? pvSum : Math.max(0, item.actualExactKwh);
   const maxVal = Math.max(item.barMaxKwh, est, act, 1);
   const baseY = y + height;
   const estH = (est / maxVal) * height;
-  const actH = (act / maxVal) * height;
   const estY = baseY - estH;
-  const actY = baseY - actH;
 
   const estPath = topRoundedBarPath(x, estY, width, estH, 4);
-  const actPath = topRoundedBarPath(x, actY, width, actH, 4);
   const clipId = `sim-est-clip-${item.month}`;
 
-  // 実績 <= 推定: 推定を背面枠にし、下から実績を塗りつぶす
+  const renderPvStack = (clipUrl?: string) => {
+    if (act <= 0) return null;
+    const vals =
+      pvSum > 0 ? pvVals : [act, 0, 0, 0];
+    let topNonZeroIdx = -1;
+    for (let i = PV_SERIES.length - 1; i >= 0; i--) {
+      if (vals[i] > 0) {
+        topNonZeroIdx = i;
+        break;
+      }
+    }
+    let cursorY = baseY;
+    const elems: React.ReactElement[] = [];
+    for (let i = 0; i < PV_SERIES.length; i++) {
+      const val = vals[i];
+      if (val <= 0) continue;
+      const segH = (val / maxVal) * height;
+      const segY = cursorY - segH;
+      cursorY = segY;
+      const isTop = i === topNonZeroIdx;
+      const segPath = isTop
+        ? topRoundedBarPath(x, segY, width, segH, 4)
+        : `M ${x} ${segY} H ${x + width} V ${segY + segH} H ${x} Z`;
+      if (!segPath) continue;
+      const s = PV_SERIES[i];
+      elems.push(
+        <path
+          key={s.key}
+          d={segPath}
+          fill={s.fill}
+          stroke={s.color}
+          strokeWidth={1.1}
+        />,
+      );
+    }
+    return <g clipPath={clipUrl}>{elems}</g>;
+  };
+
+  // 実績 <= 推定: 推定を背面枠にし、下から PV1〜4 を積み上げる
   if (act <= est) {
     return (
       <g>
@@ -148,39 +203,24 @@ function renderGenerationBar(rawProps: unknown): React.ReactElement {
         {estPath ? (
           <path
             d={estPath}
-            fill="rgba(215, 189, 114, 0.28)"
+            fill="rgba(215, 189, 114, 0.22)"
             stroke="#d7bd72"
             strokeWidth={1.15}
           />
         ) : null}
-        {actPath ? (
-          <path
-            d={actPath}
-            fill="#57f293"
-            stroke="#4bc77c"
-            strokeWidth={1}
-            clipPath={estPath ? `url(#${clipId})` : undefined}
-          />
-        ) : null}
+        {renderPvStack(estPath ? `url(#${clipId})` : undefined)}
       </g>
     );
   }
 
-  // 実績 > 推定: 前面・背面を逆転し、実績を背面・推定を前面にして両方を視認可能にする
+  // 実績 > 推定: PV1〜4 積み上げを背面、推定枠を半透明で前面にして両方視認可能にする
   return (
     <g>
-      {actPath ? (
-        <path
-          d={actPath}
-          fill="#57f293"
-          stroke="#4bc77c"
-          strokeWidth={1.15}
-        />
-      ) : null}
+      {renderPvStack()}
       {estPath ? (
         <path
           d={estPath}
-          fill="rgba(52, 46, 29, 0.72)"
+          fill="rgba(52, 46, 29, 0.28)"
           stroke="#fbdd84"
           strokeWidth={1.45}
         />
@@ -194,24 +234,63 @@ function SimulationChartView({
   currentYear,
   currentMonth,
   monthlyActualKwh,
+  pvMonthly,
 }: {
   selectedYear: number;
   currentYear: number;
   currentMonth: number;
   monthlyActualKwh: Record<number, number>;
+  pvMonthly: PvMonthlyRecord[];
 }) {
   const isCurrentYear = selectedYear === currentYear;
+  const pvByMonth = new Map<number, PvMonthlyRecord>();
+  for (const rec of pvMonthly) {
+    pvByMonth.set(rec.month, rec);
+  }
+
+  const annualPvTotals = { pv1: 0, pv2: 0, pv3: 0, pv4: 0 };
   const data: MonthlySimItem[] = BASE_SIMULATION.map((b) => {
     const actualRaw = Math.max(0, monthlyActualKwh[b.month] ?? 0);
     const actualRounded = Math.round(actualRaw);
     const pct = b.estimatedKwh > 0 ? (actualRaw / b.estimatedKwh) * 100 : 0;
+
+    const pvRec = pvByMonth.get(b.month);
+    const r1 = Math.max(0, pvRec?.pv1 ?? 0);
+    const r2 = Math.max(0, pvRec?.pv2 ?? 0);
+    const r3 = Math.max(0, pvRec?.pv3 ?? 0);
+    const r4 = Math.max(0, pvRec?.pv4 ?? 0);
+    const rSum = r1 + r2 + r3 + r4;
+
+    let pv1 = 0, pv2 = 0, pv3 = 0, pv4 = 0;
+    if (actualRaw > 0 && rSum > 0) {
+      pv1 = (actualRaw * r1) / rSum;
+      pv2 = (actualRaw * r2) / rSum;
+      pv3 = (actualRaw * r3) / rSum;
+      pv4 = (actualRaw * r4) / rSum;
+    } else if (rSum > 0) {
+      pv1 = r1;
+      pv2 = r2;
+      pv3 = r3;
+      pv4 = r4;
+    }
+
+    annualPvTotals.pv1 += pv1;
+    annualPvTotals.pv2 += pv2;
+    annualPvTotals.pv3 += pv3;
+    annualPvTotals.pv4 += pv4;
+
     return {
       month: b.month,
       label: b.label,
       shortLabel: b.label,
       estimatedKwh: b.estimatedKwh,
       actualKwh: actualRounded,
-      barMaxKwh: Math.max(b.estimatedKwh, actualRounded),
+      actualExactKwh: actualRaw,
+      pv1,
+      pv2,
+      pv3,
+      pv4,
+      barMaxKwh: Math.max(b.estimatedKwh, actualRaw, actualRounded),
       pct,
     };
   });
@@ -222,6 +301,11 @@ function SimulationChartView({
   );
   const totalActualKwh = Math.round(totalActualRaw);
   const totalPct = (totalActualRaw / ANNUAL_TOTAL_KWH) * 100;
+  const pvAnnualSum =
+    annualPvTotals.pv1 +
+    annualPvTotals.pv2 +
+    annualPvTotals.pv3 +
+    annualPvTotals.pv4;
 
   const maxBar = data.reduce((mx, d) => Math.max(mx, d.barMaxKwh), 0);
   const yMax = maxBar > 900 ? Math.ceil(maxBar / 100) * 100 : 900;
@@ -256,7 +340,30 @@ function SimulationChartView({
         </div>
       </div>
 
-      {/* 中段: 月別発電量グラフ (1本重ね棒 + 上部タイトル + 中央凡例) */}
+      {/* PV1〜PV4 年間実績カード (横並び4列 / 右上に占有率%) */}
+      <div className="sim-pv-grid" aria-label="Annual Generation by PV String">
+        {PV_SERIES.map((s) => {
+          const val = annualPvTotals[s.key];
+          const sharePct = pvAnnualSum > 0 ? (val / pvAnnualSum) * 100 : 0;
+          return (
+            <div key={s.key} className="sim-pv-card">
+              <div className="sim-pv-head">
+                <span className="pv-quad-title">
+                  <span className={`pv-swatch swatch-${s.key}`} />
+                  <span className="pv-quad-name">{s.label}</span>
+                </span>
+                <span className="sim-pv-pct">{sharePct.toFixed(1)}%</span>
+              </div>
+              <div className="sim-pv-val">
+                {val.toFixed(1)}
+                <span className="ef-unit-sm">kWh</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 中段: 月別発電量グラフ (ACTUAL=PV1〜4積み上げ + ESTIMATED重ね枠) */}
       <section className="summary-graph-block" aria-label="Monthly Generation">
         <div className="summary-subpage-head">
           <span className="summary-subpage-title">MONTHLY GENERATION</span>
@@ -264,10 +371,18 @@ function SimulationChartView({
 
         <div className="sim-chart-box">
           <div className="summary-chart-legend sim-chart-legend" aria-label="Generation Legend">
-            <span className="summary-legend-item">
-              <span className="sim-legend-swatch sim-legend-swatch-actual" />
-              <span style={{ color: "#57f293" }}>ACTUAL</span>
-            </span>
+            {PV_SERIES.map((s) => (
+              <span key={s.key} className="summary-legend-item">
+                <span
+                  className="sim-legend-swatch"
+                  style={{
+                    backgroundColor: s.fill,
+                    border: `1px solid ${s.color}`,
+                  }}
+                />
+                <span style={{ color: s.color }}>{s.label}</span>
+              </span>
+            ))}
             <span className="summary-legend-item">
               <span className="sim-legend-swatch sim-legend-swatch-est" />
               <span style={{ color: "#fbdd84" }}>ESTIMATED</span>
@@ -389,6 +504,7 @@ export function mountOrUpdateSimulationChart(
   currentYear: number,
   currentMonth: number,
   monthlyActualKwh: Record<number, number> = {},
+  pvMonthly: PvMonthlyRecord[] = [],
 ): void {
   const container = document.getElementById("sim-chart-root");
   if (!container) return;
@@ -401,6 +517,7 @@ export function mountOrUpdateSimulationChart(
       currentYear={currentYear}
       currentMonth={currentMonth}
       monthlyActualKwh={monthlyActualKwh}
+      pvMonthly={pvMonthly}
     />,
   );
 }

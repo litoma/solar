@@ -1631,16 +1631,41 @@ async function buildDashboard(
   }
   for (const m of Object.keys(monthlyActualKwh)) {
     const k = Number(m);
-    monthlyActualKwh[k] = Math.round(monthlyActualKwh[k] * 10) / 10;
+    monthlyActualKwh[k] = round2(monthlyActualKwh[k]);
   }
   for (const yrKey of Object.keys(monthlyActualByYear)) {
     const yrMap = monthlyActualByYear[Number(yrKey)];
     if (!yrMap) continue;
     for (const mKey of Object.keys(yrMap)) {
       const m = Number(mKey);
-      yrMap[m] = Math.round(yrMap[m] * 10) / 10;
+      yrMap[m] = round2(yrMap[m]);
     }
   }
+
+  /**
+   * 各月の PV1〜PV4 合計値を月別実績トータル (solar_kwh 合計) と厳密一致させるため、
+   * 比率を維持したまま小数2桁 (0.01 kWh 単位) で最大剰余配分する
+   */
+  const allocatePvCentsToTotal = (
+    raw: [number, number, number, number],
+    targetKwh: number,
+  ): [number, number, number, number] => {
+    const targetCents = Math.max(0, Math.round(targetKwh * 100));
+    const sum = raw[0] + raw[1] + raw[2] + raw[3];
+    if (targetCents === 0 || sum <= 0) {
+      return [round2(raw[0]), round2(raw[1]), round2(raw[2]), round2(raw[3])];
+    }
+    const floats = raw.map((v) => (Math.max(0, v) / sum) * targetCents);
+    const ints = floats.map((f) => Math.floor(f));
+    const rem = targetCents - (ints[0] + ints[1] + ints[2] + ints[3]);
+    const order = floats
+      .map((f, idx) => ({ idx, frac: f - ints[idx] }))
+      .sort((a, b) => b.frac - a.frac);
+    for (let i = 0; i < rem; i++) {
+      ints[order[i % 4].idx] += 1;
+    }
+    return [ints[0] / 100, ints[1] / 100, ints[2] / 100, ints[3] / 100];
+  };
 
   const allPvYears = new Set<number>([
     jstYear,
@@ -1663,6 +1688,7 @@ async function buildDashboard(
   for (const yr of allPvYears) {
     if (!Number.isInteger(yr) || yr <= 0) continue;
     const yrAcc = pvByYearMonthAcc[yr] || {};
+    const yrSolarMap = monthlyActualByYear[yr] || {};
     pvMonthlyByYear[yr] = MONTH_LABELS.map((label, idx) => {
       const month = idx + 1;
       const ym = `${yr}-${String(month).padStart(2, "0")}`;
@@ -1679,15 +1705,23 @@ async function buildDashboard(
           pv4: null,
         };
       }
+      const targetSolar = yrSolarMap[month];
+      const [pv1, pv2, pv3, pv4] =
+        typeof targetSolar === "number" && targetSolar > 0
+          ? allocatePvCentsToTotal(
+              [src.pv1, src.pv2, src.pv3, src.pv4],
+              targetSolar,
+            )
+          : [round2(src.pv1), round2(src.pv2), round2(src.pv3), round2(src.pv4)];
       return {
         ym,
         month,
         label,
         hasData: true,
-        pv1: round2(src.pv1),
-        pv2: round2(src.pv2),
-        pv3: round2(src.pv3),
-        pv4: round2(src.pv4),
+        pv1,
+        pv2,
+        pv3,
+        pv4,
       };
     });
   }

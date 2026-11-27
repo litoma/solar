@@ -466,6 +466,7 @@ function renderPvGenerationForYear(year: number): void {
     latestSimCurrentYear,
     latestSimCurrentMonth,
     latestSimYearMap[year] || {},
+    latestPvYearMap[year] || [],
   );
   mountOrUpdatePvCharts(
     latestPvYearMap[year] || [],
