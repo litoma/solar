@@ -11,7 +11,7 @@ export interface SolarSnapshot {
   sunVec: Vec3;
 }
 
-export const SOLAR_PULSE_DURATION = 4.2;
+export const SOLAR_PULSE_DURATION = 3.2;
 export const SOLAR_WAVE_COUNT = 2;
 
 export const PV_BASE_COLORS: Record<1 | 2 | 3 | 4, RGB> = {
@@ -217,18 +217,22 @@ function pngChunk(type: string, data: Uint8Array): Uint8Array {
 }
 
 function buildSunBeamWavePng(): Uint8Array {
-  const height = 64;
+  const height = 128;
   const raw = new Uint8Array(height * 5);
   let s1 = 1;
   let s2 = 0;
   for (let y = 0; y < height; y++) {
     const off = y * 5;
     const wave = 0.5 + 0.5 * Math.cos((2 * Math.PI * y) / height);
-    const alpha = Math.round((0.58 + 0.42 * wave) * 255);
+    const pulse = Math.pow(wave, 1.5);
+    const r = 255;
+    const g = Math.round(196 + 56 * pulse);
+    const b = Math.round(74 + 150 * pulse);
+    const alpha = Math.round((0.4 + 0.6 * pulse) * 255);
     raw[off] = 0;
-    raw[off + 1] = 255;
-    raw[off + 2] = 255;
-    raw[off + 3] = 255;
+    raw[off + 1] = r;
+    raw[off + 2] = g;
+    raw[off + 3] = b;
     raw[off + 4] = alpha;
   }
   for (let i = 0; i < raw.length; i++) {
@@ -462,11 +466,11 @@ class GlbBuilder {
     mat: string,
     from: Vec3,
     to: Vec3,
-    tStart = 0.025,
-    rStart = 0.044,
-    tEnd = 0.98,
-    rEnd = 0.3,
-    axialRings = 28,
+    tStart = 0.02,
+    rStart = 0.048,
+    tEnd = 1.04,
+    rEnd = 0.29,
+    axialRings = 32,
     radialSegs = 36,
   ): void {
     const b = this.bucket(mat, "static");
@@ -496,12 +500,12 @@ class GlbBuilder {
         Math.max(0, Math.min(ROOF_HX - Math.abs(cx), ROOF_HZ - Math.abs(cz))) * ROOF_SLOPE;
       const aboveDist = Math.max(0, pEnd[1] - roofYAtEnd);
 
-      const farness = clamp((aboveDist * 1.35 + outDist * 1.5) / 0.34, 0, 1);
-      rayEndT.push(tEnd - 0.56 * farness);
+      const farness = clamp((aboveDist * 1.15 + outDist * 1.25) / 0.42, 0, 1);
+      rayEndT.push(tEnd - 0.46 * farness);
     }
 
     const ringStart = b.positions.length / 3;
-    const peakAlpha = 0.145;
+    const peakAlpha = 0.34;
     for (let i = 0; i <= axialRings; i++) {
       const frac = i / axialRings;
       const t = tStart + (tEnd - tStart) * frac;
@@ -513,11 +517,11 @@ class GlbBuilder {
         const pos = addVec(center, scaleVec(radial, r));
         b.positions.push(pos[0], pos[1], pos[2]);
         b.normals.push(radial[0], radial[1], radial[2]);
-        b.uvs.push(j / radialSegs, t * 1.25);
+        b.uvs.push(j / radialSegs, t * 2.5);
 
         const u = clamp((t - tStart) / Math.max(0.05, rayEndT[j] - tStart), 0, 1);
-        const axialFade = Math.pow(1 - u, 1.95);
-        const groundFade = clamp((pos[1] - 0.006) / 0.034, 0, 1);
+        const axialFade = Math.pow(1 - u, 1.15);
+        const groundFade = clamp((pos[1] + 0.005) / 0.03, 0, 1);
         b.colors.push(1, 1, 1, peakAlpha * axialFade * groundFade);
       }
     }
@@ -1128,7 +1132,7 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
   }
   g.defineMaterial({
     name: "sun_beam",
-    baseColorFactor: [...srgbToLinear([1.0, 0.89, 0.5]), 1],
+    baseColorFactor: [...srgbToLinear([1.0, 0.95, 0.78]), 1],
     baseColorTextureIndex: beamWaveTexIdx,
     unlit: true,
     alphaMode: "BLEND",
@@ -1236,7 +1240,7 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
       Math.max(0, snapshot.sunVec[1]) * todayRadius,
       snapshot.sunVec[2] * todayRadius,
     ];
-    const beamTarget: Vec3 = [0, ROOF_EAVE_Y + ROOF_APEX_H * 0.45, 0];
+    const beamTarget: Vec3 = [0, ROOF_EAVE_Y + ROOF_APEX_H * 0.52, 0];
 
     // 太陽本体 + 穏やかな定常コロナ
     g.addSphere("sun_sphere", sunPos, 0.062, 16, 24);
@@ -1256,7 +1260,7 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
     for (let w = 0; w < SOLAR_WAVE_COUNT; w++) {
       const phaseOffset = w / SOLAR_WAVE_COUNT;
 
-      // 太陽周囲の穏やかなコロナ波
+      // 太陽周囲のコロナ波
       const haloMeshKey = `sun_halo_wave_${w}`;
       g.addSphere(haloMeshKey, [0, 0, 0], 1.0, 14, 22, haloMeshKey);
       const haloNodeIdx = g.addNode({
@@ -1272,11 +1276,11 @@ export function buildRoofSolarGlb(snapshot: SolarSnapshot, lat: number): Uint8Ar
         const phase = ((uBase + phaseOffset) % 1 + 1) % 1;
 
         if (phase >= 0.9) {
-          const rReset = phase < 0.94 ? 0.145 : 0.062;
+          const rReset = phase < 0.94 ? 0.178 : 0.062;
           haloScaleVals.push(rReset, rReset, rReset);
         } else {
           const progress = phase / 0.9;
-          const haloR = 0.062 + 0.083 * (1 - Math.pow(1 - progress, 1.4));
+          const haloR = 0.062 + 0.116 * (1 - Math.pow(1 - progress, 1.35));
           haloScaleVals.push(haloR, haloR, haloR);
         }
       }

@@ -236,13 +236,14 @@ function syncSolarWaveOpacity(mv: SolarModelViewerElement | null): boolean {
       SOLAR_HALO_RGB[0],
       SOLAR_HALO_RGB[1],
       SOLAR_HALO_RGB[2],
-      0.18 * haloFactor,
+      0.26 * haloFactor,
     ]);
   }
 
-  // 単一円錐メッシュ表面の光の揺らぎを太陽から屋根側へ滑らかに流す
+  // 単一円錐メッシュ表面の光の波を太陽から屋根側へ連続的に流す
+  const beamTime = performance.now() * 0.001;
   const beamSampler = beamMat?.pbrMetallicRoughness.baseColorTexture?.texture?.sampler;
-  beamSampler?.setOffset({ u: 0, v: -(cycle % 1) });
+  beamSampler?.setOffset({ u: 0, v: -((beamTime / 1.45) % 1) });
   return true;
 }
 
