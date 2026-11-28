@@ -296,35 +296,47 @@ function SimulationChartView({
             <span className="sim-summary-title">
               ANNUAL TOTAL (ACTUAL / ESTIMATED)
             </span>
-            <span className="ef-outline-badge sim-pct-badge">
-              {totalPct.toFixed(1)}%
-            </span>
           </div>
-          <div className="sim-summary-val">
-            {totalActualKwh.toLocaleString("ja-JP")}
-            <span className="sim-summary-sep">/</span>
-            <span className="sim-summary-target">
-              {ANNUAL_TOTAL_KWH.toLocaleString("ja-JP")} kWh
-            </span>
+          <div className="sim-annual-main">
+            <div className="sim-summary-val">
+              {totalActualKwh.toLocaleString("ja-JP")}
+              <span className="sim-summary-sep">/</span>
+              <span className="sim-summary-target">
+                {ANNUAL_TOTAL_KWH.toLocaleString("ja-JP")} kWh
+              </span>
+            </div>
+            <div
+              className="sim-progress-track"
+              role="progressbar"
+              aria-valuenow={Math.round(Math.min(100, Math.max(0, totalPct)))}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={`Achievement ${totalPct.toFixed(1)}%`}
+            >
+              <div
+                className="sim-progress-fill"
+                style={{
+                  width: `${Math.min(100, Math.max(totalPct, totalActualRaw > 0 ? 1.5 : 0))}%`,
+                }}
+              />
+              <span className="sim-progress-label">
+                {totalPct.toFixed(1)}%
+              </span>
+            </div>
           </div>
 
-          {/* PV1〜PV4 年間実績サブボックス (ANNUAL TOTAL内に内包 / PV右横に kWh 表示) */}
-          <div className="sim-pv-grid" aria-label="Annual Generation by PV String">
-            {PV_SERIES.map((s) => {
-              const val = annualPvTotals[s.key];
-              return (
-                <div key={s.key} className="sim-pv-card">
-                  <span className="pv-quad-title">
-                    <span className={`pv-swatch swatch-${s.key}`} />
-                    <span className="pv-quad-name">{s.label}</span>
-                  </span>
-                  <span className="sim-pv-val">
-                    {val.toFixed(1)}
-                    <span className="ef-unit-sm">kWh</span>
-                  </span>
-                </div>
-              );
-            })}
+          <div
+            className="sim-pv-breakdown"
+            aria-label="Annual Generation by PV String"
+          >
+            {PV_SERIES.map((s, idx) => (
+              <React.Fragment key={s.key}>
+                {idx > 0 ? <span className="sim-pv-plus">+</span> : null}
+                <span style={{ color: s.color }}>
+                  {annualPvTotals[s.key].toFixed(1)} kWh
+                </span>
+              </React.Fragment>
+            ))}
           </div>
         </div>
       </div>
@@ -460,6 +472,19 @@ function SimulationChartView({
       <div className="sim-months-grid">
         {data.map((m) => {
           const isCurrent = isCurrentYear && m.month === currentMonth;
+          const isFinalized =
+            selectedYear < currentYear ||
+            (selectedYear === currentYear && m.month < currentMonth);
+          const isZero = m.pct.toFixed(1) === "0.0";
+          const pctStateClass = isZero
+            ? "is-zero"
+            : isCurrent
+              ? "is-current-month"
+              : isFinalized
+                ? m.pct >= 100
+                  ? "is-achieved"
+                  : "is-below"
+                : "is-zero";
           return (
             <div
               key={m.month}
@@ -470,7 +495,9 @@ function SimulationChartView({
                 {m.actualKwh > 0 ? m.actualKwh : "0"}
                 <small>/{m.estimatedKwh}</small>
               </span>
-              <span className="sim-month-pct">{m.pct.toFixed(1)}%</span>
+              <span className={`sim-month-pct ${pctStateClass}`}>
+                {m.pct.toFixed(1)}%
+              </span>
             </div>
           );
         })}

@@ -91,10 +91,11 @@ const DEFAULT_TIERS: SellPriceTier[] = [
   { startYear: 11, endYear: null, priceYenPerKwh: 8.5 },
 ];
 
-// 実績ペース予測は旧計画累計回収と同じ黄色 (凡例文字は MONTHLY GENERATION の ESTIMATED と同じ #fbdd84)
-const FORECAST_FILL = "rgba(215, 189, 114, 0.35)";
-const FORECAST_STROKE = "#d7bd72";
-const FORECAST_TEXT = "#fbdd84";
+// 回収実績・回収計画はともに緑系 (#57f293 / #4bc77c)
+const PAYBACK_ACTUAL_FILL = "#57f293";
+const PAYBACK_STROKE = "#4bc77c";
+const PAYBACK_PLAN_FILL = "rgba(75, 199, 124, 0.35)";
+const PAYBACK_TEXT = "#57f293";
 
 // 売電実績・売電計画は SUMMARY の SELL と同じ青系 (#88cdff / #74aede)
 const SELL_ACTUAL_FILL = "#88cdff";
@@ -214,6 +215,44 @@ function renderStackedBarShape(
   };
 }
 
+function SplitLegendSwatch({
+  actualFill,
+  planFill,
+  stroke,
+}: {
+  actualFill: string;
+  planFill: string;
+  stroke: string;
+}) {
+  return (
+    <svg
+      className="payback-legend-split"
+      width="12"
+      height="12"
+      viewBox="0 0 12 12"
+      aria-hidden="true"
+    >
+      {/* 左上 (白抜き側 = PLAN): 半透明塗り + 点線枠 */}
+      <polygon points="1,11 1,1 11,1" fill={planFill} />
+      <path
+        d="M 1 10.5 V 1 H 10.5"
+        fill="none"
+        stroke={stroke}
+        strokeWidth="1.2"
+        strokeDasharray="2.2 1.6"
+      />
+      {/* 右下 (塗り側 = ACTUAL): べた塗り + 実線枠 */}
+      <polygon points="1,11 11,1 11,11" fill={actualFill} />
+      <path
+        d="M 1.5 11 H 11 V 1.5"
+        fill="none"
+        stroke={stroke}
+        strokeWidth="1.2"
+      />
+    </svg>
+  );
+}
+
 function CustomPaybackTooltip({
   active,
   payload,
@@ -255,7 +294,7 @@ function CustomPaybackTooltip({
       </div>
       <div className="sim-tooltip-row">
         <span className="sim-tooltip-label">PAYBACK PLAN:</span>
-        <span className="sim-tooltip-pct">
+        <span className="sim-tooltip-payback-plan">
           ¥{p.projectedCumYen.toLocaleString("ja-JP")} ({p.pctOfTarget.toFixed(0)}%)
         </span>
       </div>
@@ -554,25 +593,45 @@ function PaybackChartView({
       <div className="payback-pager" ref={scrollerRef} onScroll={onScroll}>
         {/* 1ページ目: 進捗バー + 回収実績/回収計画グラフ + 年次マイルストーン */}
         <div className="payback-page">
-          <div className="payback-bar-wrap">
-            <div className="payback-bar-track">
-              <div
-                className="payback-bar-fill"
-                style={{
-                  width: `${Math.max(actualPct, payback.totalBenefitYen > 0 ? 1.2 : 0)}%`,
-                }}
-              />
-              <div className="payback-bar-content">
-                <span className="payback-bar-label">
-                  RECOVERED ¥{payback.totalBenefitYen.toLocaleString("ja-JP")} / TARGET ¥
-                  {targetYen.toLocaleString("ja-JP")} ({actualPct.toFixed(2)}%)
+          <div className="sim-summary-grid">
+            <div className="sim-summary-card sim-annual-card">
+              <div className="sim-summary-head">
+                <span className="sim-summary-title">
+                  PAYBACK TOTAL (RECOVERED / TARGET)
                 </span>
-                <span className="payback-bar-sub">
-                  Active {payback.activeDays}{" "}
-                  {payback.activeDays === 1 ? "day" : "days"} · Total{" "}
-                  {payback.totalSolarKwh.toFixed(1)} kWh (Avg. ¥
-                  {avgDailyBenefitYen.toLocaleString("ja-JP")}/day)
-                </span>
+              </div>
+              <div className="sim-annual-main">
+                <div className="sim-summary-val">
+                  ¥{payback.totalBenefitYen.toLocaleString("ja-JP")}
+                  <span className="sim-summary-sep">/</span>
+                  <span className="sim-summary-target">
+                    ¥{targetYen.toLocaleString("ja-JP")}
+                  </span>
+                </div>
+                <div
+                  className="sim-progress-track"
+                  role="progressbar"
+                  aria-valuenow={Number(actualPct.toFixed(2))}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label={`Payback ${actualPct.toFixed(2)}%`}
+                >
+                  <div
+                    className="sim-progress-fill"
+                    style={{
+                      width: `${Math.min(100, Math.max(actualPct, payback.totalBenefitYen > 0 ? 1.5 : 0))}%`,
+                    }}
+                  />
+                  <span className="sim-progress-label">
+                    {actualPct.toFixed(2)}%
+                  </span>
+                </div>
+              </div>
+              <div className="payback-progress-sub">
+                Active {payback.activeDays}{" "}
+                {payback.activeDays === 1 ? "day" : "days"} · Total{" "}
+                {payback.totalSolarKwh.toFixed(1)} kWh (Avg. ¥
+                {avgDailyBenefitYen.toLocaleString("ja-JP")}/day)
               </div>
             </div>
           </div>
@@ -585,20 +644,20 @@ function PaybackChartView({
             <div className="sim-chart-box">
             <div className="summary-chart-legend sim-chart-legend" aria-label="Payback Legend">
               <span className="summary-legend-item">
-                <span className="sim-legend-swatch sim-legend-swatch-sell-actual" />
-                <span style={{ color: SELL_TEXT }}>SELL ACTUAL</span>
+                <SplitLegendSwatch
+                  actualFill={SELL_ACTUAL_FILL}
+                  planFill={SELL_PLAN_FILL}
+                  stroke={SELL_STROKE}
+                />
+                <span style={{ color: SELL_TEXT }}>SELL PLAN/ACTUAL</span>
               </span>
               <span className="summary-legend-item">
-                <span className="sim-legend-swatch sim-legend-swatch-sell-plan" />
-                <span style={{ color: SELL_TEXT }}>SELL PLAN</span>
-              </span>
-              <span className="summary-legend-item">
-                <span className="sim-legend-swatch sim-legend-swatch-actual" />
-                <span style={{ color: "#57f293" }}>PAYBACK ACTUAL</span>
-              </span>
-              <span className="summary-legend-item">
-                <span className="sim-legend-swatch sim-legend-swatch-est" />
-                <span style={{ color: FORECAST_TEXT }}>PAYBACK PLAN</span>
+                <SplitLegendSwatch
+                  actualFill={PAYBACK_ACTUAL_FILL}
+                  planFill={PAYBACK_PLAN_FILL}
+                  stroke={PAYBACK_STROKE}
+                />
+                <span style={{ color: PAYBACK_TEXT }}>PAYBACK PLAN/ACTUAL</span>
               </span>
             </div>
 
@@ -672,7 +731,6 @@ function PaybackChartView({
                   y={targetMan}
                   stroke="#fbdd84"
                   strokeWidth={1.8}
-                  strokeDasharray="5 4"
                   label={{
                     value: `PAYBACK TARGET ${formatCompactYen(targetYen)}`,
                     position: "insideTopLeft",
@@ -713,12 +771,12 @@ function PaybackChartView({
                   name="PAYBACK ACTUAL"
                   dataKey="actualCumMan"
                   stackId="payback"
-                  fill="#57f293"
+                  fill={PAYBACK_ACTUAL_FILL}
                   maxBarSize={16}
                   isAnimationActive={false}
                   shape={renderStackedBarShape(
-                    "#57f293",
-                    "#4bc77c",
+                    PAYBACK_ACTUAL_FILL,
+                    PAYBACK_STROKE,
                     false,
                     (p) => (p?.projectedDeltaMan ?? 0) <= 0,
                   )}
@@ -727,12 +785,12 @@ function PaybackChartView({
                   name="PAYBACK PLAN"
                   dataKey="projectedDeltaMan"
                   stackId="payback"
-                  fill={FORECAST_FILL}
+                  fill={PAYBACK_PLAN_FILL}
                   maxBarSize={16}
                   isAnimationActive={false}
                   shape={renderStackedBarShape(
-                    FORECAST_FILL,
-                    FORECAST_STROKE,
+                    PAYBACK_PLAN_FILL,
+                    PAYBACK_STROKE,
                     true,
                     () => true,
                   )}

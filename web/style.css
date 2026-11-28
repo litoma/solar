@@ -1843,8 +1843,16 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
   color: #c2b99f;
 }
 
+.sim-annual-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
 .sim-annual-card .sim-summary-val {
   font-size: 28px;
+  white-space: nowrap;
 }
 
 .sim-annual-card .sim-summary-sep {
@@ -1855,40 +1863,67 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
   font-size: 17px;
 }
 
-.sim-pv-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.sim-pv-card {
-  background-color: rgb(29, 30, 35);
-  border: 1px solid rgb(63, 66, 76);
-  border-radius: 10px;
-  padding: 8px 11px;
-  min-width: 0;
+.sim-progress-track {
+  position: relative;
+  flex: 1;
+  min-width: 110px;
+  height: 26px;
+  background-color: #1d1e23;
+  border: 1px solid #3f424c;
+  border-radius: 999px;
+  overflow: hidden;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 6px;
+  justify-content: center;
+}
+
+.sim-progress-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  height: 100%;
+  background: linear-gradient(90deg, #3c9e64 0%, #57f293 100%);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.sim-progress-label {
+  position: relative;
+  z-index: 1;
   font-family: var(--font-mono);
   font-size: 12px;
-  white-space: nowrap;
+  font-weight: 600;
+  color: #f2f4f8;
+  letter-spacing: 0.03em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
 }
 
-.sim-pv-val {
-  font-family: var(--font-sans);
-  font-size: 15px;
-  font-weight: 500;
-  color: #f0f0f5;
-  line-height: 1.1;
-  white-space: nowrap;
-}
-
-.sim-pv-val .ef-unit-sm {
+.sim-pv-breakdown {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0 5px;
+  margin-top: 2px;
+  font-family: var(--font-mono);
   font-size: 11px;
-  margin-left: 2px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.sim-pv-plus {
+  color: #8a8e99;
+}
+
+.payback-progress-sub {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #a8acb8;
+  letter-spacing: 0.01em;
+  line-height: 1.4;
+  margin-top: 2px;
+  text-align: left;
 }
 
 .sim-tooltip-pv-list {
@@ -1983,24 +2018,14 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
   flex-shrink: 0;
 }
 
-.sim-legend-swatch-actual {
-  background-color: #57f293;
-  border: 1px solid #4bc77c;
-}
-
 .sim-legend-swatch-est {
   background-color: rgba(215, 189, 114, 0.35);
   border: 1px dashed #d7bd72;
 }
 
-.sim-legend-swatch-sell-actual {
-  background-color: #88cdff;
-  border: 1px solid #74aede;
-}
-
-.sim-legend-swatch-sell-plan {
-  background-color: rgba(116, 174, 222, 0.35);
-  border: 1px dashed #74aede;
+.payback-legend-split {
+  display: block;
+  flex-shrink: 0;
 }
 
 .sim-tooltip {
@@ -2057,6 +2082,10 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
 .sim-tooltip-pct {
   color: #fbdd84;
   font-weight: 600;
+}
+
+.sim-tooltip-payback-plan {
+  color: #57f293;
 }
 
 .sim-tooltip-sell {
@@ -2118,6 +2147,22 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
   font-size: 10px;
   font-weight: 600;
   color: #57f293;
+}
+
+.sim-month-pct.is-zero {
+  color: #9397a5;
+}
+
+.sim-month-pct.is-current-month {
+  color: #f0f0f5;
+}
+
+.sim-month-pct.is-achieved {
+  color: #57f293;
+}
+
+.sim-month-pct.is-below {
+  color: #ff6b7a;
 }
 
 .sim-note {
@@ -2256,65 +2301,6 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
   font-family: var(--font-mono);
   font-size: 10.5px;
   color: #9a9ea6;
-}
-
-.payback-bar-wrap {
-  width: 100%;
-}
-
-.payback-bar-track {
-  position: relative;
-  width: 100%;
-  min-height: 48px;
-  background-color: #202227;
-  border: 1px solid #454852;
-  border-radius: 999px;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.payback-bar-fill {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  height: 100%;
-  background: linear-gradient(90deg, #3c9e64 0%, #57f293 100%);
-  border-radius: 999px;
-  transition: width 0.4s ease;
-}
-
-.payback-bar-content {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  padding: 6px 18px;
-  text-align: center;
-}
-
-.payback-bar-label {
-  font-family: var(--font-mono);
-  font-size: 13.5px;
-  font-weight: 600;
-  color: #f2f4f8;
-  letter-spacing: 0.03em;
-  line-height: 1.25;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
-}
-
-.payback-bar-sub {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: #cfd4e0;
-  letter-spacing: 0.02em;
-  line-height: 1.25;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
 }
 
 .payback-milestones-grid {
@@ -2648,22 +2634,37 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
     grid-template-columns: 1fr;
   }
 
-  .sim-pv-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px;
-    margin-top: 6px;
+  .sim-annual-main {
+    gap: 10px;
   }
 
-  .sim-pv-card {
-    padding: 7px 10px;
-    font-size: 11.5px;
+  .sim-annual-card .sim-summary-val {
+    font-size: 21px;
   }
 
-  .sim-pv-val {
-    font-size: 14px;
+  .sim-annual-card .sim-summary-sep {
+    font-size: 15px;
   }
 
-  .sim-pv-val .ef-unit-sm {
+  .sim-annual-card .sim-summary-target {
+    font-size: 13.5px;
+  }
+
+  .sim-progress-track {
+    height: 24px;
+    min-width: 96px;
+  }
+
+  .sim-progress-label {
+    font-size: 11px;
+  }
+
+  .sim-pv-breakdown {
+    font-size: 10px;
+    gap: 0 4px;
+  }
+
+  .payback-progress-sub {
     font-size: 10.5px;
   }
 
@@ -2714,18 +2715,6 @@ model-viewer.pv-roof-viewer:not(:defined) > [slot^="hotspot-"] {
 
   .payback-tier-unit {
     font-size: 9.5px;
-  }
-
-  .payback-bar-content {
-    padding: 6px 12px;
-  }
-
-  .payback-bar-label {
-    font-size: 11px;
-  }
-
-  .payback-bar-sub {
-    font-size: 9.8px;
   }
 
   .temps-grid {
