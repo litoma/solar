@@ -1599,6 +1599,7 @@ async function buildDashboard(
   let totalSellKwh = 0;
   let totalBuyKwh = 0;
   let totalSelfKwh = 0;
+  let totalSellYen = 0;
   let totalBenefitYen = 0;
   let activeDays = 0;
   let firstDate: string | null = null;
@@ -1620,6 +1621,7 @@ async function buildDashboard(
       sellKwh: number;
       buyKwh: number;
       selfKwh: number;
+      sellYen: number;
       benefitYen: number;
       days: number;
     }
@@ -1722,12 +1724,14 @@ async function buildDashboard(
       cfg.buyTariff,
     );
     const monthBenefit = selfBenefit + acc.sellYen;
+    totalSellYen += acc.sellYen;
     totalBenefitYen += monthBenefit;
     byYearMonth[ym] = {
       solarKwh: round2(acc.solarKwh),
       sellKwh: round2(acc.sellKwh),
       buyKwh: round2(acc.buyKwh),
       selfKwh: round2(acc.selfKwh),
+      sellYen: Math.round(acc.sellYen),
       benefitYen: Math.round(monthBenefit),
       days: acc.days,
     };
@@ -1870,6 +1874,7 @@ async function buildDashboard(
     totalSellKwh: Math.round(totalSellKwh * 10) / 10,
     totalBuyKwh: round2(totalBuyKwh),
     totalSelfKwh: round2(totalSelfKwh),
+    totalSellYen: Math.round(totalSellYen),
     totalBenefitYen: Math.round(totalBenefitYen),
     activeDays,
     firstDate,

@@ -67,6 +67,7 @@ export interface PaybackData {
   totalSellKwh: number;
   totalBuyKwh?: number;
   totalSelfKwh?: number;
+  totalSellYen?: number;
   totalBenefitYen: number;
   activeDays: number;
   firstDate: string | null;
@@ -77,6 +78,7 @@ export interface PaybackData {
       sellKwh: number;
       buyKwh?: number;
       selfKwh?: number;
+      sellYen?: number;
       benefitYen: number;
       days: number;
     }
@@ -93,6 +95,12 @@ const DEFAULT_TIERS: SellPriceTier[] = [
 const FORECAST_FILL = "rgba(215, 189, 114, 0.35)";
 const FORECAST_STROKE = "#d7bd72";
 const FORECAST_TEXT = "#fbdd84";
+
+// 売電実績・売電計画は SUMMARY の SELL と同じ青系 (#88cdff / #74aede)
+const SELL_ACTUAL_FILL = "#88cdff";
+const SELL_STROKE = "#74aede";
+const SELL_PLAN_FILL = "rgba(116, 174, 222, 0.35)";
+const SELL_TEXT = "#88cdff";
 
 function getSellPriceForYear(tiers: SellPriceTier[], yr: number): number {
   const list = tiers && tiers.length > 0 ? tiers : DEFAULT_TIERS;
@@ -116,11 +124,16 @@ interface YearlyMilestonePoint {
   subLabel: string;
   sellPriceYen: number;
   annualPlanYen: number;
-  actualCumMan: number; // 万円単位 (現在までの実績: 積み上げ棒の下段)
-  projectedDeltaMan: number; // 万円単位 (予測の積み増し分: 積み上げ棒の上段)
+  actualCumMan: number; // 万円単位 (現在までの回収実績: 左棒下段)
+  projectedDeltaMan: number; // 万円単位 (回収計画の積み増し分: 左棒上段)
   projectedCumMan: number; // 万円単位 (現在の実績ペースでの予測合計)
   actualCumYen: number;
   projectedCumYen: number;
+  sellActualCumMan: number; // 万円単位 (現在までの売電実績: 右棒下段)
+  sellProjectedDeltaMan: number; // 万円単位 (売電計画の積み増し分: 右棒上段)
+  sellProjectedCumMan: number; // 万円単位 (累計売電予測)
+  sellActualCumYen: number;
+  sellProjectedCumYen: number;
   remainingProjYen: number;
   pctOfTarget: number;
   isBreakEvenYear: boolean;
@@ -169,6 +182,38 @@ function segmentBarPath(
   );
 }
 
+function renderStackedBarShape(
+  fill: string,
+  stroke: string,
+  dashed: boolean,
+  shouldRoundTop: (payload?: YearlyMilestonePoint) => boolean,
+) {
+  return (rawProps: unknown): React.ReactElement => {
+    const p = (rawProps ?? {}) as {
+      x?: number;
+      y?: number;
+      width?: number;
+      height?: number;
+      payload?: YearlyMilestonePoint;
+    };
+    const x = Number(p.x ?? 0);
+    const y = Number(p.y ?? 0);
+    const w = Number(p.width ?? 0);
+    const h = Number(p.height ?? 0);
+    if (w <= 0 || h <= 0) return <g />;
+    const pathD = segmentBarPath(x, y, w, h, shouldRoundTop(p.payload), 4);
+    return (
+      <path
+        d={pathD}
+        fill={fill}
+        stroke={stroke}
+        strokeWidth={1.15}
+        strokeDasharray={dashed ? "3 2.5" : undefined}
+      />
+    );
+  };
+}
+
 function CustomPaybackTooltip({
   active,
   payload,
@@ -191,15 +236,27 @@ function CustomPaybackTooltip({
         ) : null}
       </div>
       <div className="sim-tooltip-row">
-        <span className="sim-tooltip-label">回収実績:</span>
+        <span className="sim-tooltip-label">PAYBACK ACTUAL:</span>
         <span className="sim-tooltip-actual">
           ¥{p.actualCumYen.toLocaleString("ja-JP")}
         </span>
       </div>
       <div className="sim-tooltip-row">
-        <span className="sim-tooltip-label">回収計画:</span>
+        <span className="sim-tooltip-label">PAYBACK PLAN:</span>
         <span className="sim-tooltip-pct">
           ¥{p.projectedCumYen.toLocaleString("ja-JP")} ({p.pctOfTarget.toFixed(0)}%)
+        </span>
+      </div>
+      <div className="sim-tooltip-row">
+        <span className="sim-tooltip-label">SELL ACTUAL:</span>
+        <span className="sim-tooltip-sell">
+          ¥{p.sellActualCumYen.toLocaleString("ja-JP")}
+        </span>
+      </div>
+      <div className="sim-tooltip-row">
+        <span className="sim-tooltip-label">SELL PLAN:</span>
+        <span className="sim-tooltip-sell-plan">
+          ¥{p.sellProjectedCumYen.toLocaleString("ja-JP")}
         </span>
       </div>
       <div className="sim-tooltip-row">
@@ -275,15 +332,20 @@ function PaybackChartView({
       : 1.2;
 
   // 指定した年月 (カレンダー基準) の1ヶ月分の想定回収メリット (3段階料金差額 + 売電)
-  const plannedMonthBenefitYen = (calYear: number, calMonth: number): number => {
+  const plannedMonthBenefitDetail = (
+    calYear: number,
+    calMonth: number,
+  ): { totalYen: number; sellYen: number } => {
     const estGen = MONTHLY_EST_KWH[calMonth] ?? 500;
     const estSelf = estGen * selfRatio;
     const estSell = estGen * exportRatio;
     const estBuy = observedDailyBuyKwh * (DAYS_IN_MONTH[calMonth] ?? 30);
     const selfSaving = calcMonthlySelfBenefitYen(estBuy, estSelf, buyTariff);
-    const sellRev = estSell * sellPriceForCalendarYm(calYear, calMonth);
-    return selfSaving + sellRev;
+    const sellYen = estSell * sellPriceForCalendarYm(calYear, calMonth);
+    return { totalYen: selfSaving + sellYen, sellYen };
   };
+  const plannedMonthBenefitYen = (calYear: number, calMonth: number): number =>
+    plannedMonthBenefitDetail(calYear, calMonth).totalYen;
 
   // FIT年数基準での年間想定メリット (2ページ目 KPI表示用)
   const annualBenefitForFitYear = (fitYear: number): number => {
@@ -355,11 +417,31 @@ function PaybackChartView({
   // グラフ表示範囲は実績ペース予測での達成翌年まで
   const maxYears = Math.max(1, Math.min(15, projBreakEvenYear + 1 - startYear));
 
+  // 売電実績合計 (API提供値優先、未提供時は月別売電量から換算)
+  const fallbackSellYenFromMonths = Object.entries(payback.byYearMonth || {}).reduce(
+    (sum, [ym, stat]) => {
+      if (typeof stat.sellYen === "number" && Number.isFinite(stat.sellYen)) {
+        return sum + stat.sellYen;
+      }
+      const y = Number(ym.slice(0, 4)) || startYear;
+      const m = Number(ym.slice(5, 7)) || currentMonth;
+      return sum + (stat.sellKwh || 0) * sellPriceForCalendarYm(y, m);
+    },
+    0,
+  );
+  const actualSellYen = Math.round(
+    typeof payback.totalSellYen === "number" && Number.isFinite(payback.totalSellYen)
+      ? payback.totalSellYen
+      : fallbackSellYenFromMonths,
+  );
+
   const points: YearlyMilestonePoint[] = [];
   let runningProjectedYen = payback.totalBenefitYen;
+  let runningProjectedSellYen = actualSellYen;
 
   const actualManFixed =
     Math.round((payback.totalBenefitYen / 10000) * 100) / 100;
+  const sellManFixed = Math.round((actualSellYen / 10000) * 100) / 100;
 
   // 0年目 (開始年・現在: 例 2026)
   points.push({
@@ -373,6 +455,11 @@ function PaybackChartView({
     projectedCumMan: actualManFixed,
     actualCumYen: payback.totalBenefitYen,
     projectedCumYen: payback.totalBenefitYen,
+    sellActualCumMan: sellManFixed,
+    sellProjectedDeltaMan: 0,
+    sellProjectedCumMan: sellManFixed,
+    sellActualCumYen: actualSellYen,
+    sellProjectedCumYen: actualSellYen,
     remainingProjYen: Math.max(0, targetYen - payback.totalBenefitYen),
     pctOfTarget: (payback.totalBenefitYen / targetYen) * 100,
     isBreakEvenYear: false,
@@ -380,20 +467,31 @@ function PaybackChartView({
 
   for (let yr = 1; yr <= maxYears; yr++) {
     let yrPlanYen = 0;
+    let yrSellPlanYen = 0;
     for (let k = 0; k < 12; k++) {
       const absM = startYear * 12 + (startMonth - 1) + (yr - 1) * 12 + k;
       const y = Math.floor(absM / 12);
       const m = (absM % 12) + 1;
-      yrPlanYen += plannedMonthBenefitYen(y, m);
+      const detail = plannedMonthBenefitDetail(y, m);
+      yrPlanYen += detail.totalYen;
+      yrSellPlanYen += detail.sellYen;
     }
     yrPlanYen = Math.round(yrPlanYen);
+    yrSellPlanYen = Math.round(yrSellPlanYen);
     const calYear = startYear + yr;
     const yrSellPrice = sellPriceForCalendarYm(calYear, startMonth);
     runningProjectedYen += Math.round(yrPlanYen * paceRatio);
+    runningProjectedSellYen += Math.round(yrSellPlanYen * paceRatio);
     const projectedMan = Math.round((runningProjectedYen / 10000) * 10) / 10;
     const deltaMan = Math.max(
       0,
       Math.round((projectedMan - actualManFixed) * 100) / 100,
+    );
+    const sellProjectedMan =
+      Math.round((runningProjectedSellYen / 10000) * 100) / 100;
+    const sellDeltaMan = Math.max(
+      0,
+      Math.round((sellProjectedMan - sellManFixed) * 100) / 100,
     );
     points.push({
       yearIndex: yr,
@@ -406,6 +504,11 @@ function PaybackChartView({
       projectedCumMan: projectedMan,
       actualCumYen: payback.totalBenefitYen,
       projectedCumYen: runningProjectedYen,
+      sellActualCumMan: sellManFixed,
+      sellProjectedDeltaMan: sellDeltaMan,
+      sellProjectedCumMan: sellProjectedMan,
+      sellActualCumYen: actualSellYen,
+      sellProjectedCumYen: runningProjectedSellYen,
       remainingProjYen: Math.max(0, targetYen - runningProjectedYen),
       pctOfTarget: (runningProjectedYen / targetYen) * 100,
       isBreakEvenYear: calYear === projBreakEvenYear,
@@ -420,6 +523,13 @@ function PaybackChartView({
         points[points.length - 1]?.projectedCumMan || 150,
       ) / 20,
     ) * 20;
+
+  const maxSellManRaw = Math.max(
+    1,
+    ...points.map((pt) => pt.sellProjectedCumMan),
+  );
+  const sellStep = maxSellManRaw <= 10 ? 2 : 5;
+  const maxSellYMan = Math.ceil((maxSellManRaw * 1.15) / sellStep) * sellStep;
 
   const actualPct = Math.min(100, (payback.totalBenefitYen / targetYen) * 100);
   const avgDailyBenefitYen =
@@ -494,20 +604,31 @@ function PaybackChartView({
             <div className="summary-chart-legend sim-chart-legend" aria-label="Payback Legend">
               <span className="summary-legend-item">
                 <span className="sim-legend-swatch sim-legend-swatch-actual" />
-                <span style={{ color: "#57f293" }}>回収実績</span>
+                <span style={{ color: "#57f293" }}>PAYBACK ACTUAL</span>
               </span>
               <span className="summary-legend-item">
                 <span className="sim-legend-swatch sim-legend-swatch-est" />
-                <span style={{ color: FORECAST_TEXT }}>回収計画</span>
+                <span style={{ color: FORECAST_TEXT }}>PAYBACK PLAN</span>
+              </span>
+              <span className="summary-legend-item">
+                <span className="sim-legend-swatch sim-legend-swatch-sell-actual" />
+                <span style={{ color: SELL_TEXT }}>SELL ACTUAL</span>
+              </span>
+              <span className="summary-legend-item">
+                <span className="sim-legend-swatch sim-legend-swatch-sell-plan" />
+                <span style={{ color: SELL_TEXT }}>SELL PLAN</span>
               </span>
             </div>
 
             <ResponsiveContainer width="100%" height={252}>
               <ComposedChart
                 data={points}
-                margin={{ top: 14, right: 14, left: -8, bottom: 2 }}
+                margin={{ top: 14, right: -4, left: -8, bottom: 2 }}
+                barGap={2}
+                barCategoryGap="20%"
               >
                 <CartesianGrid
+                  yAxisId="payback"
                   stroke="#383942"
                   strokeDasharray="3 3"
                   vertical={false}
@@ -516,6 +637,7 @@ function PaybackChartView({
                   <ReferenceArea
                     x1={currentYearLabel}
                     x2={currentYearLabel}
+                    yAxisId="payback"
                     fill="#fbdd84"
                     fillOpacity={0.08}
                     stroke="none"
@@ -551,11 +673,26 @@ function PaybackChartView({
                   tickLine={false}
                 />
                 <YAxis
+                  yAxisId="payback"
                   domain={[0, maxYMan]}
-                  width={52}
+                  width={50}
                   tickFormatter={(v: number) => formatCompactYen(v * 10000)}
                   tick={{
                     fill: "#9a9ea6",
+                    fontSize: 11,
+                    fontFamily: "JetBrains Mono, monospace",
+                  }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  yAxisId="sell"
+                  orientation="right"
+                  domain={[0, maxSellYMan]}
+                  width={46}
+                  tickFormatter={(v: number) => formatCompactYen(v * 10000)}
+                  tick={{
+                    fill: SELL_TEXT,
                     fontSize: 11,
                     fontFamily: "JetBrains Mono, monospace",
                   }}
@@ -567,6 +704,7 @@ function PaybackChartView({
                   content={<CustomPaybackTooltip targetYen={targetYen} />}
                 />
                 <ReferenceLine
+                  yAxisId="payback"
                   y={targetMan}
                   stroke="#fbdd84"
                   strokeWidth={1.8}
@@ -580,67 +718,64 @@ function PaybackChartView({
                   }}
                 />
                 <Bar
-                  name="回収実績"
+                  yAxisId="payback"
+                  name="PAYBACK ACTUAL"
                   dataKey="actualCumMan"
-                  stackId="actual"
+                  stackId="payback"
                   fill="#57f293"
-                  maxBarSize={24}
+                  maxBarSize={16}
                   isAnimationActive={false}
-                  shape={(rawProps: unknown) => {
-                    const p = (rawProps ?? {}) as {
-                      x?: number;
-                      y?: number;
-                      width?: number;
-                      height?: number;
-                      payload?: YearlyMilestonePoint;
-                    };
-                    const x = Number(p.x ?? 0);
-                    const y = Number(p.y ?? 0);
-                    const w = Number(p.width ?? 0);
-                    const h = Number(p.height ?? 0);
-                    if (w <= 0 || h <= 0) return <g />;
-                    const hasTop = (p.payload?.projectedDeltaMan ?? 0) > 0;
-                    const pathD = segmentBarPath(x, y, w, h, !hasTop, 4);
-                    return (
-                      <path
-                        d={pathD}
-                        fill="#57f293"
-                        stroke="#4bc77c"
-                        strokeWidth={1}
-                      />
-                    );
-                  }}
+                  shape={renderStackedBarShape(
+                    "#57f293",
+                    "#4bc77c",
+                    false,
+                    (p) => (p?.projectedDeltaMan ?? 0) <= 0,
+                  )}
                 />
                 <Bar
-                  name="回収計画"
+                  yAxisId="payback"
+                  name="PAYBACK PLAN"
                   dataKey="projectedDeltaMan"
-                  stackId="actual"
+                  stackId="payback"
                   fill={FORECAST_FILL}
-                  maxBarSize={24}
+                  maxBarSize={16}
                   isAnimationActive={false}
-                  shape={(rawProps: unknown) => {
-                    const p = (rawProps ?? {}) as {
-                      x?: number;
-                      y?: number;
-                      width?: number;
-                      height?: number;
-                    };
-                    const x = Number(p.x ?? 0);
-                    const y = Number(p.y ?? 0);
-                    const w = Number(p.width ?? 0);
-                    const h = Number(p.height ?? 0);
-                    if (w <= 0 || h <= 0) return <g />;
-                    const pathD = segmentBarPath(x, y, w, h, true, 4);
-                    return (
-                      <path
-                        d={pathD}
-                        fill={FORECAST_FILL}
-                        stroke={FORECAST_STROKE}
-                        strokeWidth={1.15}
-                        strokeDasharray="3 2.5"
-                      />
-                    );
-                  }}
+                  shape={renderStackedBarShape(
+                    FORECAST_FILL,
+                    FORECAST_STROKE,
+                    true,
+                    () => true,
+                  )}
+                />
+                <Bar
+                  yAxisId="sell"
+                  name="SELL ACTUAL"
+                  dataKey="sellActualCumMan"
+                  stackId="sell"
+                  fill={SELL_ACTUAL_FILL}
+                  maxBarSize={16}
+                  isAnimationActive={false}
+                  shape={renderStackedBarShape(
+                    SELL_ACTUAL_FILL,
+                    SELL_STROKE,
+                    false,
+                    (p) => (p?.sellProjectedDeltaMan ?? 0) <= 0,
+                  )}
+                />
+                <Bar
+                  yAxisId="sell"
+                  name="SELL PLAN"
+                  dataKey="sellProjectedDeltaMan"
+                  stackId="sell"
+                  fill={SELL_PLAN_FILL}
+                  maxBarSize={16}
+                  isAnimationActive={false}
+                  shape={renderStackedBarShape(
+                    SELL_PLAN_FILL,
+                    SELL_STROKE,
+                    true,
+                    () => true,
+                  )}
                 />
               </ComposedChart>
             </ResponsiveContainer>
