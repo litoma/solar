@@ -16,22 +16,15 @@ import {
   calcMonthlySelfBenefitYen,
   type BuyTariffConfig,
 } from "./tariff";
+import {
+  CANATARO_BASE_SIMULATION,
+  WARRANTY_START_DATE,
+} from "./pvHealth";
 
 // 月別の推定発電量 (kWh)
-const MONTHLY_EST_KWH: Record<number, number> = {
-  1: 400,
-  2: 410,
-  3: 569,
-  4: 640,
-  5: 785,
-  6: 630,
-  7: 702,
-  8: 655,
-  9: 489,
-  10: 407,
-  11: 328,
-  12: 333,
-};
+const MONTHLY_EST_KWH: Record<number, number> = Object.fromEntries(
+  CANATARO_BASE_SIMULATION.map((m) => [m.month, m.estimatedKwh]),
+);
 
 const DAYS_IN_MONTH: Record<number, number> = {
   1: 31,
@@ -366,6 +359,19 @@ function PaybackChartView({
     ymCandidates[0] || `${currentYear}-${String(currentMonth).padStart(2, "0")}`;
   const startYear = Number(resolvedStartYm.slice(0, 4)) || currentYear;
   const startMonth = Number(resolvedStartYm.slice(5, 7)) || currentMonth;
+  let startDay = 1;
+  if (
+    payback.firstDate &&
+    payback.firstDate.startsWith(`${resolvedStartYm}-`) &&
+    /^\d{4}-\d{2}-\d{2}$/.test(payback.firstDate)
+  ) {
+    startDay = Math.max(
+      1,
+      Math.min(31, Number(payback.firstDate.slice(8, 10)) || 1),
+    );
+  } else if (resolvedStartYm === WARRANTY_START_DATE.slice(0, 7)) {
+    startDay = Number(WARRANTY_START_DATE.slice(8, 10)) || 28;
+  }
 
   // 売電開始年月 (初期値 2027-04-01 → 2027-04)
   const sellStartDate = payback.sellStartDate || "2027-04-01";
@@ -392,15 +398,23 @@ function PaybackChartView({
       ? Math.max(0.4, Math.min(8.0, payback.totalBuyKwh / payback.activeDays))
       : 1.2;
 
-  // 指定した年月 (カレンダー基準) の1ヶ月分の想定回収メリット (3段階料金差額 + 売電)
+  // 指定した年月 (カレンダー基準) の想定回収メリット (設置初月は開始日〜月末の日割りを適用)
   const plannedMonthBenefitDetail = (
     calYear: number,
     calMonth: number,
   ): { totalYen: number; sellYen: number } => {
-    const estGen = MONTHLY_EST_KWH[calMonth] ?? 500;
+    const daysInMonth =
+      new Date(Date.UTC(calYear, calMonth, 0)).getUTCDate() ||
+      DAYS_IN_MONTH[calMonth] ||
+      30;
+    const monthFraction =
+      calYear === startYear && calMonth === startMonth && startDay > 1
+        ? Math.max(0, daysInMonth - startDay + 1) / daysInMonth
+        : 1;
+    const estGen = (MONTHLY_EST_KWH[calMonth] ?? 500) * monthFraction;
     const estSelf = estGen * selfRatio;
     const estSell = estGen * exportRatio;
-    const estBuy = observedDailyBuyKwh * (DAYS_IN_MONTH[calMonth] ?? 30);
+    const estBuy = observedDailyBuyKwh * daysInMonth * monthFraction;
     const selfSaving = calcMonthlySelfBenefitYen(estBuy, estSelf, buyTariff);
     const sellYen = estSell * sellPriceForCalendarYm(calYear, calMonth);
     return { totalYen: selfSaving + sellYen, sellYen };
@@ -502,8 +516,12 @@ function PaybackChartView({
     const subLabel =
       calYear === startYear
         ? startMonth === 12
-          ? "12月"
-          : `${startMonth}〜12月`
+          ? startDay > 1
+            ? `12/${startDay}〜`
+            : "12月"
+          : startDay > 1
+            ? `${startMonth}/${startDay}〜12月`
+            : `${startMonth}〜12月`
         : "1〜12月";
 
     points.push({
@@ -599,33 +617,16 @@ function PaybackChartView({
                 <span className="sim-summary-title">
                   PAYBACK TOTAL (RECOVERED / TARGET)
                 </span>
+                <span className="ef-outline-badge sim-pct-badge">
+                  {actualPct.toFixed(2)}%
+                </span>
               </div>
-              <div className="sim-annual-main">
-                <div className="sim-summary-val">
-                  ¥{payback.totalBenefitYen.toLocaleString("ja-JP")}
-                  <span className="sim-summary-sep">/</span>
-                  <span className="sim-summary-target">
-                    ¥{targetYen.toLocaleString("ja-JP")}
-                  </span>
-                </div>
-                <div
-                  className="sim-progress-track"
-                  role="progressbar"
-                  aria-valuenow={Number(actualPct.toFixed(2))}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-label={`Payback ${actualPct.toFixed(2)}%`}
-                >
-                  <div
-                    className="sim-progress-fill"
-                    style={{
-                      width: `${Math.min(100, Math.max(actualPct, payback.totalBenefitYen > 0 ? 1.5 : 0))}%`,
-                    }}
-                  />
-                  <span className="sim-progress-label">
-                    {actualPct.toFixed(2)}%
-                  </span>
-                </div>
+              <div className="sim-summary-val">
+                ¥{payback.totalBenefitYen.toLocaleString("ja-JP")}
+                <span className="sim-summary-sep">/</span>
+                <span className="sim-summary-target">
+                  ¥{targetYen.toLocaleString("ja-JP")}
+                </span>
               </div>
               <div className="payback-progress-sub">
                 Active {payback.activeDays}{" "}

@@ -285,33 +285,16 @@ function SimulationChartView({
             <span className="sim-summary-title">
               ANNUAL TOTAL (ACTUAL / ESTIMATED)
             </span>
+            <span className="ef-outline-badge sim-pct-badge">
+              {totalPct.toFixed(1)}%
+            </span>
           </div>
-          <div className="sim-annual-main">
-            <div className="sim-summary-val">
-              {totalActualKwh.toLocaleString("ja-JP")}
-              <span className="sim-summary-sep">/</span>
-              <span className="sim-summary-target">
-                {ANNUAL_TOTAL_KWH.toLocaleString("ja-JP")} kWh
-              </span>
-            </div>
-            <div
-              className="sim-progress-track"
-              role="progressbar"
-              aria-valuenow={Math.round(Math.min(100, Math.max(0, totalPct)))}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label={`Achievement ${totalPct.toFixed(1)}%`}
-            >
-              <div
-                className="sim-progress-fill"
-                style={{
-                  width: `${Math.min(100, Math.max(totalPct, totalActualRaw > 0 ? 1.5 : 0))}%`,
-                }}
-              />
-              <span className="sim-progress-label">
-                {totalPct.toFixed(1)}%
-              </span>
-            </div>
+          <div className="sim-summary-val">
+            {totalActualKwh.toLocaleString("ja-JP")}
+            <span className="sim-summary-sep">/</span>
+            <span className="sim-summary-target">
+              {ANNUAL_TOTAL_KWH.toLocaleString("ja-JP")} kWh
+            </span>
           </div>
 
           <div
@@ -322,7 +305,8 @@ function SimulationChartView({
               <React.Fragment key={s.key}>
                 {idx > 0 ? <span className="sim-pv-plus">+</span> : null}
                 <span style={{ color: s.color }}>
-                  {annualPvTotals[s.key].toFixed(1)} kWh
+                  {annualPvTotals[s.key].toFixed(1)}{" "}
+                  <span className="sim-pv-plus">kWh</span>
                 </span>
               </React.Fragment>
             ))}

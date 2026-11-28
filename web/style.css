@@ -963,8 +963,12 @@ body {
   bottom: 0;
   height: 100%;
   background: linear-gradient(90deg, #7e72a8 0%, #9b8ec7 100%);
-  border-radius: 999px;
+  border-radius: 0;
   transition: width 0.4s ease;
+}
+
+.ef-batt-bar-fill.is-full {
+  border-radius: 999px;
 }
 
 .ef-batt-bar-text {

@@ -1145,7 +1145,9 @@ function renderDashboard(data: DashboardResponse): void {
   el("val-batt-kw").innerHTML = kwHtml(displayBattKw);
   el("val-batt-soc").innerHTML =
     `${soc}% (${storedKwh.toFixed(1)}<span class="ef-kwh-unit">kWh</span>)`;
-  el("val-batt-bar").style.width = `${soc}%`;
+  const battBar = el("val-batt-bar");
+  battBar.style.width = `${soc}%`;
+  battBar.classList.toggle("is-full", soc >= 100);
 
   // 推定残り時間 EST (残量kWh ÷ 使用電力useKw)
   const refPowerKw = useKw > 0.02 ? useKw : displayBattKw > 0.02 ? displayBattKw : 0;
