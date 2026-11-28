@@ -59,8 +59,8 @@ export default defineConfig({
       SOLAR_SELL_PRICE_SCHEDULE: bindings.text(
         process.env.SOLAR_SELL_PRICE_SCHEDULE || "1-4:24,5-10:8.3,11+:8.5",
       ),
-      // 導入・発電開始年月 (初期値: 2026-11)
-      SOLAR_START_YM: bindings.text(process.env.SOLAR_START_YM || "2026-11"),
+      // 導入・発電開始年月 (初期値: 2026-10)
+      SOLAR_START_YM: bindings.text(process.env.SOLAR_START_YM || "2026-10"),
       // 売電(FIT)開始日 (この日までは売電単価0円、初期値: 2027-04-01)
       SOLAR_SELL_START_DATE: bindings.text(
         process.env.SOLAR_SELL_START_DATE || "2027-04-01",

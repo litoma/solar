@@ -236,18 +236,6 @@ function CustomPaybackTooltip({
         ) : null}
       </div>
       <div className="sim-tooltip-row">
-        <span className="sim-tooltip-label">PAYBACK ACTUAL:</span>
-        <span className="sim-tooltip-actual">
-          ¥{p.actualCumYen.toLocaleString("ja-JP")}
-        </span>
-      </div>
-      <div className="sim-tooltip-row">
-        <span className="sim-tooltip-label">PAYBACK PLAN:</span>
-        <span className="sim-tooltip-pct">
-          ¥{p.projectedCumYen.toLocaleString("ja-JP")} ({p.pctOfTarget.toFixed(0)}%)
-        </span>
-      </div>
-      <div className="sim-tooltip-row">
         <span className="sim-tooltip-label">SELL ACTUAL:</span>
         <span className="sim-tooltip-sell">
           ¥{p.sellActualCumYen.toLocaleString("ja-JP")}
@@ -260,11 +248,23 @@ function CustomPaybackTooltip({
         </span>
       </div>
       <div className="sim-tooltip-row">
-        <span className="sim-tooltip-label">目標まで残額:</span>
+        <span className="sim-tooltip-label">PAYBACK ACTUAL:</span>
+        <span className="sim-tooltip-actual">
+          ¥{p.actualCumYen.toLocaleString("ja-JP")}
+        </span>
+      </div>
+      <div className="sim-tooltip-row">
+        <span className="sim-tooltip-label">PAYBACK PLAN:</span>
+        <span className="sim-tooltip-pct">
+          ¥{p.projectedCumYen.toLocaleString("ja-JP")} ({p.pctOfTarget.toFixed(0)}%)
+        </span>
+      </div>
+      <div className="sim-tooltip-row">
+        <span className="sim-tooltip-label">TO TARGET:</span>
         <span className="sim-tooltip-est">
           {p.projectedCumYen >= targetYen
-            ? `+¥${(p.projectedCumYen - targetYen).toLocaleString("ja-JP")} (黒字)`
-            : `残り ¥${p.remainingProjYen.toLocaleString("ja-JP")}`}
+            ? `+¥${(p.projectedCumYen - targetYen).toLocaleString("ja-JP")} (SURPLUS)`
+            : `¥${p.remainingProjYen.toLocaleString("ja-JP")} left`}
         </span>
       </div>
     </div>
@@ -291,20 +291,42 @@ function PaybackChartView({
     payback.sellPriceSchedule && payback.sellPriceSchedule.length > 0
       ? payback.sellPriceSchedule
       : DEFAULT_TIERS;
-  const selfRatio =
+  const fallbackSelfRatio =
     typeof payback.selfConsumeRatio === "number"
       ? Math.max(0.05, Math.min(1.0, payback.selfConsumeRatio))
       : 0.65;
+  const actualSelfKwh =
+    typeof payback.totalSelfKwh === "number" && Number.isFinite(payback.totalSelfKwh)
+      ? Math.max(0, payback.totalSelfKwh)
+      : Math.max(0, (payback.totalSolarKwh || 0) - (payback.totalSellKwh || 0));
+  const actualSellKwh = Math.max(0, payback.totalSellKwh || 0);
+  const actualSplitTotal = actualSelfKwh + actualSellKwh;
+  const hasActualSplit = payback.activeDays > 0 && actualSplitTotal >= 1;
+  const selfRatio = hasActualSplit
+    ? Math.max(0, Math.min(1, actualSelfKwh / actualSplitTotal))
+    : fallbackSelfRatio;
   const exportRatio = 1 - selfRatio;
+  const selfPct = Math.round(selfRatio * 100);
+  const exportPct = 100 - selfPct;
 
-  // 導入開始年月 (SOLAR_START_YM > DB最古日付 > 現在年月)
-  let startYear = currentYear;
-  let startMonth = currentMonth;
-  const ymSrc = payback.startYm || payback.firstDate || "";
-  if (/^\d{4}-\d{2}/.test(ymSrc)) {
-    startYear = Number(ymSrc.slice(0, 4)) || currentYear;
-    startMonth = Number(ymSrc.slice(5, 7)) || currentMonth;
+  // 導入開始年月 (SOLAR_START_YM・DB最古日付・月別実績のうち最も早い年月を使用)
+  const ymCandidates: string[] = [];
+  if (payback.startYm && /^\d{4}-\d{2}/.test(payback.startYm)) {
+    ymCandidates.push(payback.startYm.slice(0, 7));
   }
+  if (payback.firstDate && /^\d{4}-\d{2}/.test(payback.firstDate)) {
+    ymCandidates.push(payback.firstDate.slice(0, 7));
+  }
+  for (const ymKey of Object.keys(payback.byYearMonth || {})) {
+    if (/^\d{4}-\d{2}/.test(ymKey)) {
+      ymCandidates.push(ymKey.slice(0, 7));
+    }
+  }
+  ymCandidates.sort();
+  const resolvedStartYm =
+    ymCandidates[0] || `${currentYear}-${String(currentMonth).padStart(2, "0")}`;
+  const startYear = Number(resolvedStartYm.slice(0, 4)) || currentYear;
+  const startMonth = Number(resolvedStartYm.slice(5, 7)) || currentMonth;
 
   // 売電開始年月 (初期値 2027-04-01 → 2027-04)
   const sellStartDate = payback.sellStartDate || "2027-04-01";
@@ -383,39 +405,8 @@ function PaybackChartView({
   const planYearsPart = Math.floor(paybackMonthsCount / 12);
   const planMonthsPart = paybackMonthsCount % 12;
 
-  // 実績ペース比 (記録がある日の実績回収額 ÷ 同月の段階別計画日割り回収額)
-  let expectedYenForActiveDays = 0;
-  for (const [ym, stat] of Object.entries(payback.byYearMonth || {})) {
-    const y = Number(ym.slice(0, 4)) || startYear;
-    const m = Number(ym.slice(5, 7)) || currentMonth;
-    const estMonthYen = plannedMonthBenefitYen(y, m);
-    const daysInM = DAYS_IN_MONTH[m] ?? 30;
-    expectedYenForActiveDays += (estMonthYen / daysInM) * stat.days;
-  }
-  const rawPaceRatio =
-    expectedYenForActiveDays > 100
-      ? payback.totalBenefitYen / expectedYenForActiveDays
-      : 1.0;
-  const paceRatio = Math.max(0.3, Math.min(2.0, rawPaceRatio));
-
-  // 実績ペース予測で目標額を達成する暦年を算出
-  let simProjYen = payback.totalBenefitYen;
-  let projBreakEvenYear = planBreakEvenYear;
-  for (let yr = 1; yr <= 25; yr++) {
-    let yrPlanYen = 0;
-    for (let k = 0; k < 12; k++) {
-      const absM = startYear * 12 + (startMonth - 1) + (yr - 1) * 12 + k;
-      yrPlanYen += plannedMonthBenefitYen(Math.floor(absM / 12), (absM % 12) + 1);
-    }
-    simProjYen += Math.round(yrPlanYen * paceRatio);
-    if (simProjYen >= targetYen) {
-      projBreakEvenYear = startYear + yr;
-      break;
-    }
-  }
-
-  // グラフ表示範囲は実績ペース予測での達成翌年まで
-  const maxYears = Math.max(1, Math.min(15, projBreakEvenYear + 1 - startYear));
+  // グラフ表示範囲は PV GENERATION 試算に基づく計画達成翌年まで (暦年ベース: 初年度は開始月〜12月)
+  const endYear = Math.min(startYear + 15, planBreakEvenYear + 1);
 
   // 売電実績合計 (API提供値優先、未提供時は月別売電量から換算)
   const fallbackSellYenFromMonths = Object.entries(payback.byYearMonth || {}).reduce(
@@ -436,82 +427,65 @@ function PaybackChartView({
   );
 
   const points: YearlyMilestonePoint[] = [];
-  let runningProjectedYen = payback.totalBenefitYen;
-  let runningProjectedSellYen = actualSellYen;
+  let runningPlanYen = 0;
+  let runningSellPlanYen = 0;
 
   const actualManFixed =
     Math.round((payback.totalBenefitYen / 10000) * 100) / 100;
   const sellManFixed = Math.round((actualSellYen / 10000) * 100) / 100;
 
-  // 0年目 (開始年・現在: 例 2026)
-  points.push({
-    yearIndex: 0,
-    label: String(startYear),
-    subLabel: `現在 ${startYear}/${String(startMonth).padStart(2, "0")}`,
-    sellPriceYen: sellPriceForCalendarYm(startYear, startMonth),
-    annualPlanYen: annualBenefitForFitYear(1),
-    actualCumMan: actualManFixed,
-    projectedDeltaMan: 0,
-    projectedCumMan: actualManFixed,
-    actualCumYen: payback.totalBenefitYen,
-    projectedCumYen: payback.totalBenefitYen,
-    sellActualCumMan: sellManFixed,
-    sellProjectedDeltaMan: 0,
-    sellProjectedCumMan: sellManFixed,
-    sellActualCumYen: actualSellYen,
-    sellProjectedCumYen: actualSellYen,
-    remainingProjYen: Math.max(0, targetYen - payback.totalBenefitYen),
-    pctOfTarget: (payback.totalBenefitYen / targetYen) * 100,
-    isBreakEvenYear: false,
-  });
-
-  for (let yr = 1; yr <= maxYears; yr++) {
+  for (let calYear = startYear; calYear <= endYear; calYear++) {
+    const firstMonth = calYear === startYear ? startMonth : 1;
+    const lastMonth = 12;
     let yrPlanYen = 0;
     let yrSellPlanYen = 0;
-    for (let k = 0; k < 12; k++) {
-      const absM = startYear * 12 + (startMonth - 1) + (yr - 1) * 12 + k;
-      const y = Math.floor(absM / 12);
-      const m = (absM % 12) + 1;
-      const detail = plannedMonthBenefitDetail(y, m);
+    for (let m = firstMonth; m <= lastMonth; m++) {
+      const detail = plannedMonthBenefitDetail(calYear, m);
       yrPlanYen += detail.totalYen;
       yrSellPlanYen += detail.sellYen;
     }
     yrPlanYen = Math.round(yrPlanYen);
     yrSellPlanYen = Math.round(yrSellPlanYen);
-    const calYear = startYear + yr;
-    const yrSellPrice = sellPriceForCalendarYm(calYear, startMonth);
-    runningProjectedYen += Math.round(yrPlanYen * paceRatio);
-    runningProjectedSellYen += Math.round(yrSellPlanYen * paceRatio);
-    const projectedMan = Math.round((runningProjectedYen / 10000) * 10) / 10;
+    runningPlanYen += yrPlanYen;
+    runningSellPlanYen += yrSellPlanYen;
+
+    const yrSellPrice = sellPriceForCalendarYm(calYear, lastMonth);
+    const planMan = Math.round((runningPlanYen / 10000) * 100) / 100;
     const deltaMan = Math.max(
       0,
-      Math.round((projectedMan - actualManFixed) * 100) / 100,
+      Math.round((planMan - actualManFixed) * 100) / 100,
     );
-    const sellProjectedMan =
-      Math.round((runningProjectedSellYen / 10000) * 100) / 100;
+    const sellPlanMan = Math.round((runningSellPlanYen / 10000) * 100) / 100;
     const sellDeltaMan = Math.max(
       0,
-      Math.round((sellProjectedMan - sellManFixed) * 100) / 100,
+      Math.round((sellPlanMan - sellManFixed) * 100) / 100,
     );
+    const subLabel =
+      calYear === startYear
+        ? startMonth === 12
+          ? "12月"
+          : `${startMonth}〜12月`
+        : "1〜12月";
+
     points.push({
-      yearIndex: yr,
+      yearIndex: calYear - startYear,
       label: String(calYear),
-      subLabel: `${yr}年目`,
+      subLabel,
       sellPriceYen: yrSellPrice,
       annualPlanYen: yrPlanYen,
       actualCumMan: actualManFixed,
       projectedDeltaMan: deltaMan,
-      projectedCumMan: projectedMan,
+      projectedCumMan: planMan,
       actualCumYen: payback.totalBenefitYen,
-      projectedCumYen: runningProjectedYen,
+      projectedCumYen: runningPlanYen,
       sellActualCumMan: sellManFixed,
       sellProjectedDeltaMan: sellDeltaMan,
-      sellProjectedCumMan: sellProjectedMan,
+      sellProjectedCumMan: sellPlanMan,
       sellActualCumYen: actualSellYen,
-      sellProjectedCumYen: runningProjectedSellYen,
-      remainingProjYen: Math.max(0, targetYen - runningProjectedYen),
-      pctOfTarget: (runningProjectedYen / targetYen) * 100,
-      isBreakEvenYear: calYear === projBreakEvenYear,
+      sellProjectedCumYen: runningSellPlanYen,
+      remainingProjYen: Math.max(0, targetYen - runningPlanYen),
+      pctOfTarget: (runningPlanYen / targetYen) * 100,
+      isBreakEvenYear: calYear === planBreakEvenYear,
     });
   }
 
@@ -520,16 +494,17 @@ function PaybackChartView({
     Math.ceil(
       Math.max(
         targetMan * 1.22,
-        points[points.length - 1]?.projectedCumMan || 150,
+        ...points.map((pt) =>
+          Math.max(
+            pt.actualCumMan,
+            pt.projectedCumMan,
+            pt.sellActualCumMan,
+            pt.sellProjectedCumMan,
+          ),
+        ),
+        150,
       ) / 20,
     ) * 20;
-
-  const maxSellManRaw = Math.max(
-    1,
-    ...points.map((pt) => pt.sellProjectedCumMan),
-  );
-  const sellStep = maxSellManRaw <= 10 ? 2 : 5;
-  const maxSellYMan = Math.ceil((maxSellManRaw * 1.15) / sellStep) * sellStep;
 
   const actualPct = Math.min(100, (payback.totalBenefitYen / targetYen) * 100);
   const avgDailyBenefitYen =
@@ -588,7 +563,7 @@ function PaybackChartView({
                 }}
               />
               <span className="payback-bar-label">
-                回収済 ¥{payback.totalBenefitYen.toLocaleString("ja-JP")} / 目標 ¥
+                RECOVERED ¥{payback.totalBenefitYen.toLocaleString("ja-JP")} / TARGET ¥
                 {targetYen.toLocaleString("ja-JP")} ({actualPct.toFixed(2)}%)
               </span>
             </div>
@@ -603,14 +578,6 @@ function PaybackChartView({
           <div className="sim-chart-box">
             <div className="summary-chart-legend sim-chart-legend" aria-label="Payback Legend">
               <span className="summary-legend-item">
-                <span className="sim-legend-swatch sim-legend-swatch-actual" />
-                <span style={{ color: "#57f293" }}>PAYBACK ACTUAL</span>
-              </span>
-              <span className="summary-legend-item">
-                <span className="sim-legend-swatch sim-legend-swatch-est" />
-                <span style={{ color: FORECAST_TEXT }}>PAYBACK PLAN</span>
-              </span>
-              <span className="summary-legend-item">
                 <span className="sim-legend-swatch sim-legend-swatch-sell-actual" />
                 <span style={{ color: SELL_TEXT }}>SELL ACTUAL</span>
               </span>
@@ -618,17 +585,24 @@ function PaybackChartView({
                 <span className="sim-legend-swatch sim-legend-swatch-sell-plan" />
                 <span style={{ color: SELL_TEXT }}>SELL PLAN</span>
               </span>
+              <span className="summary-legend-item">
+                <span className="sim-legend-swatch sim-legend-swatch-actual" />
+                <span style={{ color: "#57f293" }}>PAYBACK ACTUAL</span>
+              </span>
+              <span className="summary-legend-item">
+                <span className="sim-legend-swatch sim-legend-swatch-est" />
+                <span style={{ color: FORECAST_TEXT }}>PAYBACK PLAN</span>
+              </span>
             </div>
 
             <ResponsiveContainer width="100%" height={252}>
               <ComposedChart
                 data={points}
-                margin={{ top: 14, right: -4, left: -8, bottom: 2 }}
+                margin={{ top: 14, right: 14, left: -8, bottom: 2 }}
                 barGap={2}
                 barCategoryGap="20%"
               >
                 <CartesianGrid
-                  yAxisId="payback"
                   stroke="#383942"
                   strokeDasharray="3 3"
                   vertical={false}
@@ -637,7 +611,6 @@ function PaybackChartView({
                   <ReferenceArea
                     x1={currentYearLabel}
                     x2={currentYearLabel}
-                    yAxisId="payback"
                     fill="#fbdd84"
                     fillOpacity={0.08}
                     stroke="none"
@@ -673,26 +646,11 @@ function PaybackChartView({
                   tickLine={false}
                 />
                 <YAxis
-                  yAxisId="payback"
                   domain={[0, maxYMan]}
-                  width={50}
+                  width={52}
                   tickFormatter={(v: number) => formatCompactYen(v * 10000)}
                   tick={{
                     fill: "#9a9ea6",
-                    fontSize: 11,
-                    fontFamily: "JetBrains Mono, monospace",
-                  }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  yAxisId="sell"
-                  orientation="right"
-                  domain={[0, maxSellYMan]}
-                  width={46}
-                  tickFormatter={(v: number) => formatCompactYen(v * 10000)}
-                  tick={{
-                    fill: SELL_TEXT,
                     fontSize: 11,
                     fontFamily: "JetBrains Mono, monospace",
                   }}
@@ -704,13 +662,12 @@ function PaybackChartView({
                   content={<CustomPaybackTooltip targetYen={targetYen} />}
                 />
                 <ReferenceLine
-                  yAxisId="payback"
                   y={targetMan}
                   stroke="#fbdd84"
                   strokeWidth={1.8}
                   strokeDasharray="5 4"
                   label={{
-                    value: `回収目標 ${formatCompactYen(targetYen)}`,
+                    value: `PAYBACK TARGET ${formatCompactYen(targetYen)}`,
                     position: "insideTopLeft",
                     fill: "#fbdd84",
                     fontSize: 11.5,
@@ -718,37 +675,6 @@ function PaybackChartView({
                   }}
                 />
                 <Bar
-                  yAxisId="payback"
-                  name="PAYBACK ACTUAL"
-                  dataKey="actualCumMan"
-                  stackId="payback"
-                  fill="#57f293"
-                  maxBarSize={16}
-                  isAnimationActive={false}
-                  shape={renderStackedBarShape(
-                    "#57f293",
-                    "#4bc77c",
-                    false,
-                    (p) => (p?.projectedDeltaMan ?? 0) <= 0,
-                  )}
-                />
-                <Bar
-                  yAxisId="payback"
-                  name="PAYBACK PLAN"
-                  dataKey="projectedDeltaMan"
-                  stackId="payback"
-                  fill={FORECAST_FILL}
-                  maxBarSize={16}
-                  isAnimationActive={false}
-                  shape={renderStackedBarShape(
-                    FORECAST_FILL,
-                    FORECAST_STROKE,
-                    true,
-                    () => true,
-                  )}
-                />
-                <Bar
-                  yAxisId="sell"
                   name="SELL ACTUAL"
                   dataKey="sellActualCumMan"
                   stackId="sell"
@@ -763,7 +689,6 @@ function PaybackChartView({
                   )}
                 />
                 <Bar
-                  yAxisId="sell"
                   name="SELL PLAN"
                   dataKey="sellProjectedDeltaMan"
                   stackId="sell"
@@ -773,6 +698,34 @@ function PaybackChartView({
                   shape={renderStackedBarShape(
                     SELL_PLAN_FILL,
                     SELL_STROKE,
+                    true,
+                    () => true,
+                  )}
+                />
+                <Bar
+                  name="PAYBACK ACTUAL"
+                  dataKey="actualCumMan"
+                  stackId="payback"
+                  fill="#57f293"
+                  maxBarSize={16}
+                  isAnimationActive={false}
+                  shape={renderStackedBarShape(
+                    "#57f293",
+                    "#4bc77c",
+                    false,
+                    (p) => (p?.projectedDeltaMan ?? 0) <= 0,
+                  )}
+                />
+                <Bar
+                  name="PAYBACK PLAN"
+                  dataKey="projectedDeltaMan"
+                  stackId="payback"
+                  fill={FORECAST_FILL}
+                  maxBarSize={16}
+                  isAnimationActive={false}
+                  shape={renderStackedBarShape(
+                    FORECAST_FILL,
+                    FORECAST_STROKE,
                     true,
                     () => true,
                   )}
@@ -792,15 +745,13 @@ function PaybackChartView({
               >
                 <span className="sim-month-name">{pt.label}</span>
                 <span className="sim-month-val">
-                  {pt.yearIndex === 0
-                    ? `¥${pt.actualCumYen.toLocaleString("ja-JP")}`
-                    : formatCompactYen(pt.projectedCumYen)}
+                  {formatCompactYen(pt.projectedCumYen)}
                 </span>
                 <span
                   className="sim-month-pct"
                   style={{ color: FORECAST_TEXT }}
                 >
-                  {pt.pctOfTarget.toFixed(pt.yearIndex === 0 ? 2 : 0)}%
+                  {pt.pctOfTarget.toFixed(pt.pctOfTarget < 10 ? 1 : 0)}%
                 </span>
               </div>
             ))}
@@ -924,8 +875,9 @@ function PaybackChartView({
               </div>
 
               <div className="payback-kpi-sub">
-                想定自家消費 {Math.round(selfRatio * 100)}% / 売電{" "}
-                {Math.round(exportRatio * 100)}%
+                {hasActualSplit
+                  ? `実績比率 (試算反映): 自家消費 ${selfPct}% / 売電 ${exportPct}%`
+                  : `想定自家消費 ${selfPct}% / 売電 ${exportPct}%`}
               </div>
             </div>
           </div>

@@ -616,11 +616,11 @@
                 <thead>
                   <tr>
                     <th scope="col">MODEL</th>
-                    <th scope="col">QTY</th>
-                    <th scope="col" class="is-num">PER PANEL</th>
-                    <th scope="col" class="is-num">OUTPUT</th>
                     <th scope="col" class="is-num">EFF.</th>
-                    <th scope="col" class="is-num">WT/PANEL</th>
+                    <th scope="col">QTY</th>
+                    <th scope="col" class="col-per-panel is-num">PER PANEL</th>
+                    <th scope="col" class="is-num">OUTPUT</th>
+                    <th scope="col" class="col-wt-panel is-num">WT/PANEL</th>
                     <th scope="col" class="is-num">TOTAL WT</th>
                   </tr>
                 </thead>
@@ -629,55 +629,79 @@
                     <td class="col-model">
                       <span class="pv-model-pill">310</span>
                     </td>
-                    <td class="col-qty">4<span class="pv-spec-qty-dir">(W4)</span></td>
-                    <td class="col-unit is-num">0.310<span class="pv-spec-unit">kW</span></td>
-                    <td class="col-output is-num"><span class="pv-spec-kw">1.240<span class="pv-spec-unit">kW</span></span></td>
                     <td class="col-eff is-num">22.9<span class="pv-spec-unit">%</span></td>
-                    <td class="col-unit is-num">14.7<span class="pv-spec-unit">kg</span></td>
-                    <td class="col-wt-total is-num"><span class="pv-spec-kw">58.8<span class="pv-spec-unit">kg</span></span></td>
+                    <td class="col-qty">4<span class="pv-spec-qty-dir">(W4)</span></td>
+                    <td class="col-unit col-per-panel is-num">0.310<span class="pv-spec-unit">kW</span></td>
+                    <td class="col-output is-num">
+                      <span class="pv-spec-kw">1.240<span class="pv-spec-unit">kW</span></span>
+                      <span class="pv-spec-sub">0.310kW/panel</span>
+                    </td>
+                    <td class="col-unit col-wt-panel is-num">14.7<span class="pv-spec-unit">kg</span></td>
+                    <td class="col-wt-total is-num">
+                      <span class="pv-spec-kw">58.8<span class="pv-spec-unit">kg</span></span>
+                      <span class="pv-spec-sub">14.7kg/panel</span>
+                    </td>
                   </tr>
                   <tr>
                     <td class="col-model">
                       <span class="pv-model-pill">350</span>
                     </td>
-                    <td class="col-qty">2<span class="pv-spec-qty-dir">(E2)</span></td>
-                    <td class="col-unit is-num">0.350<span class="pv-spec-unit">kW</span></td>
-                    <td class="col-output is-num"><span class="pv-spec-kw">0.700<span class="pv-spec-unit">kW</span></span></td>
                     <td class="col-eff is-num">23.1<span class="pv-spec-unit">%</span></td>
-                    <td class="col-unit is-num">16.3<span class="pv-spec-unit">kg</span></td>
-                    <td class="col-wt-total is-num"><span class="pv-spec-kw">32.6<span class="pv-spec-unit">kg</span></span></td>
+                    <td class="col-qty">2<span class="pv-spec-qty-dir">(E2)</span></td>
+                    <td class="col-unit col-per-panel is-num">0.350<span class="pv-spec-unit">kW</span></td>
+                    <td class="col-output is-num">
+                      <span class="pv-spec-kw">0.700<span class="pv-spec-unit">kW</span></span>
+                      <span class="pv-spec-sub">0.350kW/panel</span>
+                    </td>
+                    <td class="col-unit col-wt-panel is-num">16.3<span class="pv-spec-unit">kg</span></td>
+                    <td class="col-wt-total is-num">
+                      <span class="pv-spec-kw">32.6<span class="pv-spec-unit">kg</span></span>
+                      <span class="pv-spec-sub">16.3kg/panel</span>
+                    </td>
                   </tr>
                   <tr>
                     <td class="col-model">
                       <span class="pv-model-pill">445</span>
                     </td>
-                    <td class="col-qty">3<span class="pv-spec-qty-dir">(N3)</span></td>
-                    <td class="col-unit is-num">0.445<span class="pv-spec-unit">kW</span></td>
-                    <td class="col-output is-num"><span class="pv-spec-kw">1.335<span class="pv-spec-unit">kW</span></span></td>
                     <td class="col-eff is-num">22.3<span class="pv-spec-unit">%</span></td>
-                    <td class="col-unit is-num">21.3<span class="pv-spec-unit">kg</span></td>
-                    <td class="col-wt-total is-num"><span class="pv-spec-kw">63.9<span class="pv-spec-unit">kg</span></span></td>
+                    <td class="col-qty">3<span class="pv-spec-qty-dir">(N3)</span></td>
+                    <td class="col-unit col-per-panel is-num">0.445<span class="pv-spec-unit">kW</span></td>
+                    <td class="col-output is-num">
+                      <span class="pv-spec-kw">1.335<span class="pv-spec-unit">kW</span></span>
+                      <span class="pv-spec-sub">0.445kW/panel</span>
+                    </td>
+                    <td class="col-unit col-wt-panel is-num">21.3<span class="pv-spec-unit">kg</span></td>
+                    <td class="col-wt-total is-num">
+                      <span class="pv-spec-kw">63.9<span class="pv-spec-unit">kg</span></span>
+                      <span class="pv-spec-sub">21.3kg/panel</span>
+                    </td>
                   </tr>
                   <tr>
                     <td class="col-model">
                       <span class="pv-model-pill">465</span>
                     </td>
-                    <td class="col-qty">6<span class="pv-spec-qty-dir">(W4+E2)</span></td>
-                    <td class="col-unit is-num">0.465<span class="pv-spec-unit">kW</span></td>
-                    <td class="col-output is-num"><span class="pv-spec-kw">2.790<span class="pv-spec-unit">kW</span></span></td>
                     <td class="col-eff is-num">23.3<span class="pv-spec-unit">%</span></td>
-                    <td class="col-unit is-num">21.3<span class="pv-spec-unit">kg</span></td>
-                    <td class="col-wt-total is-num"><span class="pv-spec-kw">127.8<span class="pv-spec-unit">kg</span></span></td>
+                    <td class="col-qty">6<span class="pv-spec-qty-dir">(W4+E2)</span></td>
+                    <td class="col-unit col-per-panel is-num">0.465<span class="pv-spec-unit">kW</span></td>
+                    <td class="col-output is-num">
+                      <span class="pv-spec-kw">2.790<span class="pv-spec-unit">kW</span></span>
+                      <span class="pv-spec-sub">0.465kW/panel</span>
+                    </td>
+                    <td class="col-unit col-wt-panel is-num">21.3<span class="pv-spec-unit">kg</span></td>
+                    <td class="col-wt-total is-num">
+                      <span class="pv-spec-kw">127.8<span class="pv-spec-unit">kg</span></span>
+                      <span class="pv-spec-sub">21.3kg/panel</span>
+                    </td>
                   </tr>
                   <tr class="pv-spec-total-row">
                     <td class="col-model">
                       <span class="pv-spec-total-label">TOTAL</span>
                     </td>
-                    <td class="col-qty">15<span class="pv-spec-qty-dir">panels</span></td>
-                    <td class="col-unit is-num">—</td>
-                    <td class="col-output is-num"><span class="pv-spec-kw">6.065<span class="pv-spec-unit">kW</span></span></td>
                     <td class="col-eff is-num">—</td>
-                    <td class="col-unit is-num">—</td>
+                    <td class="col-qty">15<span class="pv-spec-qty-dir">panels</span></td>
+                    <td class="col-unit col-per-panel is-num">—</td>
+                    <td class="col-output is-num"><span class="pv-spec-kw">6.065<span class="pv-spec-unit">kW</span></span></td>
+                    <td class="col-unit col-wt-panel is-num">—</td>
                     <td class="col-wt-total is-num"><span class="pv-spec-kw">283.1<span class="pv-spec-unit">kg</span></span></td>
                   </tr>
                 </tbody>
