@@ -148,6 +148,7 @@ function renderGenerationBar(rawProps: unknown): React.ReactElement {
   const pvVals = [item.pv1, item.pv2, item.pv3, item.pv4].map((v) => Math.max(0, v));
   const pvSum = pvVals[0] + pvVals[1] + pvVals[2] + pvVals[3];
   const act = pvSum > 0 ? pvSum : Math.max(0, item.actualExactKwh);
+  const exceedsEst = act > est;
   const maxVal = Math.max(item.barMaxKwh, est, act, 1);
   const baseY = y + height;
   const estH = (est / maxVal) * height;
@@ -175,8 +176,9 @@ function renderGenerationBar(rawProps: unknown): React.ReactElement {
       const segH = (val / maxVal) * height;
       const segY = cursorY - segH;
       cursorY = segY;
-      const isTop = i === topNonZeroIdx;
-      const segPath = isTop
+      // ESTIMATEDを実績(PV1〜4合計)が超えた場合のみ最上段(PV4等)を上端角丸にする
+      const roundTop = exceedsEst && i === topNonZeroIdx;
+      const segPath = roundTop
         ? topRoundedBarPath(x, segY, width, segH, 4)
         : `M ${x} ${segY} H ${x + width} V ${segY + segH} H ${x} Z`;
       if (!segPath) continue;
@@ -194,42 +196,31 @@ function renderGenerationBar(rawProps: unknown): React.ReactElement {
     return <g clipPath={clipUrl}>{elems}</g>;
   };
 
-  // 実績 <= 推定: 推定を背面枠にし、下から PV1〜4 を積み上げる
-  if (act <= est) {
-    return (
-      <g>
-        {estPath ? (
-          <defs>
-            <clipPath id={clipId}>
-              <path d={estPath} />
-            </clipPath>
-          </defs>
-        ) : null}
-        {estPath ? (
-          <path
-            d={estPath}
-            fill="rgba(215, 189, 114, 0.22)"
-            stroke="#d7bd72"
-            strokeWidth={1.15}
-          />
-        ) : null}
-        {renderPvStack(estPath ? `url(#${clipId})` : undefined)}
-      </g>
-    );
+  // 実績 > 推定: ESTIMATEDはグラフ上に表示せず、PV1〜4積み上げのみ描画する
+  if (exceedsEst) {
+    return <g>{renderPvStack()}</g>;
   }
 
-  // 実績 > 推定: PV1〜4 積み上げを背面、推定枠を半透明で前面にして両方視認可能にする
+  // 実績 <= 推定: 推定を背面枠(点線)にし、下から PV1〜4 を積み上げる
   return (
     <g>
-      {renderPvStack()}
+      {estPath ? (
+        <defs>
+          <clipPath id={clipId}>
+            <path d={estPath} />
+          </clipPath>
+        </defs>
+      ) : null}
       {estPath ? (
         <path
           d={estPath}
-          fill="rgba(52, 46, 29, 0.28)"
-          stroke="#fbdd84"
-          strokeWidth={1.45}
+          fill="rgba(215, 189, 114, 0.22)"
+          stroke="#d7bd72"
+          strokeWidth={1.15}
+          strokeDasharray="3 2.5"
         />
       ) : null}
+      {renderPvStack(estPath ? `url(#${clipId})` : undefined)}
     </g>
   );
 }

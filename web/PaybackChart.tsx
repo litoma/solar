@@ -104,14 +104,10 @@ function getSellPriceForYear(tiers: SellPriceTier[], yr: number): number {
   return list[list.length - 1]?.priceYenPerKwh ?? 8.5;
 }
 
-function formatTierLabel(t: SellPriceTier): string {
-  const range =
-    t.endYear === null
-      ? `${t.startYear}年目〜`
-      : t.startYear === t.endYear
-        ? `${t.startYear}年目`
-        : `${t.startYear}〜${t.endYear}年目`;
-  return `${range}: ¥${t.priceYenPerKwh}/kWh`;
+function formatTierPeriod(t: SellPriceTier): string {
+  if (t.endYear === null) return `${t.startYear}年目〜`;
+  if (t.startYear === t.endYear) return `${t.startYear}年目`;
+  return `${t.startYear}〜${t.endYear}年目`;
 }
 
 interface YearlyMilestonePoint {
@@ -426,7 +422,6 @@ function PaybackChartView({
     ) * 20;
 
   const actualPct = Math.min(100, (payback.totalBenefitYen / targetYen) * 100);
-  const remainingActualYen = Math.max(0, targetYen - payback.totalBenefitYen);
   const avgDailyBenefitYen =
     payback.activeDays > 0
       ? Math.round(payback.totalBenefitYen / payback.activeDays)
@@ -434,6 +429,24 @@ function PaybackChartView({
 
   const yr1to4Benefit = annualBenefitForFitYear(1);
   const yr5to10Benefit = annualBenefitForFitYear(5);
+
+  const buyTierItems = [
+    {
+      stage: "第1段階",
+      range: `〜${buyTariff.tier1MaxKwh} kWh`,
+      price: buyTariff.tier1YenPerKwh,
+    },
+    {
+      stage: "第2段階",
+      range: `${buyTariff.tier1MaxKwh + 1}〜${buyTariff.tier2MaxKwh} kWh`,
+      price: buyTariff.tier2YenPerKwh,
+    },
+    {
+      stage: "第3段階",
+      range: `${buyTariff.tier2MaxKwh + 1} kWh〜`,
+      price: buyTariff.tier3YenPerKwh,
+    },
+  ];
 
   const onScroll = () => {
     const el = scrollerRef.current;
@@ -468,6 +481,12 @@ function PaybackChartView({
                 回収済 ¥{payback.totalBenefitYen.toLocaleString("ja-JP")} / 目標 ¥
                 {targetYen.toLocaleString("ja-JP")} ({actualPct.toFixed(2)}%)
               </span>
+            </div>
+            <div className="payback-bar-sub">
+              Active {payback.activeDays}{" "}
+              {payback.activeDays === 1 ? "day" : "days"} · Total{" "}
+              {payback.totalSolarKwh.toFixed(1)} kWh (Avg. ¥
+              {avgDailyBenefitYen.toLocaleString("ja-JP")}/day)
             </div>
           </div>
 
@@ -617,7 +636,8 @@ function PaybackChartView({
                         d={pathD}
                         fill={FORECAST_FILL}
                         stroke={FORECAST_STROKE}
-                        strokeWidth={1}
+                        strokeWidth={1.15}
+                        strokeDasharray="3 2.5"
                       />
                     );
                   }}
@@ -652,7 +672,7 @@ function PaybackChartView({
           </div>
         </div>
 
-        {/* 2ページ目: 回収目標 / 計画ペイ期間 / 累計実績 / 電気料金・売電単価設定 */}
+        {/* 2ページ目: 回収目標 / 計画ペイ期間 / 電気料金・売電単価設定 */}
         <div className="payback-page">
           <div className="payback-kpi-grid">
             <div className="sim-summary-card">
@@ -686,71 +706,91 @@ function PaybackChartView({
                 {yr5to10Benefit.toLocaleString("ja-JP")}/年
               </div>
             </div>
-
-            <div className="sim-summary-card">
-              <div className="sim-summary-head">
-                <span className="sim-summary-title">累計回収実績 / 残額</span>
-                <span className="ef-outline-badge sim-pct-badge">
-                  進捗 {actualPct.toFixed(2)}%
-                </span>
-              </div>
-              <div className="sim-summary-val">
-                ¥{payback.totalBenefitYen.toLocaleString("ja-JP")}
-                <span className="sim-summary-sep">/</span>
-                <span className="sim-summary-target">
-                  残 ¥{remainingActualYen.toLocaleString("ja-JP")}
-                </span>
-              </div>
-              <div className="payback-kpi-sub">
-                稼働 {payback.activeDays}日 · 累計{" "}
-                {payback.totalSolarKwh.toFixed(1)} kWh (平均 ¥
-                {avgDailyBenefitYen.toLocaleString("ja-JP")}/日)
-              </div>
-            </div>
           </div>
 
-          <div className="payback-tiers-bar">
-            <div className="payback-tiers-group">
-              <span className="payback-tiers-label">買電単価・基本料金設定:</span>
-              <div className="payback-tiers-chips">
-                <span className="ef-outline-badge payback-tier-chip">
-                  {buyTariff.baseFeeYen > 0
-                    ? `基本料金: ¥${buyTariff.baseFeeYen.toLocaleString("ja-JP")}/月`
-                    : "基本料金: なし (¥0)"}
+          <div className="payback-settings-grid">
+            <div className="sim-summary-card payback-settings-card">
+              <div className="sim-summary-head">
+                <span className="sim-summary-title">買電単価・基本料金設定</span>
+                <span className="ef-outline-badge payback-badge-muted">
+                  月次積算買電基準
                 </span>
-                <span className="ef-outline-badge payback-tier-chip">
-                  〜{buyTariff.tier1MaxKwh}kWh: ¥{buyTariff.tier1YenPerKwh}
-                </span>
-                <span className="ef-outline-badge payback-tier-chip">
-                  {buyTariff.tier1MaxKwh + 1}〜{buyTariff.tier2MaxKwh}kWh: ¥
-                  {buyTariff.tier2YenPerKwh}
-                </span>
-                <span className="ef-outline-badge payback-tier-chip">
-                  {buyTariff.tier2MaxKwh + 1}kWh〜: ¥{buyTariff.tier3YenPerKwh}
-                </span>
+              </div>
+
+              <div className="payback-basefee-row">
+                <div className="payback-basefee-main">
+                  <span className="payback-tier-stage">基本料金</span>
+                  <span className="payback-basefee-val">
+                    {buyTariff.baseFeeYen > 0 ? (
+                      <>
+                        ¥{buyTariff.baseFeeYen.toLocaleString("ja-JP")}
+                        <span className="payback-tier-unit">/月</span>
+                      </>
+                    ) : (
+                      "なし (¥0)"
+                    )}
+                  </span>
+                </div>
                 <span className="payback-tiers-note">
                   {buyTariff.baselineBaseFeeYen === buyTariff.baseFeeYen
-                    ? "(削減額試算では基本料金を同額相殺 · 月次積算買電基準)"
-                    : `(比較基準 ¥${buyTariff.baselineBaseFeeYen.toLocaleString("ja-JP")}/月との差額反映)`}
+                    ? "削減額試算では同額相殺"
+                    : `比較基準 ¥${buyTariff.baselineBaseFeeYen.toLocaleString("ja-JP")}/月との差額反映`}
                 </span>
+              </div>
+
+              <div
+                className="payback-tier-grid"
+                style={{ "--tier-cols": 3 } as React.CSSProperties}
+              >
+                {buyTierItems.map((tier) => (
+                  <div key={tier.stage} className="payback-tier-cell">
+                    <div className="payback-tier-head">
+                      <span className="payback-tier-stage">{tier.stage}</span>
+                      <span className="payback-tier-range">{tier.range}</span>
+                    </div>
+                    <div className="payback-tier-price">
+                      ¥{tier.price}
+                      <span className="payback-tier-unit">/kWh</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className="payback-tiers-group">
-              <span className="payback-tiers-label">売電単価設定 (FIT/卒FIT):</span>
-              <div className="payback-tiers-chips">
-                <span className="ef-outline-badge payback-tier-chip">
-                  売電開始: {sellStartDate.replace(/-/g, "/")}〜
+            <div className="sim-summary-card payback-settings-card">
+              <div className="sim-summary-head">
+                <span className="sim-summary-title">売電単価設定 (FIT/卒FIT)</span>
+                <span className="ef-outline-badge payback-badge-gold">
+                  売電開始 {sellStartDate.replace(/-/g, "/")}〜
                 </span>
+              </div>
+
+              <div
+                className="payback-tier-grid"
+                style={
+                  {
+                    "--tier-cols": Math.max(1, Math.min(4, tiers.length)),
+                  } as React.CSSProperties
+                }
+              >
                 {tiers.map((t, i) => (
-                  <span key={i} className="ef-outline-badge payback-tier-chip">
-                    {formatTierLabel(t)}
-                  </span>
+                  <div key={i} className="payback-tier-cell">
+                    <div className="payback-tier-head">
+                      <span className="payback-tier-stage">
+                        {formatTierPeriod(t)}
+                      </span>
+                    </div>
+                    <div className="payback-tier-price">
+                      ¥{t.priceYenPerKwh}
+                      <span className="payback-tier-unit">/kWh</span>
+                    </div>
+                  </div>
                 ))}
-                <span className="payback-tiers-note">
-                  (想定自家消費 {Math.round(selfRatio * 100)}% / 売電{" "}
-                  {Math.round(exportRatio * 100)}%)
-                </span>
+              </div>
+
+              <div className="payback-kpi-sub">
+                想定自家消費 {Math.round(selfRatio * 100)}% / 売電{" "}
+                {Math.round(exportRatio * 100)}%
               </div>
             </div>
           </div>
