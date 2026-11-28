@@ -562,20 +562,27 @@ function PaybackChartView({
                   width: `${Math.max(actualPct, payback.totalBenefitYen > 0 ? 1.2 : 0)}%`,
                 }}
               />
-              <span className="payback-bar-label">
-                RECOVERED ¥{payback.totalBenefitYen.toLocaleString("ja-JP")} / TARGET ¥
-                {targetYen.toLocaleString("ja-JP")} ({actualPct.toFixed(2)}%)
-              </span>
-            </div>
-            <div className="payback-bar-sub">
-              Active {payback.activeDays}{" "}
-              {payback.activeDays === 1 ? "day" : "days"} · Total{" "}
-              {payback.totalSolarKwh.toFixed(1)} kWh (Avg. ¥
-              {avgDailyBenefitYen.toLocaleString("ja-JP")}/day)
+              <div className="payback-bar-content">
+                <span className="payback-bar-label">
+                  RECOVERED ¥{payback.totalBenefitYen.toLocaleString("ja-JP")} / TARGET ¥
+                  {targetYen.toLocaleString("ja-JP")} ({actualPct.toFixed(2)}%)
+                </span>
+                <span className="payback-bar-sub">
+                  Active {payback.activeDays}{" "}
+                  {payback.activeDays === 1 ? "day" : "days"} · Total{" "}
+                  {payback.totalSolarKwh.toFixed(1)} kWh (Avg. ¥
+                  {avgDailyBenefitYen.toLocaleString("ja-JP")}/day)
+                </span>
+              </div>
             </div>
           </div>
 
-          <div className="sim-chart-box">
+          <section className="summary-graph-block" aria-label="Cumulative Payback">
+            <div className="summary-subpage-head">
+              <span className="summary-subpage-title">CUMULATIVE PAYBACK</span>
+            </div>
+
+            <div className="sim-chart-box">
             <div className="summary-chart-legend sim-chart-legend" aria-label="Payback Legend">
               <span className="summary-legend-item">
                 <span className="sim-legend-swatch sim-legend-swatch-sell-actual" />
@@ -733,6 +740,7 @@ function PaybackChartView({
               </ComposedChart>
             </ResponsiveContainer>
           </div>
+          </section>
 
           <div
             className="payback-milestones-grid"
@@ -747,10 +755,7 @@ function PaybackChartView({
                 <span className="sim-month-val">
                   {formatCompactYen(pt.projectedCumYen)}
                 </span>
-                <span
-                  className="sim-month-pct"
-                  style={{ color: FORECAST_TEXT }}
-                >
+                <span className="sim-month-pct">
                   {pt.pctOfTarget.toFixed(pt.pctOfTarget < 10 ? 1 : 0)}%
                 </span>
               </div>
