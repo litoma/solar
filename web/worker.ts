@@ -5,6 +5,13 @@ import {
   getMarginalTierRate,
   type BuyTariffConfig,
 } from "./tariff";
+import {
+  WARRANTY_START_DATE,
+  computeDailyExpectedFromHourly,
+  evaluatePvHealth,
+  type OpenMeteoHourlyRadiation,
+  type PvHealthDailyExpected,
+} from "./pvHealth";
 
 export interface SellPriceTier {
   startYear: number;
@@ -203,7 +210,27 @@ const CREATE_TABLES_SQL = [
     pv4_kwh REAL,
     PRIMARY KEY (slot_min, jst_date)
   )`,
+  `CREATE TABLE IF NOT EXISTS pv_health_daily (
+    jst_date TEXT PRIMARY KEY,
+    pv1_exp_kwh REAL NOT NULL,
+    pv2_exp_kwh REAL NOT NULL,
+    pv3_exp_kwh REAL NOT NULL,
+    pv4_exp_kwh REAL NOT NULL,
+    ghi_kwh_m2 REAL NOT NULL,
+    avg_day_temp_c REAL,
+    source TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
 ];
+
+const UPSERT_PV_HEALTH_DAILY_SQL =
+  `INSERT INTO pv_health_daily (jst_date, pv1_exp_kwh, pv2_exp_kwh, pv3_exp_kwh, pv4_exp_kwh, ghi_kwh_m2, avg_day_temp_c, source, updated_at) ` +
+  `VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ` +
+  `ON CONFLICT(jst_date) DO UPDATE SET ` +
+  `pv1_exp_kwh = excluded.pv1_exp_kwh, pv2_exp_kwh = excluded.pv2_exp_kwh, ` +
+  `pv3_exp_kwh = excluded.pv3_exp_kwh, pv4_exp_kwh = excluded.pv4_exp_kwh, ` +
+  `ghi_kwh_m2 = excluded.ghi_kwh_m2, avg_day_temp_c = excluded.avg_day_temp_c, ` +
+  `source = excluded.source, updated_at = excluded.updated_at`;
 
 const CHECKPOINT_SLOT_MINUTES = 15;
 
@@ -1169,6 +1196,10 @@ async function handleScheduledIngest(
 
     await execBatched(env.DB, stmts);
 
+    const tzSec = (cfg.timezoneOffsetMinutes ?? 540) * 60;
+    const todayJst = new Date((nowSec + tzSec) * 1000).toISOString().slice(0, 10);
+    await syncMissingPvHealthDaily(env.DB, cfg, todayJst, nowSec, null);
+
     if (parsedMinutes.length > 0 || dailyStmts.length > 0) {
       const siteOrigin = (env.SOLAR_SITE_ORIGIN || "").trim();
       if (siteOrigin) {
@@ -1478,11 +1509,14 @@ async function queryDashboardRows(env: Env) {
     env.DB.prepare(
       "SELECT jst_date, solar_kwh, sell_kwh, buy_kwh, load_kwh, pv1_kwh, pv2_kwh, pv3_kwh, pv4_kwh, batt_chg_kwh, batt_dischg_kwh, samples FROM daily_summary",
     ),
+    env.DB.prepare(
+      "SELECT jst_date, pv1_exp_kwh, pv2_exp_kwh, pv3_exp_kwh, pv4_exp_kwh, ghi_kwh_m2, avg_day_temp_c FROM pv_health_daily",
+    ),
   ];
   try {
     return await env.DB.batch<Record<string, unknown>>(stmts);
   } catch (err) {
-    // 初回デプロイ直後など daily_summary 未作成時のみスキーマ初期化して再試行する
+    // 初回デプロイ直後など daily_summary / pv_health_daily 未作成時のみスキーマ初期化して再試行する
     if (err instanceof Error && /no such table/i.test(err.message)) {
       await ensureSchema(env.DB);
       return await env.DB.batch<Record<string, unknown>>(stmts);
@@ -1498,8 +1532,9 @@ async function buildDashboard(
   const tzSec = (cfg.timezoneOffsetMinutes ?? 540) * 60;
   const nowSec = Math.floor(Date.now() / 1000);
 
-  // D1 の読み取りは「最新1分値1行」「最新BMS 1行」「日別サマリー(1日1行)」だけ
-  const [latestResult, snapResult, dailyResult] = await queryDashboardRows(env);
+  // D1 の読み取りは「最新1分値1行」「最新BMS 1行」「日別サマリー」「日別POA期待発電量」だけ
+  const [latestResult, snapResult, dailyResult, healthResult] =
+    await queryDashboardRows(env);
   const latest =
     (latestResult.results?.[0] as Record<string, number | null> | undefined) ??
     null;
@@ -1508,6 +1543,8 @@ async function buildDashboard(
       | { ts: number; cells_json: string | null; temps_json: string | null }
       | undefined) ?? null;
   const dailyRows = (dailyResult.results || []) as unknown as DailySummaryRow[];
+  let healthRows = (healthResult?.results ||
+    []) as unknown as PvHealthDailyExpected[];
 
   const refTs =
     typeof latest?.ts === "number" ? latest.ts : Math.floor(Date.now() / 1000);
@@ -1977,6 +2014,23 @@ async function buildDashboard(
     sell: sellDayKwhFromSeries,
   });
 
+  // 未計算の実測完了日があれば Open-Meteo 日射量+気温から日別期待値を算出・保存
+  const syncedHealthRows = await syncMissingPvHealthDaily(
+    env.DB,
+    cfg,
+    todayJst,
+    nowSec,
+    { dailyRows, existingHealthRows: healthRows },
+  );
+  if (syncedHealthRows.length > 0) {
+    healthRows = syncedHealthRows;
+  }
+  const pvHealth = evaluatePvHealth({
+    dailyRows,
+    healthExpectedRows: healthRows,
+    todayJst,
+  });
+
   const body = {
     hasData: Boolean(latest),
     gatewayOnline,
@@ -1999,6 +2053,7 @@ async function buildDashboard(
     monthlyActualKwh,
     monthlyActualByYear,
     payback,
+    pvHealth,
     snapshot: latestSnap
       ? {
           ts: latestSnap.ts,
@@ -2477,6 +2532,158 @@ async function fetchWeather(
   } catch {
     return null;
   }
+}
+
+async function fetchOpenMeteoRadiationHistory(
+  lat: number,
+  lon: number,
+  pastDays = 31,
+  cacheTtl = 1800,
+): Promise<OpenMeteoHourlyRadiation | null> {
+  const clampedPast = Math.max(2, Math.min(92, Math.round(pastDays)));
+  const apiUrl =
+    `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}` +
+    `&hourly=temperature_2m,shortwave_radiation,direct_normal_irradiance,diffuse_radiation` +
+    `&timezone=Asia%2FTokyo&past_days=${clampedPast}&forecast_days=1`;
+  try {
+    const resp = await fetch(apiUrl, {
+      cf: { cacheTtl, cacheEverything: true },
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!resp.ok) return null;
+    const data = (await resp.json()) as {
+      hourly?: OpenMeteoHourlyRadiation;
+    };
+    if (!data?.hourly || !Array.isArray(data.hourly.time)) return null;
+    return data.hourly;
+  } catch {
+    return null;
+  }
+}
+
+function isoDateDiffDays(olderIso: string, newerIso: string): number {
+  const [oy, om, od] = olderIso.split("-").map(Number);
+  const [ny, nm, nd] = newerIso.split("-").map(Number);
+  if (
+    !Number.isFinite(oy) ||
+    !Number.isFinite(om) ||
+    !Number.isFinite(od) ||
+    !Number.isFinite(ny) ||
+    !Number.isFinite(nm) ||
+    !Number.isFinite(nd)
+  ) {
+    return 9999;
+  }
+  return Math.round(
+    (Date.UTC(ny, nm - 1, nd) - Date.UTC(oy, om - 1, od)) / 86400000,
+  );
+}
+
+/**
+ * 完了済みの実測日 (daily_summary.samples >= 480) に対して、未登録の pv_health_daily 行があれば
+ * Open-Meteo 履歴 (past_days 最大92日) から日別 POA+気温補正期待値を算出して保存する
+ */
+async function syncMissingPvHealthDaily(
+  db: D1Database,
+  cfg: SiteConfig,
+  todayJst: string,
+  nowSec: number,
+  preloaded: {
+    dailyRows: DailySummaryRow[];
+    existingHealthRows: PvHealthDailyExpected[];
+  } | null,
+): Promise<PvHealthDailyExpected[]> {
+  let dailyRows = preloaded?.dailyRows ?? [];
+  let existingHealthRows = preloaded?.existingHealthRows ?? [];
+
+  if (!preloaded) {
+    try {
+      const [dRes, hRes] = await db.batch([
+        db.prepare(
+          "SELECT jst_date, pv1_kwh, pv2_kwh, pv3_kwh, pv4_kwh, samples FROM daily_summary WHERE samples >= 480 AND jst_date >= ? AND jst_date < ?",
+        ).bind(WARRANTY_START_DATE, todayJst),
+        db.prepare(
+          "SELECT jst_date, pv1_exp_kwh, pv2_exp_kwh, pv3_exp_kwh, pv4_exp_kwh, ghi_kwh_m2, avg_day_temp_c FROM pv_health_daily",
+        ),
+      ]);
+      dailyRows = (dRes.results || []) as unknown as DailySummaryRow[];
+      existingHealthRows = (hRes.results || []) as unknown as PvHealthDailyExpected[];
+    } catch {
+      return existingHealthRows;
+    }
+  }
+
+  const existingDates = new Set(existingHealthRows.map((r) => r.jst_date));
+  const missingRecentDates = dailyRows
+    .filter(
+      (d) =>
+        typeof d.samples === "number" &&
+        d.samples >= 480 &&
+        d.jst_date >= WARRANTY_START_DATE &&
+        d.jst_date < todayJst &&
+        !existingDates.has(d.jst_date),
+    )
+    .map((d) => d.jst_date)
+    .filter((dt) => {
+      const age = isoDateDiffDays(dt, todayJst);
+      return age >= 1 && age <= 90;
+    });
+
+  if (missingRecentDates.length === 0) {
+    return existingHealthRows;
+  }
+
+  const maxAge = Math.max(...missingRecentDates.map((d) => isoDateDiffDays(d, todayJst)));
+  const hourly = await fetchOpenMeteoRadiationHistory(
+    cfg.latitude,
+    cfg.longitude,
+    Math.min(92, Math.max(14, maxAge + 2)),
+    1800,
+  );
+  if (!hourly) return existingHealthRows;
+
+  const computedMap = computeDailyExpectedFromHourly(
+    hourly,
+    cfg.latitude,
+    cfg.longitude,
+    cfg.timezoneOffsetMinutes ?? 540,
+  );
+
+  const stmts: D1PreparedStatement[] = [];
+  const merged = new Map<string, PvHealthDailyExpected>(
+    existingHealthRows.map((r) => [r.jst_date, r]),
+  );
+
+  for (const dt of missingRecentDates) {
+    const row = computedMap.get(dt);
+    if (!row) continue;
+    merged.set(dt, row);
+    stmts.push(
+      db
+        .prepare(UPSERT_PV_HEALTH_DAILY_SQL)
+        .bind(
+          row.jst_date,
+          row.pv1_exp_kwh,
+          row.pv2_exp_kwh,
+          row.pv3_exp_kwh,
+          row.pv4_exp_kwh,
+          row.ghi_kwh_m2,
+          row.avg_day_temp_c,
+          "open-meteo-forecast",
+          nowSec,
+        ),
+    );
+  }
+
+  if (stmts.length > 0) {
+    try {
+      await execBatched(db, stmts);
+    } catch (err) {
+      console.error("Failed to upsert pv_health_daily:", err);
+    }
+  }
+
+  return Array.from(merged.values());
 }
 
 function jsonResponse(body: unknown, status = 200): Response {

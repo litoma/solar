@@ -1,5 +1,7 @@
 import { mountOrUpdatePaybackChart, type PaybackData } from "./PaybackChart";
 import { mountOrUpdatePvCharts, type PvMonthlyRecord } from "./PvCharts";
+import { mountOrUpdatePvHealthView } from "./PvHealthView";
+import type { PvHealthPayload } from "./pvHealth";
 import { DEFAULT_BUY_TARIFF, type BuyTariffConfig } from "./tariff";
 import {
   PV_BASE_COLORS,
@@ -96,6 +98,7 @@ interface DashboardResponse {
     pv4: number;
   };
   pvMonthlyByYear?: Record<string, PvMonthlyRecord[]>;
+  pvHealth?: PvHealthPayload;
   pvMonthly?: PvMonthlyRecord[];
   monthlyAvgKwh?: {
     solar: number | null;
@@ -929,6 +932,7 @@ function renderDashboard(data: DashboardResponse): void {
       year,
       month,
     );
+    mountOrUpdatePvHealthView(data.pvHealth ?? null);
     positionSunMarker(
       minutesOfDay,
       data.sun.sunriseMin,
@@ -962,6 +966,7 @@ function renderDashboard(data: DashboardResponse): void {
     year,
     month,
   );
+  mountOrUpdatePvHealthView(data.pvHealth ?? null);
 
   // IoT (192.168.0.36) との接続状態: 直近データが取得できていれば ONLINE、古ければ OFFLINE
   const clientNowSec = Math.floor(Date.now() / 1000);
@@ -1609,5 +1614,6 @@ mountOrUpdatePaybackChart(
   initTime.year,
   initTime.month,
 );
+mountOrUpdatePvHealthView(null);
 refresh();
 scheduleRefresh(currentRefreshSec);

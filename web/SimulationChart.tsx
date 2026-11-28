@@ -16,6 +16,10 @@ import {
   resolveMonthlyPvValues,
   type PvMonthlyRecord,
 } from "./PvCharts";
+import {
+  CANATARO_ANNUAL_TOTAL_KWH,
+  CANATARO_BASE_SIMULATION,
+} from "./pvHealth";
 
 export interface MonthlySimItem {
   month: number;
@@ -32,23 +36,8 @@ export interface MonthlySimItem {
   pct: number;
 }
 
-// カナディアンソーラー太陽光発電シミュレーション (東京都練馬区 / 15枚 6.065kW / PCS-JP2-6G)
-const BASE_SIMULATION: Array<{ month: number; label: string; estimatedKwh: number }> = [
-  { month: 1, label: "JAN", estimatedKwh: 400 },
-  { month: 2, label: "FEB", estimatedKwh: 410 },
-  { month: 3, label: "MAR", estimatedKwh: 569 },
-  { month: 4, label: "APR", estimatedKwh: 640 },
-  { month: 5, label: "MAY", estimatedKwh: 785 },
-  { month: 6, label: "JUN", estimatedKwh: 630 },
-  { month: 7, label: "JUL", estimatedKwh: 702 },
-  { month: 8, label: "AUG", estimatedKwh: 655 },
-  { month: 9, label: "SEP", estimatedKwh: 489 },
-  { month: 10, label: "OCT", estimatedKwh: 407 },
-  { month: 11, label: "NOV", estimatedKwh: 328 },
-  { month: 12, label: "DEC", estimatedKwh: 333 },
-];
-
-export const ANNUAL_TOTAL_KWH = 6348;
+const BASE_SIMULATION = CANATARO_BASE_SIMULATION;
+export const ANNUAL_TOTAL_KWH = CANATARO_ANNUAL_TOTAL_KWH;
 
 interface TooltipPayloadItem {
   payload?: MonthlySimItem;
